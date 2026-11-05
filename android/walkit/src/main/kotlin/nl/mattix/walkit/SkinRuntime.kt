@@ -428,14 +428,36 @@ public class SkinRuntime(
     public fun tick(): Boolean = Native.rtTick(h(), -1)
 
     /** Every window's drawing with its place in the stack; draw each translated to its rectangle. */
-    public fun drawWindows(): List<Pair<Rect, List<DrawCmd>>> =
-        PackedFrame.decode(Native.rtDrawWindows(h(), false)).windows.map { it.rect to it.cmds }
+    public fun drawWindows(): List<Pair<Rect, List<DrawCmd>>> = frame(false).windows.map { it.rect to it.cmds }
 
     /**
      * Every window's drawing as [drawWindows] gives it, with the objects the last tick found moving
      * by themselves, taken: what [DrawPlanner.draw] plans from.
      */
-    internal fun drawPlanned(): PackedFrame.Frame = PackedFrame.decode(Native.rtDrawWindows(h(), true))
+    internal fun drawPlanned(): PackedFrame.Frame = frame(true)
+
+    /** Nanoseconds in the native draw call (the drawing and its packing), over every frame so far; for timing runs. */
+    public var nativeDrawNanos: Long = 0L
+        private set
+
+    /** Nanoseconds reading the packed frames into [DrawCmd]s, over every frame so far; for timing runs. */
+    public var decodeNanos: Long = 0L
+        private set
+
+    /** The packed frames' bytes, over every frame so far; for timing runs. */
+    public var frameBytes: Long = 0L
+        private set
+
+    private fun frame(takeChanged: Boolean): PackedFrame.Frame {
+        val t0 = System.nanoTime()
+        val bytes = Native.rtDrawWindows(h(), takeChanged)
+        val t1 = System.nanoTime()
+        val frame = PackedFrame.decode(bytes)
+        decodeNanos += System.nanoTime() - t1
+        nativeDrawNanos += t1 - t0
+        frameBytes += bytes.size
+        return frame
+    }
 
     // ---- touches -------------------------------------------------------------------------------
 
