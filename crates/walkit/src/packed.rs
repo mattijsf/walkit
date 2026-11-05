@@ -6,12 +6,15 @@
 //! name drawn forty times crosses once.
 //!
 //! Layout (`u32` unless said):
-//! - `"WKDL"`, version `1`
+//! - `"WKDL"`, version `2`
 //! - the string table: count, then each string as its byte length and UTF-8 bytes
+//! - the objects the last tick found moving by themselves: count, then each as an object id
+//!   (`i32`), for a host's planner
 //! - the windows: count, then each as id (`i32`), container (string index), layout (string
 //!   index), rect, command count, commands
 //!
-//! A rect is four `i32`: left, top, width, height. A command starts with a tag byte:
+//! A rect is four `i32`: left, top, width, height. A command starts with the id of the object
+//! that drew it (`i32`, -1 for the window's structure: the end of a shape or a clip), then a tag byte:
 //! 1 image (bitmap, rect, alpha `i32`, gamma, smooth `u8`), 2 fill (rect, rgb `i32`, alpha
 //! `i32`), 3 window start (region), 4 window end, 5 text (text, font, size `i32`, rgb `i32`,
 //! rect, alpha `i32`, bold `u8`, shadow, x `f32`, baseline `f32`), 6 bitmap text (text, rect),
@@ -32,7 +35,7 @@ use crate::draw::{BitmapDef, DrawCmd, Gamma, Rect, Region, RegionImage};
 use crate::host::{MenuItem, SkinMenu};
 
 /// The version written after the magic.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// One window of a frame as the encoder takes it: its id, its container and layout ids, where it
 /// sits in the stack, and its commands.
@@ -47,11 +50,18 @@ pub struct PackedWindow<'a> {
     pub rect: Rect,
     /// Its drawing.
     pub cmds: &'a [DrawCmd],
+    /// Who drew each command, as [`crate::runtime::DrawnWindow::owners`] has it.
+    pub owners: &'a [Option<usize>],
 }
 
-/// A frame's windows as one buffer; see the module.
-pub fn encode(windows: &[PackedWindow]) -> Vec<u8> {
+/// A frame's windows as one buffer, with `changed`, the objects the last tick found moving;
+/// see the module.
+pub fn encode(windows: &[PackedWindow], changed: &[usize]) -> Vec<u8> {
     let mut w = Writer::default();
+    w.u32(changed.len() as u32);
+    for o in changed {
+        w.i32(*o as i32);
+    }
     w.u32(windows.len() as u32);
     for win in windows {
         w.i32(win.id as i32);
@@ -59,7 +69,9 @@ pub fn encode(windows: &[PackedWindow]) -> Vec<u8> {
         w.string(win.layout);
         w.rect(&win.rect);
         w.u32(win.cmds.len() as u32);
-        for cmd in win.cmds {
+        for (i, cmd) in win.cmds.iter().enumerate() {
+            let owner = win.owners.get(i).copied().flatten();
+            w.i32(owner.map(|o| o as i32).unwrap_or(-1));
             w.cmd(cmd);
         }
     }
@@ -482,13 +494,30 @@ mod tests {
             DrawCmd::Unclip,
             DrawCmd::WindowEnd,
         ];
-        let bytes = encode(&[PackedWindow {
-            id: 7,
-            container: "main",
-            layout: "normal",
-            rect: Rect::new(10, 20, 300, 100),
-            cmds: &cmds,
-        }]);
+        // the layout (object 3) drew the shape and the background; a text object (12) the
+        // text, the clip and the pixels; the window's ends are nobody's
+        let owners: Vec<Option<usize>> = vec![
+            Some(3),
+            Some(3),
+            Some(3),
+            Some(3),
+            Some(12),
+            Some(12),
+            Some(12),
+            None,
+            None,
+        ];
+        let bytes = encode(
+            &[PackedWindow {
+                id: 7,
+                container: "main",
+                layout: "normal",
+                rect: Rect::new(10, 20, 300, 100),
+                cmds: &cmds,
+                owners: &owners,
+            }],
+            &[12],
+        );
         assert_eq!(&bytes[..4], b"WKDL");
         let strings = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         // main, normal, main.bg, main.png, Andamp, f, font.ttf: each once
@@ -501,7 +530,7 @@ mod tests {
     }
 
     /// The buffer above, as the Kotlin side's test holds it: a change here is a change of the format.
-    const FRAME_HEX: &str = "574b444c0100000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000006d61696e2e706e6706000000416e64616d70010000006608000000666f6e742e747466010000000700000000000000010000000a000000140000002c01000064000000090000000303010200000000000000000a0000000500000000000000000000000100000001020000000300000000000000000000000a00000005000000ffffffff00000000000000000a00000005000000ff000000000001020000000300000000000000000000000a00000005000000ffffffff01000000020000000a00000005000000ff000000000001020000000300000000000000000000000a00000005000000ffffffff03000000040000000a000000050000008000000000000200000000000000000100000001000000ff00ff00c800000005040000000105000000060000000c000000ffffff0000000000000000003200000014000000ff00000001010000000001000000010000000000204000002441070000000000000000020000000200000009000000000000000002000000010000000200000001000000ff00000001332211ff665544800804";
+    const FRAME_HEX: &str = "574b444c0200000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000006d61696e2e706e6706000000416e64616d70010000006608000000666f6e742e747466010000000c000000010000000700000000000000010000000a000000140000002c0100006400000009000000030000000303010200000000000000000a0000000500000000000000000000000100000001020000000300000000000000000000000a00000005000000ffffffff00000000000000000a00000005000000ff00000000000300000001020000000300000000000000000000000a00000005000000ffffffff01000000020000000a00000005000000ff00000000000300000001020000000300000000000000000000000a00000005000000ffffffff03000000040000000a00000005000000800000000000030000000200000000000000000100000001000000ff00ff00c80000000c00000005040000000105000000060000000c000000ffffff0000000000000000003200000014000000ff000000010100000000010000000100000000002040000024410c00000007000000000000000002000000020000000c00000009000000000000000002000000010000000200000001000000ff00000001332211ff66554480ffffffff08ffffffff04";
 
     #[test]
     fn a_menu_reads_back_as_it_was() {

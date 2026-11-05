@@ -1584,7 +1584,9 @@ impl SkinRuntime {
         // children paint only inside their group (Bento's title bar cuts its 20 px menu pictures at 18)
         out.push(DrawCmd::Clip(rect));
         for c in self.objects[g].children().to_vec() {
+            let from = out.len();
             self.draw_object(c, out);
+            self.claim_drawn(from, out.len(), c);
         }
         out.push(DrawCmd::Unclip);
     }

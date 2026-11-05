@@ -55,7 +55,7 @@ internal class PackedReader(
 
     companion object {
         const val MAGIC = "WKDL"
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }
 
@@ -82,7 +82,10 @@ internal class PackedOut {
     fun bytes(): ByteArray = body.toByteArray()
 }
 
-/** A frame as the engine packs it: every window with its drawing. */
+/**
+ * A frame as the engine packs it: the objects the last tick found moving, and every window with
+ * its drawing, each command marked with the object that drew it ([DrawCmd.ownedBy]).
+ */
 internal object PackedFrame {
     /** One window of a frame. */
     class Window(
@@ -93,17 +96,30 @@ internal object PackedFrame {
         val cmds: List<DrawCmd>,
     )
 
-    fun decode(bytes: ByteArray): List<Window> {
+    /** A frame: the ids of the objects the last tick found moving by themselves, and the windows. */
+    class Frame(
+        val changed: IntArray,
+        val windows: List<Window>,
+    )
+
+    fun decode(bytes: ByteArray): Frame {
         val r = PackedReader(bytes)
         r.header()
-        return List(r.i32()) {
-            val id = WindowId(r.i32())
-            val container = r.string()
-            val layout = r.string()
-            val rect = r.rect()
-            val cmds = List(r.i32()) { cmd(r) }
-            Window(id, container, layout, rect, cmds)
-        }
+        val changed = IntArray(r.i32()) { r.i32() }
+        val windows =
+            List(r.i32()) {
+                val id = WindowId(r.i32())
+                val container = r.string()
+                val layout = r.string()
+                val rect = r.rect()
+                val cmds =
+                    List(r.i32()) {
+                        val owner = r.i32()
+                        cmd(r).also { if (owner >= 0) it.ownedBy = owner }
+                    }
+                Window(id, container, layout, rect, cmds)
+            }
+        return Frame(changed, windows)
     }
 
     private fun bitmap(r: PackedReader): BitmapDef {
