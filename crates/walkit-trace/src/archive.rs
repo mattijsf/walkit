@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Skins read from `.wal` archives, with their siblings and the default element set.
+//! The inputs of a native run: skins read from `.wal` archives, with their siblings and the
+//! default element set, the picture decoder and the stand-in fonts.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -10,7 +11,8 @@ use std::rc::Rc;
 
 use walkit::files::{self, LayeredFiles, MemoryFiles, SkinFiles, SkinsFolderFiles};
 
-use walkit_trace::scenario::Scenario;
+use crate::host::{Decoder, Picture};
+use crate::scenario::Scenario;
 
 const MAX_ENTRY: u64 = 32 * 1024 * 1024;
 const MAX_TOTAL: u64 = 128 * 1024 * 1024;
@@ -121,4 +123,41 @@ pub fn skin_files(
         }
     }
     Ok(skin)
+}
+
+/// Decodes a picture with the `image` crate: PNG, BMP, GIF and JPEG, as ARGB.
+pub fn decoder() -> Decoder {
+    Box::new(|_file, bytes| {
+        let img = image::load_from_memory(bytes).ok()?;
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        let argb = rgba
+            .pixels()
+            .map(|p| {
+                ((p[3] as u32) << 24) | ((p[0] as u32) << 16) | ((p[1] as u32) << 8) | p[2] as u32
+            })
+            .collect();
+        Some(Picture {
+            w: w as i32,
+            h: h as i32,
+            argb,
+        })
+    })
+}
+
+/// The stand-in fonts in `dir`, by `fonts/<name>` as the engine asks for them.
+pub fn fonts(dir: &Path) -> Option<Rc<dyn SkinFiles>> {
+    let mut m = MemoryFiles::new();
+    for e in std::fs::read_dir(dir).ok()?.flatten() {
+        let path = e.path();
+        if path.extension().is_some_and(|x| x == "ttf") {
+            if let (Some(name), Ok(bytes)) = (
+                path.file_name().and_then(|n| n.to_str()),
+                std::fs::read(&path),
+            ) {
+                m.insert(&format!("fonts/{name}"), bytes);
+            }
+        }
+    }
+    Some(Rc::new(m))
 }

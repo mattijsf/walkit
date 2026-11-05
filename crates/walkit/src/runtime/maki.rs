@@ -467,7 +467,7 @@ impl SkinRuntime {
         named
     }
 
-    fn config_item_by_guid(&self, guid: &str) -> Option<usize> {
+    pub(crate) fn config_item_by_guid(&self, guid: &str) -> Option<usize> {
         self.config_items
             .iter()
             .map(|(_, i)| *i)
