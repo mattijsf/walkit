@@ -33,6 +33,11 @@ impl SkinRuntime {
             return true;
         }
         let status = self.player.status();
+        for v in self.vis_objects.clone() {
+            if self.vis_moving(v, status) && self.shows(v) {
+                return true;
+            }
+        }
         if status == Status::Stopped {
             return false;
         }
@@ -69,6 +74,11 @@ impl SkinRuntime {
                 }
             }
         }
+        for v in self.vis_objects.clone() {
+            if self.vis_moving(v, status) && self.shows(v) {
+                due = due.min(self.vis_next_step_at(v, now));
+            }
+        }
         if status == Status::Playing {
             for g in self.progress_grids.clone() {
                 if self.shows(g) {
@@ -83,11 +93,6 @@ impl SkinRuntime {
         } else {
             Some(due)
         }
-    }
-
-    /// A running timer's next firing, or `None` for one that is stopped.
-    fn timer_next_at(&self, _t: usize) -> Option<i64> {
-        None
     }
 
     /// `tick` with the next target slide placed `slide_lead` ms ahead of now.
@@ -112,6 +117,11 @@ impl SkinRuntime {
         // a text out of sight still keeps its ticker and its message up to date
         for o in self.texts.clone() {
             if self.text_tick(o, t) && self.shows(o) {
+                self.moved(o);
+            }
+        }
+        for o in self.vis_objects.clone() {
+            if self.vis_moving(o, status) && self.vis_step_due(o, t) && self.shows(o) {
                 self.moved(o);
             }
         }
@@ -160,9 +170,6 @@ impl SkinRuntime {
         }
         self.fire_timers(t);
     }
-
-    /// Fires the timers due at `t`.
-    fn fire_timers(&mut self, _t: i64) {}
 
     /// Moves `o` one frame toward its target; at the end the object sits there and hears `onTargetReached`.
     pub(crate) fn step_target(&mut self, o: ObjId, now: i64) {

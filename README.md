@@ -11,8 +11,9 @@ desktop. It is the engine behind [Andamp](https://andamp.nl)'s modern skins.
 
 ## Status
 
-Early. The engine is being ported from Andamp's Kotlin engine, skin by skin, checked by a
-trace of everything each engine does in a scripted run (see `ENGINEERING.md`). Nothing is
+Early. The engine is ported from Andamp's Kotlin engine and checked by a trace of everything
+each engine does in a scripted run (see `ENGINEERING.md`): every scenario of the reference set
+(45 runs over 12 skins, scripts included) records the same trace in both engines. Nothing is
 published yet.
 
 ## Building

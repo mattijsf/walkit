@@ -9,9 +9,6 @@ use crate::gui::{Behavior, Kind, ObjId};
 use crate::host::Edge;
 use crate::maki::{Handle, Value};
 
-/// The size of a group that writes none and has no background (Wasabi SDK basewnd).
-const UNSIZED_W: i32 = 320;
-const UNSIZED_H: i32 = 200;
 /// A window no screen could show is cut to the largest picture size.
 pub(crate) const MAX_SIDE: i32 = 8_192;
 
@@ -176,9 +173,9 @@ impl SkinRuntime {
             Kind::Text(_) => texts.push(o),
             Kind::ProgressGrid(..) => grids.push(o),
             Kind::Button(_) => buttons.push(o),
+            Kind::Vis(_) => vis.push(o),
             _ => {}
         }
-        let _ = vis;
         for c in self.objects[o].children() {
             self.walk_found(*c, all, sliders, texts, vis, grids, buttons);
         }
@@ -318,6 +315,9 @@ impl SkinRuntime {
         }
         fn walk(rt: &SkinRuntime, o: ObjId) -> bool {
             let obj = &rt.objects[o];
+            if matches!(obj.kind, Kind::PlaylistView(_) | Kind::ColorThemeList(_)) {
+                return true;
+            }
             if obj.group.is_some() {
                 (super::HOLDER_TAGS.contains(&obj.base.tag.as_str()) && holds_list(&obj.base.attrs))
                     || obj.children().iter().any(|c| walk(rt, *c))
@@ -566,11 +566,6 @@ impl SkinRuntime {
         self.has_handle(l, &["top", "bottom"], false)
     }
 
-    /// Whether the user can change the window's width: a handle on a left or right edge.
-    pub(crate) fn resizes_horizontally(&self, l: ObjId) -> bool {
-        self.has_handle(l, &["left", "right"], false)
-    }
-
     /// Whether the skin's XML gives the window handles both ways, whatever its scripts set later.
     pub(crate) fn declared_resizable_both_ways(&self, l: ObjId) -> bool {
         self.has_handle(l, &["left", "right"], true) && self.has_handle(l, &["top", "bottom"], true)
@@ -709,7 +704,9 @@ impl SkinRuntime {
         self.objects[o].base.rect = rect;
         let alpha = self.paint_alpha(o, parent_alpha);
         self.objects[o].base.effective_alpha = alpha;
-        if self.objects[o].group.is_some() {
+        if matches!(self.objects[o].kind, Kind::Frame(_)) {
+            self.frame_lay_out_children(o);
+        } else if self.objects[o].group.is_some() {
             for c in self.objects[o].children().to_vec() {
                 self.lay_out(c, rect, alpha);
             }
