@@ -958,6 +958,17 @@ impl SkinRuntime {
         self.view_size
     }
 
+    /// What getSkinName() answers: the skin's folder name, which scripts key what they remember
+    /// by; the name in the skin's `<skininfo>` when the host gave none before `load`.
+    pub fn skin_name(&self) -> &str {
+        &self.skin_name
+    }
+
+    /// Names the skin for its scripts, before or after `load`; a name given stays through `load`.
+    pub fn set_skin_name(&mut self, name: &str) {
+        self.skin_name = name.to_string();
+    }
+
     /// How the host shows the windows, as one value.
     pub fn presentation(&self) -> Presentation {
         Presentation {

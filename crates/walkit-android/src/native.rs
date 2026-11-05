@@ -538,6 +538,31 @@ pub fn rt_viewport<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) ->
 }
 
 /// How many times a script placed the main window against an edge after a menu pick.
+/// What getSkinName() answers.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_skin_name<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JString<'l> {
+    env.with_env(|env| {
+        let name = with_rt(env, h, |r| r.rt.skin_name().to_string())?;
+        env.new_string(&name)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Names the skin for its scripts, before or after it loads.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_skin_name<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    name: JString<'l>,
+) {
+    env.with_env(|env| {
+        let name = name.to_string();
+        with_rt(env, h, |r| r.rt.set_skin_name(&name))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// How the host shows the windows: whether there is a view size and its width and height, the
 /// viewport's width and height, the columns, the column width, whether the last list window
 /// stretches, and the touch slop.
