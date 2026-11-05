@@ -8,6 +8,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+#[cfg(feature = "native")]
+pub mod archive;
 pub mod host;
 pub mod scenario;
 pub mod trace;

@@ -16,9 +16,9 @@ import java.util.TimeZone
  *
  * What the native engine does not port yet is marked on each member and refuses with
  * [UnsupportedOperationException], or answers empty where the reference engine answers nothing
- * of note: [skinOptions], [toggleSkinOption] and [configVersion], the stack arrangement in
- * columns ([presentation], [contentRight], [shownWidth], [naturalStackSize], [leftColumn],
- * [listWindowOpen]), and the visualizer window ([visRect], [visualizerWindowClosed]).
+ * of note: the stack arrangement in columns ([presentation], [contentRight], [shownWidth],
+ * [naturalStackSize], [leftColumn], [listWindowOpen]), and the visualizer window ([visRect],
+ * [visualizerWindowClosed]).
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -137,15 +137,55 @@ public class SkinRuntime(
         Native.rtRestoreSettings(h(), out.bytes())
     }
 
-    /** Counts changes to the skin's Config items. Not ported yet: always 0. */
-    public val configVersion: Int get() = 0
+    /**
+     * Counts changes to the skin's Config items: an item or attribute made, an attribute made by
+     * newAttribute, or a value changed. A host compares it to [SkinOptions.version] to know whether
+     * [skinOptions] would read differently.
+     */
+    public val configVersion: Int get() = Native.rtConfigVersion(h())
 
-    /** The options a skin's scripts list for Winamp's Options menu. Not ported yet: [SkinOptions.EMPTY]. */
-    public fun skinOptions(): SkinOptions = SkinOptions.EMPTY
+    /**
+     * The options the skin's scripts list for Winamp's Options menu, read from the Config item
+     * Winamp lists there only. An attribute whose value is another item's GUID is a submenu named
+     * by the attribute, "-" is a separator, and any other is a toggle. Attributes only read with
+     * getAttribute are left out. Reading makes no item. A toggle is a radio button when a toggle
+     * button of the skin set to that attribute draws a picture whose id says "radio".
+     */
+    public fun skinOptions(): SkinOptions {
+        val r = PackedReader(Native.rtSkinOptions(h()))
+        val version = r.i32()
+        return SkinOptions(version, optionEntries(r))
+    }
 
-    /** Flips the option [key] names. Not ported yet: refuses. */
-    public fun toggleSkinOption(key: SkinOptions.Key): Boolean =
-        throw UnsupportedOperationException("walkit does not port skin options yet (${key.item}/${key.attribute})")
+    private fun optionEntries(r: PackedReader): List<SkinOptions.Entry> =
+        List(r.i32()) {
+            when (val kind = r.i32()) {
+                1 -> {
+                    val key = SkinOptions.Key(r.inlineString(), r.inlineString())
+                    SkinOptions.Toggle(key, r.inlineString(), r.i32() != 0, r.i32() != 0)
+                }
+
+                2 -> {
+                    SkinOptions.Separator
+                }
+
+                3 -> {
+                    SkinOptions.Submenu(r.inlineString(), optionEntries(r))
+                }
+
+                else -> {
+                    throw IllegalStateException("walkit packed options: entry kind $kind")
+                }
+            }
+        }
+
+    /**
+     * Flips the option [key] names as a pick from Winamp's menu does: "1" over a value that reads
+     * as 0, "0" over any other. It is set with setData, so every script hears onDataChanged and the
+     * value is kept with the skin's settings. False for an unknown key, a separator, or a value
+     * that is a GUID, a submenu's or not.
+     */
+    public fun toggleSkinOption(key: SkinOptions.Key): Boolean = Native.rtToggleSkinOption(h(), key.item, key.attribute)
 
     // ---- the screen --------------------------------------------------------------------------
 

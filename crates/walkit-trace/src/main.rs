@@ -16,14 +16,10 @@
 //! the folder with the free fonts that stand in for Windows' system fonts. `--stats` writes
 //! what each run took as JSON (see `walkit_trace::trace::Stats`).
 
-mod archive;
-
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::rc::Rc;
 
-use walkit::files::{MemoryFiles, SkinFiles};
-use walkit_trace::host::{Decoder, Picture};
+use walkit_trace::archive;
 use walkit_trace::trace::Stats;
 
 fn usage() -> ExitCode {
@@ -35,43 +31,6 @@ fn usage() -> ExitCode {
         walkit::TRACE_VERSION
     );
     ExitCode::from(2)
-}
-
-/// Decodes a picture with the `image` crate: PNG, BMP, GIF and JPEG, as ARGB.
-fn decoder() -> Decoder {
-    Box::new(|_file, bytes| {
-        let img = image::load_from_memory(bytes).ok()?;
-        let rgba = img.to_rgba8();
-        let (w, h) = rgba.dimensions();
-        let argb = rgba
-            .pixels()
-            .map(|p| {
-                ((p[3] as u32) << 24) | ((p[0] as u32) << 16) | ((p[1] as u32) << 8) | p[2] as u32
-            })
-            .collect();
-        Some(Picture {
-            w: w as i32,
-            h: h as i32,
-            argb,
-        })
-    })
-}
-
-/// The stand-in fonts in `dir`, by `fonts/<name>` as the engine asks for them.
-fn fonts(dir: &Path) -> Option<Rc<dyn SkinFiles>> {
-    let mut m = MemoryFiles::new();
-    for e in std::fs::read_dir(dir).ok()?.flatten() {
-        let path = e.path();
-        if path.extension().is_some_and(|x| x == "ttf") {
-            if let (Some(name), Ok(bytes)) = (
-                path.file_name().and_then(|n| n.to_str()),
-                std::fs::read(&path),
-            ) {
-                m.insert(&format!("fonts/{name}"), bytes);
-            }
-        }
-    }
-    Some(Rc::new(m))
 }
 
 fn percentile(sorted: &[f64], p: f64) -> f64 {
@@ -180,7 +139,7 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     let siblings = archive::Siblings::new(&skins);
-    let fonts = font_dir.as_deref().and_then(fonts);
+    let fonts = font_dir.as_deref().and_then(archive::fonts);
     let mut failed = 0;
     let mut all_stats: Vec<String> = Vec::new();
     let started = std::time::Instant::now();
@@ -202,7 +161,7 @@ fn main() -> ExitCode {
         let perf_start = std::time::Instant::now();
         let perf: walkit_trace::trace::Perf =
             Box::new(move || perf_start.elapsed().as_secs_f64() * 1000.0);
-        let rec = walkit_trace::record(sc, files, decoder(), fonts.clone(), perf);
+        let rec = walkit_trace::record(sc, files, archive::decoder(), fonts.clone(), perf);
         let path = out.join(format!("{}.trace", sc.name));
         if let Err(e) = std::fs::write(&path, &rec.text) {
             eprintln!("{}: {e}", path.display());

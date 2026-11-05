@@ -136,6 +136,17 @@ internal object Native {
 
     @JvmStatic external fun rtSettingsVersion(h: Long): Int
 
+    @JvmStatic external fun rtConfigVersion(h: Long): Int
+
+    @JvmStatic external fun rtSkinOptions(h: Long): ByteArray
+
+    @JvmStatic
+    external fun rtToggleSkinOption(
+        h: Long,
+        item: String,
+        attribute: String,
+    ): Boolean
+
     @JvmStatic external fun rtSavedSettings(h: Long): ByteArray
 
     @JvmStatic

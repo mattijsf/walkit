@@ -12,6 +12,7 @@ pub(crate) mod layout;
 mod lists;
 mod maki;
 mod objects;
+mod options;
 mod pointer;
 mod system;
 #[cfg(test)]
