@@ -14,6 +14,7 @@ cargo test --workspace                      # the tests
 cargo run -p walkit-trace -- <scenarios.json> traces --skins <dir> --defaults <zip>   # record the reference scenarios
 tools/trace-diff.sh                         # diff traces/ against the reference engine's
 tools/web-build.sh                          # the web build: page and recorder modules, wasm-opt, sizes
+(cd android && ./gradlew assembleRelease)   # the Android AAR, native library included (android/README.md)
 node web/node.mjs <scenarios.json> traces-wasm --wasm web/dist/walkit-release-trace.wasm \
   --skins <dir> --defaults <zip> --fonts <dir>    # the same scenarios through the wasm module in node
 node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios <json> --skins <dir> \
@@ -51,15 +52,17 @@ web runs.
   surface, as native methods of `nl.mattix.walkit.Native`, with the host's answers coming back
   through bridge objects the Kotlin side registers. A frame crosses as the packed buffer of the
   engine's `packed` module. The other crate with unsafe code (the handle the Kotlin side holds).
+- `android/`: the Gradle project of the AAR `nl.mattix.walkit:walkit`: the Kotlin API (package
+  `nl.mattix.walkit`, a mirror of Andamp's `:modernskin` `skin` package), the JVM unit tests of
+  the packed decoding, and the instrumented parity test; `android/README.md` has the toolchain.
 - `web/`: the JS side. `walkit.mjs` loads the module and wraps the surface; `corpus.mjs` runs
   the reference scenarios as `walkit-trace` does; `pictures.mjs` decodes PNG, BMP and GIF the
   way the native binary does; `zip.mjs` reads `.wal` archives; `node.mjs` is the node runner,
   `serve.mjs` + `index.html` + `browser.mjs` the browser one. No build step, no npm.
 - `tools/`: the gate, the trace diff and the web build.
 
-The Android library takes the Rust targets `aarch64-linux-android` and `x86_64-linux-android`
-(`rustup target add`), `cargo-ndk` and the Android NDK (28): `cargo ndk -t arm64-v8a -t x86_64
-build -p walkit-android --release` writes `libwalkit.so` per ABI under `target/`.
+The Android library takes the Rust targets `aarch64-linux-android` and `x86_64-linux-android`,
+`cargo-ndk`, a JDK 17 and the Android SDK with NDK 28; `android/README.md` lists the steps.
 
 ## The trace
 
