@@ -3,9 +3,6 @@
 //! A line of text: a fixed string, or a player display such as the time or the song name. With
 //! `ticker="1"` a string wider than the box scrolls.
 
-// the script methods the VM calls once it lands
-#![allow(dead_code)]
-
 use std::rc::Rc;
 
 use crate::draw::{

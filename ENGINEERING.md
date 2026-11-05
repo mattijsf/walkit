@@ -23,7 +23,9 @@ cargo build --profile small --target wasm32-unknown-unknown -p walkit   # the we
   modules follow the reference engine's files: `files` (the skin's files and how a host stacks
   them), `xml`, `draw` (the draw list), `host` (what the engine asks of its host), `player`,
   `gui` (what each kind of object keeps, in one arena the runtime reaches by index), `text`,
-  `runtime` (loading, layout, drawing, the tick, touches and actions) and `maki` (the scripts).
+  `runtime` (loading, layout, drawing, the tick, touches and actions, the objects scripts make,
+  and the interpreter that runs the scripts' handlers) and `maki` (values, the `.maki` parser,
+  the standard library's table, and what a loaded script keeps).
 - `crates/walkit-trace`: a binary that runs a set of scenarios through the engine on a
   stepped clock and writes each run's trace. Not published.
 - `tools/`: the gate and the trace diff.
@@ -54,7 +56,8 @@ and are never committed: the skins are other people's work. Traces are not commi
 
 - Every source file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`.
 - No unsafe code. Scripts are untrusted input: every loop, stack and allocation the VM does
-  has a limit, and a skin that breaks a limit stops cleanly.
+  has a limit, and a skin that breaks a limit stops cleanly (a handler that runs too long or
+  too deep is cut off and logged; a script that fails twenty times is switched off).
 - The engine stays platform-free: no file, screen, font, clock or thread inside the crate.
   Those come in through the host trait and the clock the host passes.
 - `tools/gate.sh` before every push; the lefthook pre-push hook runs it. CI

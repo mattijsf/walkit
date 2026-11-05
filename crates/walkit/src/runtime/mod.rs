@@ -4,15 +4,19 @@
 //! player and the objects. Everything runs on one thread; the app calls `tick` regularly and
 //! `draw_windows` when something changed.
 
-// what the scripts reach once the VM lands
-#![allow(dead_code)]
-
 mod build;
+mod calls;
 mod draw;
+mod frames;
 pub(crate) mod layout;
+mod lists;
+mod maki;
 mod objects;
 mod pointer;
+mod system;
 mod tick;
+mod vis;
+mod vm;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
@@ -137,9 +141,21 @@ pub struct SkinRuntime {
     shown_before: HashSet<ContainerId>,
     pub(crate) scripts: Vec<Script>,
     pub(crate) systems: Vec<SystemObject>,
-    programs: HashMap<String, bool>,
+    programs: HashMap<String, Option<Rc<crate::maki::Program>>>,
+    pub(crate) made: Vec<maki::Made>,
+    config_items: Vec<(String, usize)>,
+    created: i64,
+    random_state: u64,
+    /// How far the local time is from UTC at a moment of the clock, in ms.
+    zone_offset: Box<dyn Fn(i64) -> i32>,
+    /// The windows the app opened for a script's `showWindow` and has not closed since.
+    shown_for_skin: Vec<String>,
+    /// An error a method call raised for the script running it.
+    pub(crate) script_error: Option<String>,
     pending_starts: Vec<usize>,
     pub(crate) timers: Vec<usize>,
+    /// Component buckets that have yet to hear onStartup, which they do once a script listens to them.
+    starting_buckets: Vec<ObjId>,
     pub(crate) animations: Vec<ObjId>,
     /// Objects on their way to a target set with `setTarget*` and `gotoTarget`.
     pub(crate) moving: Vec<ObjId>,
@@ -266,8 +282,16 @@ impl SkinRuntime {
             scripts: Vec::new(),
             systems: Vec::new(),
             programs: HashMap::new(),
+            made: Vec::new(),
+            config_items: Vec::new(),
+            created: 0,
+            random_state: 0x9E37_79B9_7F4A_7C15,
+            zone_offset: Box::new(|_| 0),
+            shown_for_skin: Vec::new(),
+            script_error: None,
             pending_starts: Vec::new(),
             timers: Vec::new(),
+            starting_buckets: Vec::new(),
             animations: Vec::new(),
             moving: Vec::new(),
             private_ints: HashMap::new(),
@@ -346,6 +370,12 @@ impl SkinRuntime {
     pub fn set_viewport(&mut self, w: i32, h: i32) {
         self.viewport_w = w;
         self.viewport_h = h;
+    }
+
+    /// How far the local time is from UTC at a moment of the clock, in ms: the time of day
+    /// scripts read is local. 0 unless the host says.
+    pub fn set_zone_offset(&mut self, f: Box<dyn Fn(i64) -> i32>) {
+        self.zone_offset = f;
     }
 
     /// The screen as scripts ask for it (`getViewportWidth`): the phone's view in layout pixels once known.
@@ -1123,7 +1153,7 @@ impl SkinRuntime {
         }
         let mut n = 0;
         for s in 0..self.scripts.len() {
-            if s < self.scripts.len() && self.scripts[s].events().contains(event) {
+            if s < self.scripts.len() && self.scripts[s].hears(event) {
                 n += self.script_dispatch(s, target, event, args).0;
             }
         }
@@ -1149,7 +1179,7 @@ impl SkinRuntime {
         }
         let mut result = Value::Null;
         for s in 0..self.scripts.len() {
-            if s < self.scripts.len() && self.scripts[s].events().contains(event) {
+            if s < self.scripts.len() && self.scripts[s].hears(event) {
                 let (n, last) = self.script_dispatch(s, target, event, args);
                 if n > 0 {
                     result = last;
@@ -1177,17 +1207,6 @@ impl SkinRuntime {
         } else {
             None
         }
-    }
-
-    /// Runs the handlers of script `s` for `event` on `target`: how many ran, and the last return.
-    fn script_dispatch(
-        &mut self,
-        _s: usize,
-        _target: Handle,
-        _event: &str,
-        _args: &[Value],
-    ) -> (i32, Value) {
-        (0, Value::Null)
     }
 
     /// A script hears System events only once it has run onScriptLoaded (Wasabi SDK objcontroller).
@@ -1701,6 +1720,38 @@ impl SkinRuntime {
         self.tell_windows();
     }
 
+    /// The stack's size, in layout pixels.
+    pub fn stack_size(&mut self) -> (i32, i32) {
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let rects: Vec<Rect> = self
+            .windows()
+            .into_iter()
+            .map(|l| self.window_rect_of(l))
+            .collect();
+        (
+            rects.iter().map(|r| r.right()).max().unwrap_or(0),
+            rects.iter().map(|r| r.bottom()).max().unwrap_or(0),
+        )
+    }
+
+    /// The part of the stack its windows show, in layout pixels: the stack with each window cut
+    /// on its right to where it shows and on its bottom to the part Winamp docks and snaps to.
+    pub fn drawn_size(&mut self) -> (i32, i32) {
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let mut right = 0;
+        let mut bottom = 0;
+        for l in self.windows() {
+            let r = self.window_rect_of(l);
+            right = right.max(r.left + self.content_right(l));
+            bottom = bottom.max(r.top + self.snapped_size(l).1);
+        }
+        (right, bottom)
+    }
+
     /// The main window's drawing.
     pub fn draw_main(&mut self) -> Vec<DrawCmd> {
         match self.main_layout() {
@@ -1742,5 +1793,8 @@ pub(crate) fn names_for(id: &str) -> Vec<String> {
 
 /// Whether `k` is one of the kinds that holds children.
 pub(crate) fn is_grouped(k: &Kind) -> bool {
-    matches!(k, Kind::Group | Kind::Layout(_))
+    matches!(
+        k,
+        Kind::Group | Kind::Layout(_) | Kind::Frame(_) | Kind::Bucket(_) | Kind::XFade(_)
+    )
 }

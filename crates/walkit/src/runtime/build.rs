@@ -8,12 +8,14 @@ use std::rc::Rc;
 
 use super::{SkinRuntime, MAX_INCLUDE_DEPTH, MAX_NODES, MAX_OBJECTS, MAX_XML_DEPTH, PLAYLIST_GUID};
 use crate::draw::{BitmapDef, BitmapFontDef, FontDef, Gamma};
-use crate::files::{self, BASE_PREFIX};
+use crate::files::BASE_PREFIX;
 use crate::gui::{
-    to_int_lenient, AnimData, Behavior, ButtonData, ButtonKind, GridData, ImagesData, Kind,
-    LayerData, LayoutData, MenuData, Obj, ObjId, ProgressData, RectData, SliderData, StatusData,
+    to_int_lenient, AnimData, Behavior, BucketData, ButtonData, ButtonKind, EqVisData, FrameData,
+    GradientData, GridData, ImagesData, Kind, LayerData, LayoutData, LayoutStatusData, MenuData,
+    Obj, ObjId, PlaylistData, ProgressData, RectData, SliderData, StatusData, ThemeListData,
+    XFadeData,
 };
-use crate::maki::SystemObject;
+use crate::maki::{Handle, SystemObject};
 use crate::text::TextData;
 use crate::xml::{self, XmlNode};
 
@@ -656,10 +658,7 @@ impl SkinRuntime {
             // Winamp's own playlist editor, which a skin embeds as a component
             "component" | "windowholder" => {
                 if Self::holds(&node.attrs, PLAYLIST_GUID) {
-                    // the playlist view is a later part of the port: it stands in as an object the runtime does not draw
-                    Kind::Unknown {
-                        class_name: "GuiObject".into(),
-                    }
+                    Kind::PlaylistView(PlaylistData::default())
                 } else {
                     let g = self.new_object(name, Kind::Group);
                     self.fill_group(g, node, node.get("id"));
@@ -667,18 +666,38 @@ impl SkinRuntime {
                     return;
                 }
             }
-            "group" | "cfggroup" | "wasabi:frame" | "frame" | "componentbucket" | "groupxfade" => {
-                // frames, buckets and crossfades are later parts of the port: they fill as plain groups
-                let g = self.new_object(name, Kind::Group);
-                let def_id = if name == "wasabi:frame" || name == "frame" {
-                    None
-                } else {
-                    node.get("id")
-                };
-                self.fill_group(g, node, def_id);
+            "wasabi:frame" | "frame" => {
+                let f = self.new_object(name, Kind::Frame(FrameData::default()));
+                self.fill_group(f, node, None);
+                self.add_child(parent, f);
+                return;
+            }
+            // a window holder for Winamp's playlist editor is the playlist view as well (Bento)
+            "componentbucket" => {
+                let b = self.new_object(name, Kind::Bucket(BucketData::default()));
+                self.fill_group(b, node, node.get("id"));
+                self.bucket_fill(b);
+                self.add_child(parent, b);
+                self.starting_buckets.push(b);
+                return;
+            }
+            "groupxfade" => {
+                let g = self.new_object(name, Kind::XFade(XFadeData::default()));
+                self.fill_group(g, node, node.get("id"));
                 self.add_child(parent, g);
                 return;
             }
+            "group" | "cfggroup" => {
+                let g = self.new_object(name, Kind::Group);
+                self.fill_group(g, node, node.get("id"));
+                self.add_child(parent, g);
+                return;
+            }
+            "vis" => Kind::Vis(Box::default()),
+            "eqvis" => Kind::EqVis(EqVisData::default()),
+            "colorthemes:list" => Kind::ColorThemeList(ThemeListData::default()),
+            "gradient" => Kind::Gradient(GradientData::default()),
+            "layoutstatus" => Kind::LayoutStatus(LayoutStatusData::default()),
             "layout" => {
                 let pid = self.objects[parent].base.id.clone();
                 self.host.log(&format!("nested <layout> in {pid} ignored"));
@@ -877,25 +896,30 @@ impl SkinRuntime {
             self.base_usage.insert(format!("script:{rest}"));
         }
         let key = file.to_lowercase();
-        let loaded = match self.programs.get(&key) {
-            Some(l) => *l,
+        let program = match self.programs.get(&key) {
+            Some(p) => p.clone(),
             None => {
                 let short = format!("scripts/{}", file.rsplit('/').next().unwrap_or(file));
                 let bytes = self.files.read(file).or_else(|| self.files.read(&short));
-                let loaded = match bytes {
+                let program = match bytes {
                     None => {
                         self.host.log(&format!("script not found: {file}"));
-                        false
+                        None
                     }
-                    Some(bytes) => self.load_program(&bytes, file),
+                    // the parser reports any damaged file as an error
+                    Some(bytes) => match crate::maki::parser::parse(&bytes, file) {
+                        Ok(p) => Some(Rc::new(p)),
+                        Err(e) => {
+                            self.host.log(&format!("script {file}: {e}"));
+                            None
+                        }
+                    },
                 };
-                self.programs.insert(key, loaded);
-                loaded
+                self.programs.insert(key, program.clone());
+                program
             }
         };
-        if !loaded {
-            return;
-        }
+        let Some(program) = program else { return };
         let s = self.systems.len();
         self.systems.push(SystemObject {
             group,
@@ -903,7 +927,8 @@ impl SkinRuntime {
             script_id: file.to_string(),
             started: false,
         });
-        self.scripts.push(crate::maki::Script::default());
+        let script = crate::maki::Script::new(program, Handle::System(s), |guid| self.create(guid));
+        self.scripts.push(script);
         if let Some(g) = group {
             if let Some(gd) = self.objects[g].group.as_mut() {
                 gd.system_objects.push(s);
@@ -915,15 +940,6 @@ impl SkinRuntime {
             self.relayout();
         }
     }
-
-    /// Parses a script's bytes; false when the file is damaged (and the log says so).
-    fn load_program(&mut self, _bytes: &[u8], _file: &str) -> bool {
-        // the parser and the VM are a later part of the port
-        true
-    }
-
-    /// Tells each waiting bucket onStartup once a script listens to it.
-    pub(crate) fn start_buckets(&mut self) {}
 
     /// `System.newGroup(id)`: a fresh instance of a groupdef, not yet in any parent.
     pub(crate) fn instantiate_group(&mut self, id: &str) -> Option<ObjId> {
@@ -1001,9 +1017,4 @@ fn prefix_files(node: &Rc<XmlNode>, prefix: &str) -> Rc<XmlNode> {
             .collect(),
         text: node.text.clone(),
     })
-}
-
-/// The path keys of the default set, for a files stack that reads it.
-pub fn base_path(path: &str) -> String {
-    files::normalize(&format!("{BASE_PREFIX}{path}"))
 }
