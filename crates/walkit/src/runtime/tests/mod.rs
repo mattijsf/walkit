@@ -4,7 +4,9 @@
 //! on the same skins: the tests of Andamp's `:modernskin` module that the trace cannot show.
 
 mod options;
+mod presentation;
 mod settings;
+mod stack;
 
 use std::rc::Rc;
 

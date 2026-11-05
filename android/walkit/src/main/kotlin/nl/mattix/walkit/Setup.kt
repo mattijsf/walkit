@@ -23,9 +23,6 @@ public data class SkinSetup(
  * - [columnWidth]: how wide that right column is, 0 for as wide as what shows of the main window;
  * - [stretchLast]: whether the last docked list window takes the height left under the others;
  * - [touchSlop]: how far beside an object a finger may land and still mean it.
- *
- * The engine in this binding takes [viewSize] and [viewport]; the other four are not ported
- * yet and are refused when they differ from their defaults (see [SkinRuntime.presentation]).
  */
 public data class Presentation(
     val viewSize: Pair<Int, Int>? = null,

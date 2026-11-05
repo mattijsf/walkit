@@ -91,7 +91,7 @@ pub(crate) struct PointerState {
 
 impl SkinRuntime {
     /// The window under a point of the stack, or the nearest within the touch slop.
-    fn window_at(&mut self, x: i32, y: i32) -> Option<ObjId> {
+    pub(crate) fn window_at(&mut self, x: i32, y: i32) -> Option<ObjId> {
         if self.needs_layout {
             self.do_layout();
         }

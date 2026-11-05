@@ -201,7 +201,8 @@ impl SkinRuntime {
             }
             return;
         };
-        for column in self.columns_of(main, &others) {
+        let (columns, column_width) = (self.columns, self.column_width);
+        for column in self.columns_of(main, &others, columns, column_width) {
             let mut y = column.top;
             let last = column.windows.len().saturating_sub(1);
             for (i, l) in column.windows.iter().copied().enumerate() {
@@ -234,13 +235,22 @@ impl SkinRuntime {
         }
     }
 
-    /// The columns `others` dock in beside or under `main`.
-    fn columns_of(&mut self, main: ObjId, others: &[ObjId]) -> Vec<Column> {
+    /// The columns `others` dock in beside or under `main`: one under what is visible of the
+    /// main window, as wide as what shows of it; and with `columns` at 2 and a list window among
+    /// them, a second for the list windows, from the top, `column_width` wide (0 for as wide as
+    /// the first), starting where the main window and every window left in the first one end.
+    pub(crate) fn columns_of(
+        &mut self,
+        main: ObjId,
+        others: &[ObjId],
+        columns: i32,
+        column_width: i32,
+    ) -> Vec<Column> {
         let under = self.content_bottom(main);
         let width = self.content_right(main);
         let (lists, rest): (Vec<ObjId>, Vec<ObjId>) =
             others.iter().copied().partition(|l| self.shows_list(*l));
-        if self.columns != 2 || lists.is_empty() {
+        if columns != 2 || lists.is_empty() {
             return vec![Column {
                 x: 0,
                 top: under,
@@ -254,8 +264,8 @@ impl SkinRuntime {
             .max()
             .unwrap_or(0);
         let main_w = self.layout_size(main).0;
-        let cw = if self.column_width > 0 {
-            self.column_width
+        let cw = if column_width > 0 {
+            column_width
         } else {
             width
         };
@@ -276,7 +286,7 @@ impl SkinRuntime {
     }
 
     /// `window`'s size when docked `width` wide at the height the skin gives it; it is left as it was.
-    fn size_at(&mut self, window: ObjId, width: i32) -> (i32, i32) {
+    pub(crate) fn size_at(&mut self, window: ObjId, width: i32) -> (i32, i32) {
         let kept_w = self.objects[window].base.w;
         let kept_h = self.objects[window].base.h;
         let sized = self.objects[window].layout().and_then(|d| d.user_size);
@@ -290,7 +300,7 @@ impl SkinRuntime {
 
     /// How tall the stack makes `window` when it docks it with a view, unless it is the last
     /// list window and takes the height left.
-    fn natural_height(&mut self, window: ObjId) -> i32 {
+    pub(crate) fn natural_height(&mut self, window: ObjId) -> i32 {
         let kept = self.objects[window].base.h;
         self.objects[window].base.h = self.skin_height(window);
         let h = self.layout_size(window).1;
@@ -1013,9 +1023,10 @@ impl SkinRuntime {
 }
 
 /// A column of docked windows: they hang from `top`, one under the other, at `x`, `width` wide.
-struct Column {
-    x: i32,
-    top: i32,
-    width: i32,
-    windows: Vec<ObjId>,
+/// A column of docked windows: they hang from `top`, one under the other, at `x`, `width` wide.
+pub(crate) struct Column {
+    pub(crate) x: i32,
+    pub(crate) top: i32,
+    pub(crate) width: i32,
+    pub(crate) windows: Vec<ObjId>,
 }
