@@ -14,3 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 walkit = { path = "../walkit" }
+crc32fast = "1.5.4"
+image = { version = "0.25.10", default-features = false, features = ["png", "bmp", "gif", "jpeg"] }
+serde_json = "1.0.154"
+zip = { version = "2.6.1", default-features = false, features = ["deflate"] }
