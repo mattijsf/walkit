@@ -95,6 +95,34 @@ internal class PlayerBridge(
             Player.Status.PAUSED -> 2
         }
 
+    /**
+     * Every number of the player at once, as the native side reads them once per call: the
+     * status, position, length, bitrate, sample rate, channels, volume, shuffle, repeat,
+     * crossfade, equalizer on, preamp, pan and track index, then the band count and the bands.
+     */
+    fun snapshot(): IntArray {
+        val bands = player.eqBands
+        val numbers =
+            intArrayOf(
+                status(),
+                player.positionMs,
+                player.lengthMs,
+                player.bitrateKbps,
+                player.sampleRateKhz,
+                player.channels,
+                player.volume,
+                if (player.shuffle) 1 else 0,
+                if (player.repeat) 1 else 0,
+                if (player.crossfade) 1 else 0,
+                if (player.eqEnabled) 1 else 0,
+                player.eqPreamp,
+                player.pan,
+                player.trackIndex,
+                bands.size,
+            )
+        return numbers + bands
+    }
+
     fun positionMs(): Int = player.positionMs
 
     fun lengthMs(): Int = player.lengthMs

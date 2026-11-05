@@ -22,8 +22,8 @@ use walkit::SkinRuntime;
 
 use crate::bridge::{bytes_of, jints, jstring, throw, Bridge, Failure};
 use crate::files::JniFiles;
-use crate::host::JniHost;
-use crate::player::JniPlayer;
+use crate::host::{HostCache, JniHost};
+use crate::player::{JniPlayer, PlayerCache};
 
 /// A runtime the Kotlin side drives, with the clock it sets.
 struct Rt {
@@ -31,6 +31,9 @@ struct Rt {
     now: Rc<Cell<i64>>,
     zone_offset: Rc<Cell<i32>>,
     failure: Failure,
+    /// What this call has read of the player and asked of the host; cleared as a call starts.
+    player_cache: Rc<PlayerCache>,
+    host_cache: Rc<HostCache>,
 }
 
 /// The runtime behind handle `h`.
@@ -45,9 +48,12 @@ fn rt<'a>(h: jlong) -> Result<&'a mut Rt> {
     Ok(unsafe { &mut *(h as *mut Rt) })
 }
 
-/// Runs `f` on the runtime of `h`, then reports what a callback failed with, if one did.
+/// Runs `f` on the runtime of `h`, reading the player and the host afresh, then reports what a
+/// callback failed with, if one did.
 fn with_rt<T>(env: &mut Env, h: jlong, f: impl FnOnce(&mut Rt) -> T) -> Result<T> {
     let r = rt(h)?;
+    r.player_cache.clear();
+    r.host_cache.clear();
     let out = f(r);
     if let Some(msg) = r.failure.borrow_mut().take() {
         return Err(throw(env, &format!("walkit host callback failed: {msg}")));
@@ -147,8 +153,16 @@ pub fn rt_new<'l>(
     env.with_env(|env| -> Result<jlong> {
         let failure: Failure = Rc::new(RefCell::new(None));
         let files = JniFiles(Bridge::new(env, &files, failure.clone())?);
-        let host = JniHost(Bridge::new(env, &host, failure.clone())?);
-        let player = JniPlayer(Bridge::new(env, &player, failure.clone())?);
+        let host_cache = Rc::new(HostCache::default());
+        let player_cache = Rc::new(PlayerCache::default());
+        let host = JniHost::new(
+            Bridge::new(env, &host, failure.clone())?,
+            host_cache.clone(),
+        );
+        let player = JniPlayer::new(
+            Bridge::new(env, &player, failure.clone())?,
+            player_cache.clone(),
+        );
         let name = skin_name.to_string();
         let now = Rc::new(Cell::new(start_ms));
         let clock_now = now.clone();
@@ -176,6 +190,8 @@ pub fn rt_new<'l>(
             now,
             zone_offset,
             failure,
+            player_cache,
+            host_cache,
         });
         Ok(Box::into_raw(boxed) as jlong)
     })
