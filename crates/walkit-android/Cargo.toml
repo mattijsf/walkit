@@ -1,0 +1,17 @@
+[package]
+name = "walkit-android"
+description = "The engine for Android: a JNI library a Kotlin host drives, with the host's callbacks the other way"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "walkit"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.22"
+walkit = { path = "../walkit" }

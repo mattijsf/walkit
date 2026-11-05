@@ -17,6 +17,7 @@ pub mod gui;
 pub mod host;
 pub mod listing;
 pub mod maki;
+pub mod packed;
 pub mod player;
 pub mod runtime;
 pub mod text;
