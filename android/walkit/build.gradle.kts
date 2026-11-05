@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "nl.mattix.walkit"
-version = "0.1.9"
+version = "0.2.0"
 
 // r27+ is the floor for 16 KB page alignment, required from Android 15
 val ndkVersionUsed = "28.2.13676358"

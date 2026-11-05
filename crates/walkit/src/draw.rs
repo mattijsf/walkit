@@ -390,6 +390,46 @@ pub enum DrawCmd {
 }
 
 impl DrawCmd {
+    /// Whether `other` draws exactly what this draws: the same kind of command with the same
+    /// values, the same part of the same picture in the same tint, the same font, and pixels
+    /// with the same content. A renderer may then keep what it drew for one and show it for the
+    /// other. A window's shape is the same when it is made of the same pictures, boxes and
+    /// operations, whether or not the engine worked it out again; bitmap text, which a renderer
+    /// never draws, is the same text in the same box.
+    pub fn draws_same_as(&self, other: &DrawCmd) -> bool {
+        match (self, other) {
+            (DrawCmd::BitmapText(a), DrawCmd::BitmapText(b)) => {
+                a.text == b.text && a.rect == b.rect
+            }
+            (
+                DrawCmd::Pixels {
+                    rect,
+                    w,
+                    h,
+                    argb,
+                    alpha,
+                    stable,
+                },
+                DrawCmd::Pixels {
+                    rect: r2,
+                    w: w2,
+                    h: h2,
+                    argb: a2,
+                    alpha: al2,
+                    stable: s2,
+                },
+            ) => {
+                rect == r2
+                    && w == w2
+                    && h == h2
+                    && alpha == al2
+                    && stable == s2
+                    && (Rc::ptr_eq(argb, a2) || argb == a2)
+            }
+            _ => self == other,
+        }
+    }
+
     /// An image command with no tint yet.
     pub fn image(bitmap: BitmapDef, dst: Rect, alpha: i32) -> DrawCmd {
         DrawCmd::Image {

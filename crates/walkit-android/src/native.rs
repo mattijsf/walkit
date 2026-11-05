@@ -9,6 +9,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Instant;
 
 use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
@@ -17,7 +18,8 @@ use jni::{jni_mangle, Env, EnvUnowned};
 use walkit::host::{
     Edge, OptionEntry, OptionKey, Presentation, SavedSettings, SkinSetup, WindowId,
 };
-use walkit::packed::PackedWindow;
+use walkit::packed::{FrameWindow, FrameWriter};
+use walkit::plan::DrawPlanner;
 use walkit::SkinRuntime;
 
 use crate::bridge::{bytes_of, jints, jstring, throw, Bridge, Failure};
@@ -31,6 +33,11 @@ struct Rt {
     now: Rc<Cell<i64>>,
     zone_offset: Rc<Cell<i32>>,
     failure: Failure,
+    /// Plans each frame, and writes it with only what changed since the frame before.
+    planner: DrawPlanner,
+    frames: FrameWriter,
+    /// Nanoseconds spent planning, the drawing itself left out; for timing runs.
+    plan_nanos: u64,
     /// What this call has read of the player and asked of the host; cleared as a call starts.
     player_cache: Rc<PlayerCache>,
     host_cache: Rc<HostCache>,
@@ -190,6 +197,9 @@ pub fn rt_new<'l>(
             now,
             zone_offset,
             failure,
+            planner: DrawPlanner::new(),
+            frames: FrameWriter::new(),
+            plan_nanos: 0,
             player_cache,
             host_cache,
         });
@@ -258,41 +268,38 @@ pub fn rt_tick<'l>(
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
-/// Every window's drawing as the packed frame of `walkit::packed`.
+/// Every window's drawing with its plan, as the packed frame of `walkit::packed` writes it:
+/// planned at `now_ms` in the host's clock, with only the commands that changed since the frame
+/// before.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_draw_windows<'l>(
     mut env: EnvUnowned<'l>,
     _class: JClass<'l>,
     h: jlong,
-    take_changed: jboolean,
+    now_ms: jlong,
 ) -> JByteArray<'l> {
     env.with_env(|env| {
         let bytes = with_rt(env, h, |r| {
             let ids = r.rt.window_ids();
-            let changed = if take_changed {
-                r.rt.take_tick_changed()
-            } else {
-                Vec::new()
-            };
+            let moving = r.rt.take_tick_changed();
             let drawn = r.rt.draw_windows_owned();
-            let infos: Vec<_> = ids
+            let start = Instant::now();
+            let planned = r.planner.plan(&ids, drawn, &moving, now_ms);
+            r.plan_nanos += start.elapsed().as_nanos() as u64;
+            let infos: Vec<_> = planned.iter().map(|w| r.rt.window_info(w.id)).collect();
+            let windows: Vec<FrameWindow> = planned
                 .iter()
-                .map(|id| (r.rt.window_info(*id), r.rt.window_rect(*id)))
-                .collect();
-            let windows: Vec<PackedWindow> = ids
-                .iter()
-                .zip(drawn.iter())
                 .zip(infos.iter())
-                .map(|((id, win), (info, rect))| PackedWindow {
-                    id: id.0,
+                .map(|(w, info)| FrameWindow {
+                    id: w.id,
                     container: &info.container,
                     layout: &info.layout,
-                    rect: *rect,
-                    cmds: &win.cmds,
-                    owners: &win.owners,
+                    rect: w.rect,
+                    cmds: &w.cmds,
+                    plan: &w.plan,
                 })
                 .collect();
-            walkit::packed::encode(&windows, &changed)
+            r.frames.encode(&windows)
         })?;
         env.byte_array_from_slice(&bytes)
     })
@@ -926,8 +933,15 @@ pub fn rt_toggle_skin_option<'l>(
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_stats<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JLongArray<'l> {
     env.with_env(|env| {
-        let s = with_rt(env, h, |r| r.rt.stats())?;
-        let arr = env.new_long_array(4)?;
+        let (s, plan_nanos, full, quick) = with_rt(env, h, |r| {
+            (
+                r.rt.stats(),
+                r.plan_nanos,
+                r.planner.full_plans(),
+                r.planner.quick_plans(),
+            )
+        })?;
+        let arr = env.new_long_array(7)?;
         arr.set_region(
             env,
             0,
@@ -936,6 +950,9 @@ pub fn rt_stats<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JL
                 s.timer_fires,
                 s.layout_passes,
                 s.shapes_worked_out,
+                plan_nanos as i64,
+                full as i64,
+                quick as i64,
             ],
         )?;
         Ok::<_, Error>(arr)

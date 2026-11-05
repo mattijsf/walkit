@@ -5,8 +5,9 @@ package nl.mattix.walkit
  * The native methods of `libwalkit.so` (`crates/walkit-android`), one per engine operation. A
  * runtime is a handle made by [rtNew] and dropped by [rtFree]; every other method takes it
  * first. "None" answers are -1 for ids, `Int.MIN_VALUE` for seqs, `Long.MIN_VALUE` for a time,
- * an empty array for a size. A frame is the packed buffer [PackedFrame] reads; a window's and an
- * object's description a small buffer of ints and strings ([PackedReader]).
+ * an empty array for a size. A frame is the packed buffer [PackedFrame] reads, planned at the
+ * time given; a window's and an object's description a small buffer of ints and strings
+ * ([PackedReader]).
  */
 internal object Native {
     init {
@@ -47,7 +48,7 @@ internal object Native {
     @JvmStatic
     external fun rtDrawWindows(
         h: Long,
-        takeChanged: Boolean,
+        nowMs: Long,
     ): ByteArray
 
     @JvmStatic external fun rtWindowIds(h: Long): IntArray

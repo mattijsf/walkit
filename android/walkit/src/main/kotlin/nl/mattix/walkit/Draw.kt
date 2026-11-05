@@ -86,12 +86,6 @@ public value class Rgb(
 
 /** What the renderer draws, in order, in layout pixels; the engine hands a frame of these per window. */
 public sealed class DrawCmd {
-    /**
-     * The object that drew this, as the engine names it (an id that stays the same from frame to
-     * frame while the skin is loaded), for [DrawPlanner]; null for the window's structure.
-     */
-    internal open var ownedBy: Any? = null
-
     /** A bitmap, or the part of it [bitmap] names, stretched to [dst]. */
     public class Image(
         public val bitmap: BitmapDef,
@@ -118,12 +112,8 @@ public sealed class DrawCmd {
         public val region: Region,
     ) : DrawCmd()
 
-    /** End of the shaped window [WindowStart] began: one shared object that keeps no owner. */
-    public object WindowEnd : DrawCmd() {
-        override var ownedBy: Any?
-            get() = null
-            set(value) = Unit
-    }
+    /** End of the shaped window [WindowStart] began: one shared object. */
+    public object WindowEnd : DrawCmd()
 
     /**
      * Whether [other] draws exactly what this draws: the same kind of command with the same values,
@@ -182,12 +172,8 @@ public sealed class DrawCmd {
         public val rect: Rect,
     ) : DrawCmd()
 
-    /** The end of the last [Clip]; like [WindowEnd], one shared object that keeps no owner. */
-    public object Unclip : DrawCmd() {
-        override var ownedBy: Any?
-            get() = null
-            set(value) = Unit
-    }
+    /** The end of the last [Clip]; like [WindowEnd], one shared object. */
+    public object Unclip : DrawCmd()
 
     /**
      * A small ARGB picture ([w] x [h], rows top first) stretched over [rect] with nearest pixels: the
