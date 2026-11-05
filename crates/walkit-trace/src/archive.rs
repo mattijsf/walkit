@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use walkit::files::{self, LayeredFiles, MemoryFiles, SkinFiles, SkinsFolderFiles};
 
-use crate::scenario::Scenario;
+use walkit_trace::scenario::Scenario;
 
 const MAX_ENTRY: u64 = 32 * 1024 * 1024;
 const MAX_TOTAL: u64 = 128 * 1024 * 1024;

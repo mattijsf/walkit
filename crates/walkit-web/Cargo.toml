@@ -1,0 +1,16 @@
+[package]
+name = "walkit-web"
+description = "The engine for the web: a wasm module with a small C-style surface a JS host drives"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+walkit = { path = "../walkit" }
+walkit-trace = { path = "../walkit-trace", default-features = false }
