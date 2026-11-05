@@ -14,6 +14,7 @@ pub mod gdi;
 pub mod generated;
 pub mod gui;
 pub mod host;
+pub mod listing;
 pub mod maki;
 pub mod player;
 pub mod runtime;
