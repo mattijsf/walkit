@@ -1,0 +1,7 @@
+# the native library cargo ndk drops here for the AAR
+/walkit/src/main/jniLibs/
+/.gradle/
+/build/
+/walkit/build/
+/local.properties
+/.kotlin/
