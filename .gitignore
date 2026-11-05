@@ -1,0 +1,6 @@
+target/
+.DS_Store
+.idea/
+
+# traces of a local run, diffed by tools/trace-diff.sh, never committed
+traces/

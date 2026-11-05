@@ -1,0 +1,5 @@
+# Git hooks. One-time setup after clone: `lefthook install` (brew install lefthook)
+pre-push:
+  commands:
+    gate:
+      run: tools/gate.sh
