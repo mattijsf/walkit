@@ -51,8 +51,11 @@ the boundary once per `drawWindows`, as one packed buffer decoded here into `Dra
 the like) are read from the skin's files, so a host layers its default set, with those fonts,
 under the skin as Andamp does.
 
-Every member of `SkinRuntime` is carried, and `DrawPlanner` plans a frame as the reference's does:
-the engine marks each command with the object that drew it, and the planner runs on the Kotlin side.
+Every member of `SkinRuntime` is carried. The engine plans each frame as the reference's planner
+does (`drawPlanned`): which stretches of a window change from frame to frame and may be kept apart,
+and a version for the rest. Only the commands that changed since the frame before cross the
+boundary; a command unchanged is the same object as in that frame, so a host may keep what it made
+from it.
 
 ## The parity run on a device
 
