@@ -50,8 +50,6 @@ public class SkinRuntime(
             clock(),
         )
 
-    private var loaded = false
-
     /** The engine's side, with the clock set to now; a closed runtime refuses. */
     private fun h(): Long {
         check(handle != 0L) { "the runtime is closed" }
@@ -73,12 +71,14 @@ public class SkinRuntime(
         close()
     }
 
-    /** What getSkinName() answers: the skin's folder name, set by the host before [load]. */
-    public var skinName: String = setup.skinName
-        set(value) {
-            if (loaded && value != field) throw UnsupportedOperationException("walkit takes the skin name before load")
-            field = value
-        }
+    /**
+     * What getSkinName() answers: the skin's folder name, which scripts key what they remember by,
+     * set by the host before [load] or after; the name in the skin's `<skininfo>` when the host
+     * gave none before [load].
+     */
+    public var skinName: String
+        get() = Native.rtSkinName(h())
+        set(value) = Native.rtSetSkinName(h(), value)
 
     // ---- what the host keeps between runs ------------------------------------------------------
 
@@ -233,7 +233,6 @@ public class SkinRuntime(
     /** Loads `skin.xml` and everything it includes, builds the windows and starts the scripts. */
     public fun load() {
         Native.rtLoad(h())
-        loaded = true
     }
 
     /** The skin's color themes (gammasets), in the order the skin defines them. */

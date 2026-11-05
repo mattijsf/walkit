@@ -6,6 +6,7 @@
 mod options;
 mod presentation;
 mod settings;
+mod skin_name;
 mod stack;
 mod vis;
 
@@ -43,8 +44,13 @@ pub(super) fn runtime(player_xml: &str) -> SkinRuntime {
 
 /// [`runtime`] set up as `setup` says.
 pub(super) fn runtime_with(player_xml: &str, setup: SkinSetup) -> SkinRuntime {
+    runtime_files(SKIN_XML, player_xml, setup)
+}
+
+/// A runtime on a skin whose `skin.xml` and `player.xml` are given, set up as `setup` says.
+pub(super) fn runtime_files(skin_xml: &str, player_xml: &str, setup: SkinSetup) -> SkinRuntime {
     let mut files = MemoryFiles::new();
-    files.insert("skin.xml", SKIN_XML.as_bytes());
+    files.insert("skin.xml", skin_xml.as_bytes());
     files.insert("player.xml", player_xml.as_bytes());
     let clock: Clock = Rc::new(|| 0);
     SkinRuntime::new(

@@ -126,6 +126,14 @@ internal object Native {
 
     @JvmStatic external fun rtViewport(h: Long): IntArray
 
+    @JvmStatic external fun rtSkinName(h: Long): String
+
+    @JvmStatic
+    external fun rtSetSkinName(
+        h: Long,
+        name: String,
+    )
+
     @JvmStatic external fun rtPresentation(h: Long): IntArray
 
     @Suppress("LongParameterList") // one call for every window setting
