@@ -9,6 +9,20 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod draw;
+pub mod files;
+pub mod gdi;
+pub mod generated;
+pub mod gui;
+pub mod host;
+pub mod maki;
+pub mod player;
+pub mod runtime;
+pub mod text;
+pub mod xml;
+
+pub use runtime::SkinRuntime;
+
 /// The version of the trace text the engine writes in a scripted run (`trace v1`).
 pub const TRACE_VERSION: u32 = 1;
 

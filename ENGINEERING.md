@@ -11,7 +11,7 @@ input, answers the player's questions, and draws the draw list.
 ```bash
 tools/gate.sh                               # the push gate: fmt, clippy -D warnings, tests
 cargo test --workspace                      # the tests
-cargo run -p walkit-trace -- <scenarios.json> traces   # record the reference scenarios
+cargo run -p walkit-trace -- <scenarios.json> traces --skins <dir> --defaults <zip>   # record the reference scenarios
 tools/trace-diff.sh                         # diff traces/ against the reference engine's
 cargo build --profile small --target wasm32-unknown-unknown -p walkit   # the web build
 ```
@@ -19,7 +19,11 @@ cargo build --profile small --target wasm32-unknown-unknown -p walkit   # the we
 ## Layout
 
 - `crates/walkit`: the engine, a library (`rlib` for Rust hosts, `cdylib` for Android and
-  the web). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented.
+  the web). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented. Its
+  modules follow the reference engine's files: `files` (the skin's files and how a host stacks
+  them), `xml`, `draw` (the draw list), `host` (what the engine asks of its host), `player`,
+  `gui` (what each kind of object keeps, in one arena the runtime reaches by index), `text`,
+  `runtime` (loading, layout, drawing, the tick, touches and actions) and `maki` (the scripts).
 - `crates/walkit-trace`: a command that runs a set of scenarios through the engine on a
   stepped clock and writes each run's trace. Not published.
 - `tools/`: the gate and the trace diff.
@@ -38,10 +42,13 @@ parts. A scenario passes when its traces are identical.
 The format is fixed by the reference engine's `EngineTrace` fixture (the Kotlin side); a
 change there is a version bump (`trace v2`) on both sides.
 
-The scenarios and the skins they run are a local set (`scenarios.json` beside the `.wal`
-files, plus Winamp's default element set as a zip). They are not in this repository and are
-never committed: the skins are other people's work. Traces are not committed either (tens
-of megabytes per run).
+The scenarios and the skins they run are a local set (`scenarios.json`, a folder of `.wal`
+files given with `--skins`, plus Winamp's default element set as a zip given with
+`--defaults`; `--fonts` names a folder with the free fonts that stand in for Windows' system
+fonts). A scenario names its skin's file, its folder name, the songs, and what the run does;
+the other `.wal` files in the folder are the skin's siblings. They are not in this repository
+and are never committed: the skins are other people's work. Traces are not committed either
+(tens of megabytes per run).
 
 ## Rules
 
