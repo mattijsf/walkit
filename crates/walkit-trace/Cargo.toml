@@ -8,13 +8,23 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+# The library records a scenario on any host (the web build uses it too); the binary adds the
+# files, archives, image decoding and JSON of a native run.
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "walkit-trace"
 path = "src/main.rs"
+required-features = ["native"]
+
+[features]
+default = ["native"]
+native = ["dep:crc32fast", "dep:image", "dep:serde_json", "dep:zip"]
 
 [dependencies]
 walkit = { path = "../walkit" }
-crc32fast = "1.5.4"
-image = { version = "0.25.10", default-features = false, features = ["png", "bmp", "gif", "jpeg"] }
-serde_json = "1.0.154"
-zip = { version = "2.6.1", default-features = false, features = ["deflate"] }
+crc32fast = { version = "1.5.4", optional = true }
+image = { version = "0.25.10", default-features = false, features = ["png", "bmp", "gif", "jpeg"], optional = true }
+serde_json = { version = "1.0.154", optional = true }
+zip = { version = "2.6.1", default-features = false, features = ["deflate"], optional = true }
