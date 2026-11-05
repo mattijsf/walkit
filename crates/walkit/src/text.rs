@@ -384,11 +384,12 @@ impl SkinRuntime {
                 if stopped {
                     String::new()
                 } else {
+                    // the sample rate is whole kHz, written with one decimal as Winamp writes it
                     format!(
-                        "{}kbps {} {:.1}kHz",
+                        "{}kbps {} {}.0kHz",
                         p.bitrate_kbps(),
                         if p.channels() > 1 { "stereo" } else { "mono" },
-                        p.sample_rate_khz() as f64
+                        p.sample_rate_khz()
                     )
                 }
             }

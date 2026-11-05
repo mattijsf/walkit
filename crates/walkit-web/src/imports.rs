@@ -5,7 +5,9 @@
 
 #[link(wasm_import_module = "host")]
 extern "C" {
+    #[cfg(feature = "trace")]
     fn host_perf_now() -> f64;
+    #[cfg(feature = "trace")]
     fn host_decode(
         file: *const u8,
         file_len: usize,
@@ -77,6 +79,7 @@ pub fn read_bytes(ptr: *const u8, len: usize) -> Option<Vec<u8>> {
 }
 
 /// Takes a buffer of `len` 32-bit words the host allocated with `wk_alloc` for `len * 4` bytes.
+#[cfg(feature = "trace")]
 fn take_words(ptr: u32, len: usize) -> Vec<u32> {
     if ptr == 0 || len == 0 {
         return Vec::new();
@@ -90,12 +93,14 @@ fn take_words(ptr: u32, len: usize) -> Vec<u32> {
 }
 
 /// The host's clock, in ms.
+#[cfg(feature = "trace")]
 pub fn perf_now() -> f64 {
     // SAFETY: an import with no pointer.
     unsafe { host_perf_now() }
 }
 
 /// The host decodes `bytes` (the file `file`): its size and pixels as ARGB, or `None`.
+#[cfg(feature = "trace")]
 pub fn decode(file: &str, bytes: &[u8]) -> Option<walkit_trace::Picture> {
     let mut out = [0u32; 3];
     // SAFETY: the slices live for the call; `out` holds the three words the host writes.

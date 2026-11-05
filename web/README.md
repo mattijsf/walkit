@@ -1,8 +1,12 @@
 # walkit on the web
 
 The engine as a wasm module (`crates/walkit-web`) and the JS that drives it. No build step
-and no npm on the JS side; the module comes from `tools/web-build.sh` (both profiles, with
-`wasm-opt` when installed) into `web/dist/`.
+and no npm on the JS side; the module comes from `tools/web-build.sh` into `web/dist/`:
+`walkit-release` and `walkit-small` are the page builds (profile `release` for speed, `small`
+for size, no recorder), `walkit-release-trace` and `walkit-small-trace` carry the recorder
+(`wk_record`, the `trace` feature) for the reference scenarios, and each has a `.opt` twin
+when `wasm-opt` is installed. The script prints every module's size raw, gzipped and
+brotli-compressed.
 
 ## The surface
 
@@ -27,26 +31,26 @@ if (rt.tick()) draw(rt.draw());                      // the draw list, one comma
 ```
 
 The draw list is text in the trace format (`image <file> <x,y,w,h> -> <rect> a=<alpha>`, `fill`,
-`text`, `clip`, `unclip`, `shape`, `pixels`), the same lines `walkit-trace` writes; a renderer
-parses it. A packed binary form is a follow-up.
+`text`, `clip`, `unclip`, `shape`, `pixels`), the same lines `walkit-trace` writes, from the
+engine's `listing` module; a renderer parses it. A packed binary form is a follow-up.
 
 ## The reference scenarios
 
-`corpus.mjs` runs the reference set through the module as `walkit-trace` does on a desktop, on the
-fixed trace host inside the module (text by a rule, pictures decoded by `pictures.mjs`), and
-times every tick and draw list on the host's clock.
+`corpus.mjs` runs the reference set through a module with the recorder (`walkit-*-trace`) as
+`walkit-trace` does on a desktop, on the fixed trace host inside the module (text by a rule,
+pictures decoded by `pictures.mjs`), and times every tick and draw list on the host's clock.
 
 ```bash
 # in node: writes traces to compare with the desktop build's
 node web/node.mjs ~/Development/winamp-vm/scenarios.json traces-wasm \
-  --wasm web/dist/walkit-release.wasm \
+  --wasm web/dist/walkit-release-trace.wasm \
   --skins ~/Development/andamp/modernskin/src/test/resources \
   --defaults ~/Development/winamp-vm/wasabi-defaults.zip \
   --fonts <andamp>/modernskin/src/main/resources/nl/mattix/andamp/modernskin/defaultset/fonts \
   --stats node-stats.json
 
 # in a browser: serves the page and the archives (unzipped as packs), keeps the posted results
-node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios ~/Development/winamp-vm/scenarios.json \
+node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios ~/Development/winamp-vm/scenarios.json \
   --skins ... --defaults ... --fonts ... --results results.jsonl
 # then open http://127.0.0.1:8765/?auto in each browser
 ```

@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use walkit::draw::FontDef;
 use walkit::files::SkinFiles;
-use walkit::host::{MenuItem, SkinHost, SkinMenu, WindowId};
+use walkit::host::{SkinHost, SkinMenu, WindowId};
 
 /// A decoded picture: its size and its pixels as ARGB, row by row.
 #[derive(Debug, Clone)]
@@ -80,29 +80,9 @@ impl TraceHost {
     }
 }
 
-/// A menu as the trace writes it: `[id:text*! - text>[...]]`.
+/// A menu as the trace writes it; see `walkit::listing::menu`.
 pub fn menu_items(menu: &SkinMenu) -> String {
-    let parts: Vec<String> = menu
-        .items
-        .iter()
-        .map(|it| match it {
-            MenuItem::Command {
-                id,
-                text,
-                checked,
-                disabled,
-            } => {
-                format!(
-                    "{id}:{text}{}{}",
-                    if *checked { "*" } else { "" },
-                    if *disabled { "!" } else { "" }
-                )
-            }
-            MenuItem::Separator => "-".to_string(),
-            MenuItem::Submenu { text, menu } => format!("{text}>{}", menu_items(menu)),
-        })
-        .collect();
-    format!("[{}]", parts.join(" "))
+    walkit::listing::menu(menu)
 }
 
 /// The fixed text rule: six tenths of the size per character, a tenth more in bold; no font.

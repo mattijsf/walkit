@@ -13,10 +13,10 @@ tools/gate.sh                               # the push gate: fmt, clippy -D warn
 cargo test --workspace                      # the tests
 cargo run -p walkit-trace -- <scenarios.json> traces --skins <dir> --defaults <zip>   # record the reference scenarios
 tools/trace-diff.sh                         # diff traces/ against the reference engine's
-tools/web-build.sh                          # the web build: both profiles, wasm-opt, sizes
-node web/node.mjs <scenarios.json> traces-wasm --wasm web/dist/walkit-release.wasm \
+tools/web-build.sh                          # the web build: page and recorder modules, wasm-opt, sizes
+node web/node.mjs <scenarios.json> traces-wasm --wasm web/dist/walkit-release-trace.wasm \
   --skins <dir> --defaults <zip> --fonts <dir>    # the same scenarios through the wasm module in node
-node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
+node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios <json> --skins <dir> \
   --defaults <zip> --fonts <dir> --results results.jsonl   # the same in a browser, at http://127.0.0.1:8765/?auto
 ```
 
@@ -42,8 +42,11 @@ web runs.
 - `crates/walkit-web`: the engine for the web, a `cdylib` for `wasm32-unknown-unknown` with a
   C-style surface (`wk_*` exports, `host_*` imports): files in, a runtime the page drives
   (`wk_rt_*`: load, clock, tick, draw list out as text, touches, windows, themes), and
-  `wk_record` for the reference scenarios on the fixed host. It is the one crate with unsafe
-  code, for the exports and the calls into the host; on any other target it is empty.
+  `wk_record` for the reference scenarios on the fixed host. The recorder is behind the
+  `trace` feature (on by default; the page build turns it off and carries no recorder, no
+  stats and no picture decoding). The allocator is talc, a few KB smaller than Rust's
+  default. It is the one crate with unsafe code, for the exports, the allocator and the
+  calls into the host; on any other target it is empty.
 - `web/`: the JS side. `walkit.mjs` loads the module and wraps the surface; `corpus.mjs` runs
   the reference scenarios as `walkit-trace` does; `pictures.mjs` decodes PNG, BMP and GIF the
   way the desktop build does; `zip.mjs` reads `.wal` archives; `node.mjs` is the node runner,

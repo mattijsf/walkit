@@ -28,6 +28,10 @@
 mod host;
 mod imports;
 
+/// The allocator: talc, a few KB smaller than the dlmalloc Rust brings by default.
+#[global_allocator]
+static ALLOCATOR: talc::TalckWasm = unsafe { talc::TalckWasm::new_global() };
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -36,7 +40,6 @@ use walkit::files::{LayeredFiles, MemoryFiles, SkinFiles, SkinsFolderFiles};
 use walkit::host::SkinSetup;
 use walkit::player::FakePlayer;
 use walkit::SkinRuntime;
-use walkit_trace::scenario::Scenario;
 
 use host::JsHost;
 
@@ -61,6 +64,7 @@ struct State {
     /// The last result handed back (`wk_result_ptr` / `wk_result_len`).
     result: Vec<u8>,
     /// The last run's timing as JSON (`wk_stats_ptr` / `wk_stats_len`).
+    #[cfg(feature = "trace")]
     stats: Vec<u8>,
 }
 
@@ -142,12 +146,14 @@ pub extern "C" fn wk_result_len() -> usize {
 }
 
 /// Where the last run's timing JSON starts.
+#[cfg(feature = "trace")]
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_stats_ptr() -> *const u8 {
     with_state(|s| s.stats.as_ptr())
 }
 
 /// How long the last run's timing JSON is.
+#[cfg(feature = "trace")]
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_stats_len() -> usize {
     with_state(|s| s.stats.len())
@@ -241,9 +247,10 @@ pub extern "C" fn wk_stack_sibling(
 /// Records the scenario `spec` (see `walkit_trace::Scenario::spec`) on stack `stack` with the
 /// stand-in fonts in files `fonts` (-1 for none). The trace text is the result; the timing is
 /// the stats JSON. 1 when it ran.
+#[cfg(feature = "trace")]
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_record(stack: i32, fonts: i32, spec: *const u8, spec_len: usize) -> i32 {
-    let sc = Scenario::from_spec(&text(spec, spec_len));
+    let sc = walkit_trace::Scenario::from_spec(&text(spec, spec_len));
     let (files, fonts) = with_state(|s| {
         (
             stack_files(s, stack as usize),
@@ -269,6 +276,7 @@ pub extern "C" fn wk_record(stack: i32, fonts: i32, spec: *const u8, spec_len: u
     1
 }
 
+#[cfg(feature = "trace")]
 fn percentile(sorted: &[f64], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
@@ -278,6 +286,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 }
 
 /// One run's timing as a JSON object, the same shape the desktop build writes.
+#[cfg(feature = "trace")]
 fn stats_json(name: &str, s: &walkit_trace::Stats) -> String {
     let sorted = |v: &[f64]| {
         let mut v = v.to_vec();
@@ -405,7 +414,7 @@ pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
                 wid.0, info.container, info.layout, rect.left, rect.top, rect.width, rect.height
             ));
             for cmd in cmds {
-                out.push_str(&walkit_trace::trace::line(cmd));
+                out.push_str(&walkit::listing::line(cmd));
                 out.push('\n');
             }
         }
