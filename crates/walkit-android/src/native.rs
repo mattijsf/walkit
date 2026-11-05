@@ -14,7 +14,7 @@ use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::{jni_mangle, Env, EnvUnowned};
-use walkit::host::{Edge, SavedSettings, SkinSetup, WindowId};
+use walkit::host::{Edge, OptionEntry, OptionKey, SavedSettings, SkinSetup, WindowId};
 use walkit::packed::PackedWindow;
 use walkit::SkinRuntime;
 
@@ -648,6 +648,82 @@ pub fn rt_restore_settings<'l>(
             return Err(throw(env, "not packed settings"));
         };
         with_rt(env, h, |r| r.rt.restore_settings(&saved))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Counts changes to the skin's Config items.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_config_version<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.config_version()))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+fn option_entries(out: &mut Out, entries: &[OptionEntry]) {
+    out.i32(entries.len() as i32);
+    for e in entries {
+        match e {
+            OptionEntry::Toggle {
+                key,
+                text,
+                checked,
+                radio,
+            } => {
+                out.i32(1);
+                out.string(&key.item);
+                out.string(&key.attribute);
+                out.string(text);
+                out.i32(*checked as i32);
+                out.i32(*radio as i32);
+            }
+            OptionEntry::Separator => out.i32(2),
+            OptionEntry::Submenu { text, entries } => {
+                out.i32(3);
+                out.string(text);
+                option_entries(out, entries);
+            }
+        }
+    }
+}
+
+/// The options the skin's scripts list for Winamp's Options menu: the config version, then
+/// the entries as a count and each as a kind (1 toggle: item, attribute, text, checked,
+/// radio; 2 separator; 3 submenu: text, then its entries).
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_skin_options<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> JByteArray<'l> {
+    env.with_env(|env| {
+        let out = with_rt(env, h, |r| {
+            let options = r.rt.skin_options();
+            let mut out = Out::default();
+            out.i32(options.version);
+            option_entries(&mut out, &options.entries);
+            out
+        })?;
+        out.bytes(env)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Flips the option of attribute `attribute` (lowercase) of the Config item `item` (a GUID);
+/// false for an unknown key, a separator or a submenu.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_toggle_skin_option<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    item: JString<'l>,
+    attribute: JString<'l>,
+) -> jboolean {
+    env.with_env(|env| {
+        let key = OptionKey {
+            item: item.to_string(),
+            attribute: attribute.to_string(),
+        };
+        with_rt(env, h, |r| r.rt.toggle_skin_option(&key))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

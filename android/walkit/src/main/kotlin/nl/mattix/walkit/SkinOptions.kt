@@ -5,9 +5,6 @@ package nl.mattix.walkit
  * The options a skin's scripts list for Winamp's Options menu, as of [version]
  * ([SkinRuntime.configVersion] when the list was read). Two are equal when they list the same
  * entries, whatever their versions.
- *
- * Not ported yet: the engine in this binding reads no options, and [SkinRuntime.skinOptions]
- * gives [EMPTY].
  */
 public class SkinOptions(
     public val version: Int,

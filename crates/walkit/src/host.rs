@@ -209,6 +209,61 @@ pub struct SavedSettings {
     pub ints: BTreeMap<String, i32>,
 }
 
+/// The options a skin's scripts list for Winamp's Options menu, as of `version`
+/// ([`crate::SkinRuntime::config_version`] when the list was read). Two are equal when they
+/// list the same entries, whatever their versions.
+#[derive(Debug, Clone, Default)]
+pub struct SkinOptions {
+    /// The config version the list was read at.
+    pub version: i32,
+    /// The lines of the menu, in order.
+    pub entries: Vec<OptionEntry>,
+}
+
+impl PartialEq for SkinOptions {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries == other.entries
+    }
+}
+
+impl Eq for SkinOptions {}
+
+/// One line of a skin's options menu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptionEntry {
+    /// A checkable option; `checked` as Winamp ticks it: the value read as a number is not 0.
+    /// `radio` when the skin's page shows it as one of a set of radio buttons, which
+    /// Winamp's menu does not tell apart.
+    Toggle {
+        /// The option, for [`crate::SkinRuntime::toggle_skin_option`].
+        key: OptionKey,
+        /// The text shown.
+        text: String,
+        /// Whether it is ticked.
+        checked: bool,
+        /// Whether the skin's page draws it as a radio button.
+        radio: bool,
+    },
+    /// A line between groups of options.
+    Separator,
+    /// An attribute whose value is another item's GUID; `text` is the attribute's name.
+    Submenu {
+        /// The text shown.
+        text: String,
+        /// The lines inside.
+        entries: Vec<OptionEntry>,
+    },
+}
+
+/// An option by item GUID and lowercased attribute name; stays valid across snapshots.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OptionKey {
+    /// The Config item's GUID, with braces, as the skin wrote it.
+    pub item: String,
+    /// The attribute's name, lowercase.
+    pub attribute: String,
+}
+
 /// What the host tells a skin before it loads. `skin_name` is what getSkinName() answers: the
 /// skin's folder name, which scripts key what they remember by. `have_library` says whether
 /// Winamp's Media Library lives inside the skin (`@HAVE_LIBRARY@`). With `host_actions` the host
