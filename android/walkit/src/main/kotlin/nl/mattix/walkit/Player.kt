@@ -59,6 +59,14 @@ public interface Player {
     public val tracks: List<Track> get() = listOf(Track(title, lengthMs))
     public val trackIndex: Int get() = 0
 
+    /**
+     * A number that moves whenever [tracks] would read as another list (an entry added, removed,
+     * moved or renamed) and holds while it would not, so the engine reads the list once per
+     * change instead of once per call. Null for a player that cannot tell: the list is then read
+     * whenever asked.
+     */
+    public val playlistVersion: Long? get() = null
+
     /** Makes entry [index] current and plays it. */
     public fun playTrack(index: Int): Unit = play()
 
@@ -93,8 +101,14 @@ public class FakePlayer : Player {
 
     /** Set to show several entries; empty means the playlist is the current song alone. */
     public var playlist: List<Track> = emptyList()
+        set(value) {
+            field = value
+            version++
+        }
     private var index = 0
+    private var version = 0L
     override val tracks: List<Track> get() = playlist.ifEmpty { listOf(Track(title, lengthMs)) }
+    override val playlistVersion: Long get() = version
     override val trackIndex: Int get() = index.coerceIn(0, tracks.size - 1)
 
     override fun playTrack(index: Int) {

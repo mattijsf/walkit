@@ -98,10 +98,12 @@ internal class PlayerBridge(
     /**
      * Every number of the player at once, as the native side reads them once per call: the
      * status, position, length, bitrate, sample rate, channels, volume, shuffle, repeat,
-     * crossfade, equalizer on, preamp, pan and track index, then the band count and the bands.
+     * crossfade, equalizer on, preamp, pan and track index, whether the playlist is numbered and
+     * its number's low and high halves, then the band count and the bands.
      */
     fun snapshot(): IntArray {
         val bands = player.eqBands
+        val playlist = player.playlistVersion
         val numbers =
             intArrayOf(
                 status(),
@@ -118,6 +120,9 @@ internal class PlayerBridge(
                 player.eqPreamp,
                 player.pan,
                 player.trackIndex,
+                if (playlist == null) 0 else 1,
+                (playlist ?: 0L).toInt(),
+                ((playlist ?: 0L) ushr Int.SIZE_BITS).toInt(),
                 bands.size,
             )
         return numbers + bands
@@ -203,9 +208,16 @@ internal class PlayerBridge(
         value: Int,
     ): Unit = player.setEqBand(band, value)
 
-    fun trackTitles(): Array<String> = player.tracks.map { it.title }.toTypedArray()
+    /** The playlist as last read for its titles, so the lengths that follow are of the same list. */
+    private var read: List<Track> = emptyList()
 
-    fun trackLengths(): IntArray = player.tracks.map { it.lengthMs }.toIntArray()
+    fun trackTitles(): Array<String> =
+        player.tracks
+            .also { read = it }
+            .map { it.title }
+            .toTypedArray()
+
+    fun trackLengths(): IntArray = read.map { it.lengthMs }.toIntArray()
 
     fun trackIndex(): Int = player.trackIndex
 

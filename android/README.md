@@ -45,8 +45,9 @@ rt.close()                                   // frees the engine's side
 
 The engine runs on the thread that calls it, one call at a time, as the Kotlin engine does; it
 reads the skin's files, asks the `SkinHost` and drives the `Player` through callbacks on that
-thread. The player is read once per call, as one snapshot of its numbers, and what a host
-answers for a skin for good (a picture's size, a text's width) is asked once. A frame crosses
+thread. The player is read once per call, as one snapshot of its numbers (its playlist once per
+change, when the player numbers it), and what a host answers for a skin for good (a picture's
+size, a text's width) is asked once. A frame crosses
 the boundary once per `drawWindows`, as one packed buffer decoded here into `DrawCmd`s. The stand-in fonts for Windows' system fonts (`fonts/LiberationSans.ttf` and
 the like) are read from the skin's files, so a host layers its default set, with those fonts,
 under the skin as Andamp does.
