@@ -122,6 +122,47 @@ internal object Native {
 
     @JvmStatic external fun rtViewport(h: Long): IntArray
 
+    @JvmStatic external fun rtPresentation(h: Long): IntArray
+
+    @Suppress("LongParameterList") // one call for every window setting
+    @JvmStatic
+    external fun rtSetPresentation(
+        h: Long,
+        hasView: Boolean,
+        viewW: Int,
+        viewH: Int,
+        viewportW: Int,
+        viewportH: Int,
+        columns: Int,
+        columnWidth: Int,
+        stretchLast: Boolean,
+        touchSlop: Int,
+    )
+
+    @JvmStatic
+    external fun rtContentRight(
+        h: Long,
+        id: Int,
+        layOutFirst: Boolean,
+    ): Int
+
+    @JvmStatic external fun rtListWindowOpen(h: Long): Boolean
+
+    @JvmStatic
+    external fun rtShownWidth(
+        h: Long,
+        width: Int,
+    ): Int
+
+    @JvmStatic
+    external fun rtNaturalStackSize(
+        h: Long,
+        columns: Int,
+        columnWidth: Int,
+    ): IntArray
+
+    @JvmStatic external fun rtLeftColumn(h: Long): IntArray
+
     @JvmStatic external fun rtEdgePlacements(h: Long): Int
 
     @JvmStatic external fun rtColorThemes(h: Long): Array<String>

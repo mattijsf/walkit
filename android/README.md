@@ -51,9 +51,7 @@ the like) are read from the skin's files, so a host layers its default set, with
 under the skin as Andamp does.
 
 What the native engine does not port yet is marked on each member of `SkinRuntime` and refuses
-with `UnsupportedOperationException`, or answers empty: the stack
-in columns (`presentation` beyond the view size and viewport, `contentRight`, `shownWidth`,
-`naturalStackSize`, `leftColumn`, `listWindowOpen`), the visualizer window (`visRect`,
+with `UnsupportedOperationException`, or answers empty: the visualizer window (`visRect`,
 `visualizerWindowClosed`), and `DrawPlanner`.
 
 ## The parity run on a device

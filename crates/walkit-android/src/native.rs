@@ -14,7 +14,9 @@ use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::{jni_mangle, Env, EnvUnowned};
-use walkit::host::{Edge, OptionEntry, OptionKey, SavedSettings, SkinSetup, WindowId};
+use walkit::host::{
+    Edge, OptionEntry, OptionKey, Presentation, SavedSettings, SkinSetup, WindowId,
+};
 use walkit::packed::PackedWindow;
 use walkit::SkinRuntime;
 
@@ -529,6 +531,130 @@ pub fn rt_viewport<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) ->
 }
 
 /// How many times a script placed the main window against an edge after a menu pick.
+/// How the host shows the windows: whether there is a view size and its width and height, the
+/// viewport's width and height, the columns, the column width, whether the last list window
+/// stretches, and the touch slop.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_presentation<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let p = with_rt(env, h, |r| r.rt.presentation())?;
+        let (vw, vh) = p.view_size.unwrap_or((0, 0));
+        jints(
+            env,
+            &[
+                p.view_size.is_some() as i32,
+                vw,
+                vh,
+                p.viewport.0,
+                p.viewport.1,
+                p.columns,
+                p.column_width,
+                p.stretch_last as i32,
+                p.touch_slop,
+            ],
+        )
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Sets how the host shows the windows, in the order `rtPresentation` reads them.
+#[jni_mangle("nl.mattix.walkit.Native")]
+#[allow(clippy::too_many_arguments)]
+pub fn rt_set_presentation<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    has_view: jboolean,
+    view_w: jint,
+    view_h: jint,
+    viewport_w: jint,
+    viewport_h: jint,
+    columns: jint,
+    column_width: jint,
+    stretch_last: jboolean,
+    touch_slop: jint,
+) {
+    env.with_env(|env| {
+        let p = Presentation {
+            view_size: has_view.then_some((view_w, view_h)),
+            viewport: (viewport_w, viewport_h),
+            columns,
+            column_width,
+            stretch_last,
+            touch_slop,
+        };
+        with_rt(env, h, |r| r.rt.set_presentation(&p))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Where window `id` visibly ends on the right; with `lay_out_first` after laying it out.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_content_right<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    id: jint,
+    lay_out_first: jboolean,
+) -> jint {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            r.rt.content_right_of(WindowId(id as u32), lay_out_first)
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Whether a window docked under the main one shows a list.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_list_window_open<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jboolean {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.list_window_open()))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// How far right the stack shows in one column while the main window shows `width` across (0
+/// for what it shows now).
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_shown_width<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    width: jint,
+) -> jint {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.shown_width(width)))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// How large the stack is in `columns` at every window's natural height, with a right column
+/// `column_width` wide; empty without a main window.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_natural_stack_size<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    columns: jint,
+    column_width: jint,
+) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let size = with_rt(env, h, |r| r.rt.natural_stack_size(columns, column_width))?;
+        pair(env, size)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The left column of the stack in two columns, as a rect; empty for a stack in one column.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_left_column<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let r = with_rt(env, h, |r| r.rt.left_column())?;
+        match r {
+            Some(r) => jints(env, &[r.left, r.top, r.width, r.height]),
+            None => jints(env, &[]),
+        }
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_edge_placements<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
     env.with_env(|env| with_rt(env, h, |r| r.rt.edge_placements()))
