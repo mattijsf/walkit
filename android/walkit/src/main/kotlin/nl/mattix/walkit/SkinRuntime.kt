@@ -16,10 +16,9 @@ import java.util.TimeZone
  *
  * What the native engine does not port yet is marked on each member and refuses with
  * [UnsupportedOperationException], or answers empty where the reference engine answers nothing
- * of note: [savedSettings] and [restoreSettings], [skinOptions], [toggleSkinOption] and
- * [configVersion], the stack arrangement in columns ([presentation], [contentRight],
- * [shownWidth], [naturalStackSize], [leftColumn], [listWindowOpen]), and the visualizer window
- * ([visRect], [visualizerWindowClosed]).
+ * of note: [skinOptions], [toggleSkinOption] and [configVersion], the stack arrangement in
+ * columns ([presentation], [contentRight], [shownWidth], [naturalStackSize], [leftColumn],
+ * [listWindowOpen]), and the visualizer window ([visRect], [visualizerWindowClosed]).
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -93,12 +92,49 @@ public class SkinRuntime(
      */
     public val settingsVersion: Int get() = Native.rtSettingsVersion(h())
 
-    /** What the host keeps of the skin between runs. Not ported yet: nothing is kept, so this is empty. */
-    public fun savedSettings(): SavedSettings = SavedSettings()
+    /** What the host keeps of the skin between runs, as it is now; the color theme is [colorTheme]. */
+    public fun savedSettings(): SavedSettings {
+        val r = PackedReader(Native.rtSavedSettings(h()))
+        val attributes = LinkedHashMap<String, String>()
+        repeat(r.i32()) {
+            val k = r.inlineString()
+            attributes[k] = r.inlineString()
+        }
+        val strings = LinkedHashMap<String, String>()
+        repeat(r.i32()) {
+            val k = r.inlineString()
+            strings[k] = r.inlineString()
+        }
+        val ints = LinkedHashMap<String, Int>()
+        repeat(r.i32()) {
+            val k = r.inlineString()
+            ints[k] = r.i32()
+        }
+        return SavedSettings(attributes, strings, ints)
+    }
 
-    /** Puts back what [savedSettings] gave in an earlier run. Not ported yet: anything but an empty set refuses. */
+    /**
+     * Puts back what [savedSettings] gave in an earlier run, before [load], so the scripts read it
+     * as they start. It counts as no change ([settingsVersion]).
+     */
     public fun restoreSettings(saved: SavedSettings) {
-        if (saved != SavedSettings()) throw UnsupportedOperationException("walkit does not port restoring settings yet")
+        val out = PackedOut()
+        out.i32(saved.attributes.size)
+        for ((k, v) in saved.attributes) {
+            out.inlineString(k)
+            out.inlineString(v)
+        }
+        out.i32(saved.strings.size)
+        for ((k, v) in saved.strings) {
+            out.inlineString(k)
+            out.inlineString(v)
+        }
+        out.i32(saved.ints.size)
+        for ((k, v) in saved.ints) {
+            out.inlineString(k)
+            out.i32(v)
+        }
+        Native.rtRestoreSettings(h(), out.bytes())
     }
 
     /** Counts changes to the skin's Config items. Not ported yet: always 0. */

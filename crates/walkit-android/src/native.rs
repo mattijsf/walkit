@@ -14,7 +14,7 @@ use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::{jni_mangle, Env, EnvUnowned};
-use walkit::host::{Edge, SkinSetup, WindowId};
+use walkit::host::{Edge, SavedSettings, SkinSetup, WindowId};
 use walkit::packed::PackedWindow;
 use walkit::SkinRuntime;
 
@@ -69,6 +69,42 @@ impl Out {
 
     fn bytes<'l>(self, env: &mut Env<'l>) -> Result<JByteArray<'l>> {
         env.byte_array_from_slice(&self.0)
+    }
+}
+
+/// A small packed argument, as `Out` writes an answer: ints, and strings as a length and UTF-8
+/// bytes, little-endian. `None` past the end or on bytes that are not UTF-8.
+struct In<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+
+impl In<'_> {
+    fn i32(&mut self) -> Option<i32> {
+        let b = self.bytes.get(self.at..self.at + 4)?;
+        self.at += 4;
+        Some(i32::from_le_bytes(b.try_into().ok()?))
+    }
+
+    fn string(&mut self) -> Option<String> {
+        let n = usize::try_from(self.i32()?).ok()?;
+        let b = self.bytes.get(self.at..self.at + n)?;
+        self.at += n;
+        String::from_utf8(b.to_vec()).ok()
+    }
+
+    /// `n` pairs of a string and what `value` reads.
+    fn pairs<T>(
+        &mut self,
+        mut value: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Option<Vec<(String, T)>> {
+        let n = usize::try_from(self.i32()?).ok()?;
+        let mut out = Vec::new();
+        for _ in 0..n {
+            let k = self.string()?;
+            out.push((k, value(self)?));
+        }
+        Some(out)
     }
 }
 
@@ -551,6 +587,69 @@ pub fn rt_select_color_theme<'l>(
 pub fn rt_settings_version<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
     env.with_env(|env| with_rt(env, h, |r| r.rt.settings_version()))
         .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// What the host keeps of the skin between runs: the attributes, the strings and the ints, each
+/// as a count and that many key-value pairs (the value a string, a string, an int).
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_saved_settings<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> JByteArray<'l> {
+    env.with_env(|env| {
+        let out = with_rt(env, h, |r| {
+            let saved = r.rt.saved_settings();
+            let mut out = Out::default();
+            out.i32(saved.attributes.len() as i32);
+            for (k, v) in &saved.attributes {
+                out.string(k);
+                out.string(v);
+            }
+            out.i32(saved.strings.len() as i32);
+            for (k, v) in &saved.strings {
+                out.string(k);
+                out.string(v);
+            }
+            out.i32(saved.ints.len() as i32);
+            for (k, v) in &saved.ints {
+                out.string(k);
+                out.i32(*v);
+            }
+            out
+        })?;
+        out.bytes(env)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Puts back what `rtSavedSettings` gave in an earlier run, in the same form, before the skin loads.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_restore_settings<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    saved: JByteArray<'l>,
+) {
+    env.with_env(|env| {
+        let bytes = bytes_of(env, saved.into())?.unwrap_or_default();
+        let mut r = In {
+            bytes: &bytes,
+            at: 0,
+        };
+        let read = (|| {
+            Some(SavedSettings {
+                attributes: r.pairs(In::string)?.into_iter().collect(),
+                strings: r.pairs(In::string)?.into_iter().collect(),
+                ints: r.pairs(In::i32)?.into_iter().collect(),
+            })
+        })();
+        let Some(saved) = read else {
+            return Err(throw(env, "not packed settings"));
+        };
+        with_rt(env, h, |r| r.rt.restore_settings(&saved))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
 }
 
 /// What the engine has done so far: script steps, timer fires, layout passes, shapes worked out.

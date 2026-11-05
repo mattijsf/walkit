@@ -136,6 +136,14 @@ internal object Native {
 
     @JvmStatic external fun rtSettingsVersion(h: Long): Int
 
+    @JvmStatic external fun rtSavedSettings(h: Long): ByteArray
+
+    @JvmStatic
+    external fun rtRestoreSettings(
+        h: Long,
+        saved: ByteArray,
+    )
+
     @JvmStatic external fun rtStats(h: Long): LongArray
 
     @JvmStatic external fun rtEnsureLayout(h: Long)

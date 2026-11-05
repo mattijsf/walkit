@@ -59,6 +59,29 @@ internal class PackedReader(
     }
 }
 
+/**
+ * Writes the little-endian buffers the engine takes as arguments in the inline form: ints, and
+ * strings as a length and UTF-8 bytes.
+ */
+internal class PackedOut {
+    private val body = java.io.ByteArrayOutputStream()
+    private val le = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+
+    fun i32(v: Int) {
+        le.clear()
+        le.putInt(v)
+        body.write(le.array(), 0, 4)
+    }
+
+    fun inlineString(s: String) {
+        val b = s.toByteArray(Charsets.UTF_8)
+        i32(b.size)
+        body.write(b)
+    }
+
+    fun bytes(): ByteArray = body.toByteArray()
+}
+
 /** A frame as the engine packs it: every window with its drawing. */
 internal object PackedFrame {
     /** One window of a frame. */
