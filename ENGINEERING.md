@@ -27,8 +27,8 @@ web runs.
 
 ## Layout
 
-- `crates/walkit`: the engine, a library (`rlib` for Rust hosts, `cdylib` for Android and
-  the web). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented. Its
+- `crates/walkit`: the engine, a library (an `rlib`; the web and Android crates wrap it into
+  their libraries). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented. Its
   modules follow the reference engine's files: `files` (the skin's files and how a host stacks
   them), `xml`, `draw` (the draw list), `host` (what the engine asks of its host), `player`,
   `gui` (what each kind of object keeps, in one arena the runtime reaches by index), `text`,
@@ -47,11 +47,19 @@ web runs.
   stats and no picture decoding). The allocator is talc, a few KB smaller than Rust's
   default. It is the one crate with unsafe code, for the exports, the allocator and the
   calls into the host; on any other target it is empty.
+- `crates/walkit-android`: the engine for Android, `libwalkit.so`: the same operations as the web
+  surface, as native methods of `nl.mattix.walkit.Native`, with the host's answers coming back
+  through bridge objects the Kotlin side registers. A frame crosses as the packed buffer of the
+  engine's `packed` module. The other crate with unsafe code (the handle the Kotlin side holds).
 - `web/`: the JS side. `walkit.mjs` loads the module and wraps the surface; `corpus.mjs` runs
   the reference scenarios as `walkit-trace` does; `pictures.mjs` decodes PNG, BMP and GIF the
   way the native binary does; `zip.mjs` reads `.wal` archives; `node.mjs` is the node runner,
   `serve.mjs` + `index.html` + `browser.mjs` the browser one. No build step, no npm.
 - `tools/`: the gate, the trace diff and the web build.
+
+The Android library takes the Rust targets `aarch64-linux-android` and `x86_64-linux-android`
+(`rustup target add`), `cargo-ndk` and the Android NDK (28): `cargo ndk -t arm64-v8a -t x86_64
+build -p walkit-android --release` writes `libwalkit.so` per ABI under `target/`.
 
 ## The trace
 
@@ -88,7 +96,8 @@ or a browser is byte-identical to the native binary's for every scenario.
 ## Rules
 
 - Every source file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`.
-- No unsafe code. Scripts are untrusted input: every loop, stack and allocation the VM does
+- No unsafe code in the engine; the web and Android crates are the boundary and allow it for the
+  exports, the imports and the handles. Scripts are untrusted input: every loop, stack and allocation the VM does
   has a limit, and a skin that breaks a limit stops cleanly (a handler that runs too long or
   too deep is cut off and logged; a script that fails twenty times is switched off).
 - The engine stays platform-free: no file, screen, font, clock or thread inside the crate.
