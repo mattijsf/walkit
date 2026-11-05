@@ -5,10 +5,13 @@
 // The skins and the default set stay where they are on this machine; nothing is copied.
 //
 //   node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>]
-//                      [--fonts <dir>] [--results <file>] [--port 8765]
+//                      [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765]
+//
+// The player page (`/player.html`) posts the PNG of a frame to `/snapshot/<name>` when
+// `--snapshots` names a folder to keep them in.
 
 import { createServer } from "node:http";
-import { readFileSync, readdirSync, existsSync, appendFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
@@ -19,7 +22,7 @@ const args = process.argv.slice(2);
 const opts = { port: "8765" };
 for (let i = 0; i < args.length; i += 2) opts[args[i].slice(2)] = args[i + 1];
 if (!opts.wasm || !opts.scenarios || !opts.skins) {
-  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>] [--fonts <dir>] [--results <file>] [--port 8765]");
+  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>] [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765]");
   process.exit(2);
 }
 const here = dirname(fileURLToPath(import.meta.url));
@@ -37,6 +40,20 @@ const server = createServer((req, res) => {
     res.end(body);
   };
   try {
+    if (req.method === "POST" && url.pathname.startsWith("/snapshot/")) {
+      const name = decodeURIComponent(url.pathname.slice("/snapshot/".length)).replace(/[^A-Za-z0-9_.-]/g, "_");
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", () => {
+        if (!opts.snapshots) return send(404, "no snapshots folder", "text/plain");
+        mkdirSync(opts.snapshots, { recursive: true });
+        const path = join(opts.snapshots, `${name}.png`);
+        writeFileSync(path, Buffer.concat(chunks));
+        console.log(`snapshot -> ${path}`);
+        send(200, path, "text/plain");
+      });
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/result") {
       let body = "";
       req.on("data", (c) => (body += c));

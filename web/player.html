@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>walkit player</title>
+<style>
+  body { font: 14px/1.4 -apple-system, system-ui, sans-serif; margin: 16px; color: #222; background: #e8e8e8; }
+  #bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  #bar button, #bar select { font: inherit; padding: 4px 10px; }
+  #stage { display: inline-block; background: #444; padding: 8px; }
+  canvas { display: block; image-rendering: pixelated; touch-action: none; }
+  #stats { font: 12px/1.35 ui-monospace, Menlo, monospace; margin: 8px 0; color: #333; }
+  #log { font: 12px/1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; max-height: 12em; overflow: auto; background: #f4f4f4; padding: 6px; }
+  #drop { border: 1px dashed #888; padding: 4px 8px; color: #555; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <select id="skins"></select>
+  <button id="load">Load</button>
+  <span id="drop">or drop a .wal here</span>
+  <button id="play">Play</button>
+  <button id="pause">Pause</button>
+  <button id="stop">Stop</button>
+  <button id="prev">Prev</button>
+  <button id="next">Next</button>
+  <label>view <input id="viewW" type="number" value="640" size="5" style="width:4em"> x <input id="viewH" type="number" value="480" size="5" style="width:4em"></label>
+  <label>zoom <select id="zoom"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+  <button id="snapshot">Snapshot PNG</button>
+  <button id="check">Check frame</button>
+</div>
+<div id="stage"><canvas id="view" width="1" height="1"></canvas></div>
+<div id="stats"></div>
+<pre id="log"></pre>
+<script type="module" src="player.mjs"></script>
+</body>
+</html>
