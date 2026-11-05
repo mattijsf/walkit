@@ -41,8 +41,6 @@ public data class Presentation(
  * - [attributes]: its settings by attribute name, as Winamp keeps them in studio.xnf;
  * - [strings], [ints]: its scripts' private and public values (setPrivateString, setPublicInt and
  *   the like), by lowercase "section/item" or "public/item".
- *
- * Not ported yet: the engine in this binding keeps nothing between runs, and both calls say so.
  */
 public data class SavedSettings(
     val attributes: Map<String, String> = emptyMap(),

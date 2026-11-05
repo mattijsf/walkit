@@ -14,6 +14,8 @@ mod maki;
 mod objects;
 mod pointer;
 mod system;
+#[cfg(test)]
+mod tests;
 mod tick;
 mod vis;
 mod vm;
@@ -24,7 +26,9 @@ use std::rc::Rc;
 use crate::draw::{BitmapDef, BitmapFontDef, DrawCmd, FontDef, Gamma, Rect, Region, Rgb};
 use crate::files::SkinFiles;
 use crate::gui::{Container, ContainerId, Kind, Obj, ObjId};
-use crate::host::{Clock, EngineStats, ObjectInfo, SkinHost, SkinSetup, WindowId, WindowInfo};
+use crate::host::{
+    Clock, EngineStats, ObjectInfo, SavedSettings, SkinHost, SkinSetup, WindowId, WindowInfo,
+};
 use crate::maki::{Handle, Script, SystemObject, Value};
 use crate::player::{Player, Status};
 use crate::xml::XmlNode;
@@ -424,6 +428,35 @@ impl SkinRuntime {
     /// Counts changes to what a host keeps of the skin between runs.
     pub fn settings_version(&self) -> i32 {
         self.settings_version
+    }
+
+    /// What the host keeps of the skin between runs, as it is now; the color theme is
+    /// [`SkinRuntime::color_theme`].
+    pub fn saved_settings(&self) -> SavedSettings {
+        SavedSettings {
+            attributes: self.stored_settings.clone(),
+            strings: self
+                .private_strings
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            ints: self
+                .private_ints
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect(),
+        }
+    }
+
+    /// Puts back what [`SkinRuntime::saved_settings`] gave in an earlier run, before `load`, so
+    /// the scripts read it as they start. It counts as no change ([`SkinRuntime::settings_version`]).
+    pub fn restore_settings(&mut self, saved: &SavedSettings) {
+        self.stored_settings
+            .extend(saved.attributes.iter().map(|(k, v)| (k.clone(), v.clone())));
+        self.private_strings
+            .extend(saved.strings.iter().map(|(k, v)| (k.clone(), v.clone())));
+        self.private_ints
+            .extend(saved.ints.iter().map(|(k, v)| (k.clone(), *v)));
     }
 
     pub(crate) fn settings_changed(&mut self) {

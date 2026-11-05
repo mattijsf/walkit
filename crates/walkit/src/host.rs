@@ -2,6 +2,7 @@
 
 //! What the engine asks of its host, and what it tells the host about its windows.
 
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::draw::{FontDef, Rect};
@@ -192,6 +193,20 @@ pub struct EngineStats {
     pub layout_passes: i64,
     /// Window shapes worked out.
     pub shapes_worked_out: i64,
+}
+
+/// What a skin keeps between runs: its settings by attribute name, as Winamp keeps them in
+/// studio.xnf (`attributes`), and its scripts' private and public values (setPrivateString,
+/// setPublicInt and the like) by lowercase "section/item" or "public/item" (`strings`, `ints`).
+/// The color theme is kept apart ([`crate::SkinRuntime::color_theme`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SavedSettings {
+    /// The skin's settings by attribute name.
+    pub attributes: BTreeMap<String, String>,
+    /// The scripts' string values by lowercase key.
+    pub strings: BTreeMap<String, String>,
+    /// The scripts' integer values by lowercase key.
+    pub ints: BTreeMap<String, i32>,
 }
 
 /// What the host tells a skin before it loads. `skin_name` is what getSkinName() answers: the
