@@ -47,6 +47,11 @@ export class Walkit {
   }
 
   /** The last result's text. */
+  /** The last result the module gave, as a copy of its bytes. */
+  resultBytes() {
+    return this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()).slice();
+  }
+
   result() {
     return decoder.decode(this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()));
   }
@@ -199,6 +204,24 @@ export class Runtime {
     return this.w.result();
   }
 
+  /**
+   * The frame as the packed bytes of `walkit::packed`, planned at `nowMs`, with only the
+   * commands that changed since the frame before (`frame.mjs` reads it).
+   */
+  drawFrame(nowMs) {
+    this.w.x.wk_rt_draw_frame(this.id, nowMs);
+    return this.w.resultBytes();
+  }
+
+  /** A right click, or a long press, where the pointer last was. */
+  rightClick(seq = 0) {
+    this.w.x.wk_rt_right_click(this.id, seq);
+  }
+
+  doubleTap(x, y, seq = 0) {
+    this.w.x.wk_rt_double_tap(this.id, x, y, seq);
+  }
+
   pointerDown(x, y, seq = 0) {
     this.w.x.wk_rt_pointer_down(this.id, x, y, seq);
   }
@@ -221,6 +244,20 @@ export class Runtime {
 
   setView(w, h) {
     this.w.x.wk_rt_set_view(this.id, w, h);
+  }
+
+  /** The main window's id, or null. */
+  mainWindow() {
+    const w = this.w.x.wk_rt_main_window(this.id);
+    return w < 0 ? null : w;
+  }
+
+  windowResizable(window) {
+    return this.w.x.wk_rt_window_resizable(this.id, window) !== 0;
+  }
+
+  resizeWindow(window, w, h) {
+    this.w.x.wk_rt_resize_window(this.id, window, w, h);
   }
 
   /** 1 play, 2 pause, 3 stop, 4 next, 5 previous. */

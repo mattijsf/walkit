@@ -14,7 +14,8 @@ desktop. It is the engine behind [Andamp](https://andamp.nl)'s modern skins.
 Early. The engine is ported from Andamp's Kotlin engine and checked by a trace of everything
 each engine does in a scripted run (see `ENGINEERING.md`): every scenario of the reference set
 (45 runs over 12 skins, scripts included) records the same trace in both engines, on a desktop and
-through the wasm build in node, Chrome, Safari and Firefox. Nothing is published yet.
+through the wasm build in node, Chrome, Safari and Firefox, and `web/player.html` plays a skin
+in the browser on the same frames the Android library draws. Nothing is published yet.
 
 The reference set is local: the skins are the `.wal` files of Andamp's `modernskin/src/test/
 resources`, the default element set a zip of Winamp's `wasabi` folder, and the fonts the

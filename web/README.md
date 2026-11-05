@@ -34,6 +34,38 @@ The draw list is text in the trace format (`image <file> <x,y,w,h> -> <rect> a=<
 `text`, `clip`, `unclip`, `shape`, `pixels`), the same lines `walkit-trace` writes, from the
 engine's `listing` module; a renderer parses it. A packed binary form is a follow-up.
 
+## The player page
+
+`player.html` shows a skin from the server's folder, or a `.wal` dropped on the page, on the
+engine in the browser: the skin over Winamp's default set, its sibling archives reachable as
+on a phone, the pictures decoded by `pictures.mjs`, text measured and drawn with the fonts the
+server serves (Liberation Sans stands in for Arial) and any TrueType file the skin carries.
+Each frame comes out of the module as the packed frame the Android library gets
+(`wk_rt_draw_frame`, read by `frame.mjs`): every window with its plan and only the commands
+that changed since the frame before; `render.mjs` draws it on a canvas, each window in a layer
+masked by its shape. The pointer drives the skin (a long press or a right click opens its
+menu in a prompt); the buttons drive the engine's fake player, which plays a demo track. A
+view size fits the stack as the phone does, and a main window that resizes both ways fills it.
+
+```bash
+node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
+  --defaults <zip> --fonts <dir> --snapshots snapshots
+# then open http://127.0.0.1:8765/player.html?skin=Bento.wal
+```
+
+"Check frame" draws the frame Andamp's check mode draws on a phone (a fresh runtime on a clock
+stepped from 0, the fake player playing, 200 ticks of 16 ms, the stack at 1x from its corner)
+and posts it to the server as `<skin>-check.png`; `?skin=Bento.wal&check` does it on load.
+`pngdiff.mjs` compares it with the phone's:
+
+```bash
+node web/pngdiff.mjs snapshots/Bento-check.png <phone>/wal-check/Bento.png --out diff.png
+```
+
+What differs between the two is what the hosts draw differently, not the engine: text (each
+platform's font rendering) and the fake players' demo data (the spectrum, the time). The draw
+lists themselves are the same on both, as the parity run shows.
+
 ## The reference scenarios
 
 `corpus.mjs` runs the reference set through a module with the recorder (`walkit-*-trace`) as
