@@ -3,18 +3,24 @@
 //! The draw list of a frame as one packed buffer, for a host across a language boundary that
 //! takes a frame in one call and decodes it into draw commands on its side (the Android
 //! binding). Little-endian throughout; strings are interned in a table at the front, so a file
-//! name drawn forty times crosses once.
+//! name drawn forty times crosses once. A window's commands cross only where they changed:
+//! the writer keeps what it sent of each window, and the host keeps what it decoded, so a
+//! frame says for each window which stretches of the frame before to keep and which commands
+//! are new ([`FrameWriter`]).
 //!
 //! Layout (`u32` unless said):
-//! - `"WKDL"`, version `2`
+//! - `"WKDL"`, version `3`
 //! - the string table: count, then each string as its byte length and UTF-8 bytes
-//! - the objects the last tick found moving by themselves: count, then each as an object id
-//!   (`i32`), for a host's planner
 //! - the windows: count, then each as id (`i32`), container (string index), layout (string
-//!   index), rect, command count, commands
+//!   index), rect, its plan, and its commands
 //!
-//! A rect is four `i32`: left, top, width, height. A command starts with the id of the object
-//! that drew it (`i32`, -1 for the window's structure: the end of a shape or a clip), then a tag byte:
+//! A plan is the window's id and version (each `u64`), then its runs: count, then each as id
+//! and version (`u64`), from, to, bounds (rect). The commands start with a byte: 0 for the
+//! same commands as the frame before, 1 for segments, which follow as a count and then each as
+//! a byte 0 (keep: the next count commands of the frame before) or 1 (new: count, then that
+//! many commands).
+//!
+//! A rect is four `i32`: left, top, width, height. A command starts with a tag byte:
 //! 1 image (bitmap, rect, alpha `i32`, gamma, smooth `u8`), 2 fill (rect, rgb `i32`, alpha
 //! `i32`), 3 window start (region), 4 window end, 5 text (text, font, size `i32`, rgb `i32`,
 //! rect, alpha `i32`, bold `u8`, shadow, x `f32`, baseline `f32`), 6 bitmap text (text, rect),
@@ -32,16 +38,17 @@
 use std::collections::HashMap;
 
 use crate::draw::{BitmapDef, DrawCmd, Gamma, Rect, Region, RegionImage};
-use crate::host::{MenuItem, SkinMenu};
+use crate::host::{MenuItem, SkinMenu, WindowId};
+use crate::plan::WindowPlan;
 
 /// The version written after the magic.
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 
-/// One window of a frame as the encoder takes it: its id, its container and layout ids, where it
-/// sits in the stack, and its commands.
-pub struct PackedWindow<'a> {
-    /// The window's id.
-    pub id: u32,
+/// One window of a frame as the writer takes it: its id, its container and layout ids, where it
+/// sits in the stack, its commands and its plan.
+pub struct FrameWindow<'a> {
+    /// The window.
+    pub id: WindowId,
     /// The container's id in the skin's XML.
     pub container: &'a str,
     /// The layout's id in the skin's XML.
@@ -50,32 +57,42 @@ pub struct PackedWindow<'a> {
     pub rect: Rect,
     /// Its drawing.
     pub cmds: &'a [DrawCmd],
-    /// Who drew each command, as [`crate::runtime::DrawnWindow::owners`] has it.
-    pub owners: &'a [Option<usize>],
+    /// What a renderer may keep of it.
+    pub plan: &'a WindowPlan,
 }
 
-/// A frame's windows as one buffer, with `changed`, the objects the last tick found moving;
-/// see the module.
-pub fn encode(windows: &[PackedWindow], changed: &[usize]) -> Vec<u8> {
-    let mut w = Writer::default();
-    w.u32(changed.len() as u32);
-    for o in changed {
-        w.i32(*o as i32);
+/// Writes frames for one host, keeping what it sent of each window so the next frame carries
+/// only the commands that changed; see the module.
+#[derive(Default)]
+pub struct FrameWriter {
+    sent: HashMap<WindowId, Vec<DrawCmd>>,
+}
+
+impl FrameWriter {
+    /// A writer that has sent nothing.
+    pub fn new() -> FrameWriter {
+        FrameWriter::default()
     }
-    w.u32(windows.len() as u32);
-    for win in windows {
-        w.i32(win.id as i32);
-        w.string(win.container);
-        w.string(win.layout);
-        w.rect(&win.rect);
-        w.u32(win.cmds.len() as u32);
-        for (i, cmd) in win.cmds.iter().enumerate() {
-            let owner = win.owners.get(i).copied().flatten();
-            w.i32(owner.map(|o| o as i32).unwrap_or(-1));
-            w.cmd(cmd);
+
+    /// The frame's windows as one buffer. A window not in the frame is forgotten, so its
+    /// commands cross whole when it shows again.
+    pub fn encode(&mut self, windows: &[FrameWindow]) -> Vec<u8> {
+        let mut w = Writer::default();
+        w.u32(windows.len() as u32);
+        let mut sent = HashMap::with_capacity(windows.len());
+        for win in windows {
+            w.i32(win.id.0 as i32);
+            w.string(win.container);
+            w.string(win.layout);
+            w.rect(&win.rect);
+            w.plan(win.plan);
+            let before = self.sent.remove(&win.id);
+            w.commands(win.cmds, before.as_deref());
+            sent.insert(win.id, win.cmds.to_vec());
         }
+        self.sent = sent;
+        w.finish()
     }
-    w.finish()
 }
 
 /// A menu as one buffer, for a host that passes one back to the engine: item count, then each
@@ -305,6 +322,71 @@ impl Writer {
         }
     }
 
+    fn u64(&mut self, v: u64) {
+        self.body.extend_from_slice(&v.to_le_bytes());
+    }
+
+    fn plan(&mut self, plan: &WindowPlan) {
+        self.u64(plan.id);
+        self.u64(plan.version);
+        self.u32(plan.runs.len() as u32);
+        for run in &plan.runs {
+            self.u64(run.id);
+            self.u64(run.version);
+            self.u32(run.from as u32);
+            self.u32(run.to as u32);
+            self.rect(&run.bounds);
+        }
+    }
+
+    /// `cmds` against `before`, the window's commands as the host has them: the same, or the
+    /// stretches kept and the stretches new. A window of another length crosses whole.
+    fn commands(&mut self, cmds: &[DrawCmd], before: Option<&[DrawCmd]>) {
+        let Some(before) = before.filter(|b| b.len() == cmds.len()) else {
+            self.u8(1);
+            self.u32(1);
+            self.new_segment(cmds);
+            return;
+        };
+        let same: Vec<bool> = cmds
+            .iter()
+            .zip(before)
+            .map(|(c, b)| c.draws_same_as(b))
+            .collect();
+        if same.iter().all(|s| *s) {
+            self.u8(0);
+            return;
+        }
+        let mut segments = Vec::new();
+        let mut i = 0;
+        while i < cmds.len() {
+            let mut j = i;
+            while j < cmds.len() && same[j] == same[i] {
+                j += 1;
+            }
+            segments.push((same[i], i, j));
+            i = j;
+        }
+        self.u8(1);
+        self.u32(segments.len() as u32);
+        for (keep, from, to) in segments {
+            if keep {
+                self.u8(0);
+                self.u32((to - from) as u32);
+            } else {
+                self.new_segment(&cmds[from..to]);
+            }
+        }
+    }
+
+    fn new_segment(&mut self, cmds: &[DrawCmd]) {
+        self.u8(1);
+        self.u32(cmds.len() as u32);
+        for cmd in cmds {
+            self.cmd(cmd);
+        }
+    }
+
     fn menu(&mut self, menu: &SkinMenu) {
         self.u32(menu.items.len() as u32);
         for item in &menu.items {
@@ -441,6 +523,7 @@ const MAX_MENU_ITEMS: usize = 4096;
 mod tests {
     use super::*;
     use crate::draw::{Align, FontDef, Rgb, TextCmd, VAlign};
+    use crate::plan::LiveRun;
 
     #[test]
     fn a_frame_packs_with_its_strings_once() {
@@ -496,28 +579,29 @@ mod tests {
         ];
         // the layout (object 3) drew the shape and the background; a text object (12) the
         // text, the clip and the pixels; the window's ends are nobody's
-        let owners: Vec<Option<usize>> = vec![
-            Some(3),
-            Some(3),
-            Some(3),
-            Some(3),
-            Some(12),
-            Some(12),
-            Some(12),
-            None,
-            None,
-        ];
-        let bytes = encode(
-            &[PackedWindow {
-                id: 7,
+        let plan = WindowPlan {
+            id: 5,
+            version: 6,
+            runs: vec![LiveRun {
+                id: 8,
+                version: 9,
+                from: 4,
+                to: 7,
+                bounds: Rect::new(0, 0, 50, 20),
+            }],
+        };
+        fn window<'a>(cmds: &'a [DrawCmd], plan: &'a WindowPlan) -> FrameWindow<'a> {
+            FrameWindow {
+                id: WindowId(7),
                 container: "main",
                 layout: "normal",
                 rect: Rect::new(10, 20, 300, 100),
-                cmds: &cmds,
-                owners: &owners,
-            }],
-            &[12],
-        );
+                cmds,
+                plan,
+            }
+        }
+        let mut writer = FrameWriter::new();
+        let bytes = writer.encode(&[window(&cmds, &plan)]);
         assert_eq!(&bytes[..4], b"WKDL");
         let strings = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         // main, normal, main.bg, main.png, Andamp, f, font.ttf: each once
@@ -527,10 +611,39 @@ mod tests {
         let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
         println!("FRAME_HEX {hex}");
         assert_eq!(hex, FRAME_HEX);
+
+        // the next frame: the fill's color changed, the plan's version with it; the rest is kept
+        let mut next = cmds.clone();
+        next[3] = DrawCmd::Fill {
+            rect: Rect::new(0, 0, 1, 1),
+            color: Rgb(0x00ff00),
+            alpha: 200,
+        };
+        let moved = WindowPlan {
+            version: 10,
+            ..plan.clone()
+        };
+        let bytes = writer.encode(&[window(&next, &moved)]);
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        println!("NEXT_HEX {hex}");
+        assert_eq!(hex, NEXT_HEX);
+        assert!(
+            bytes.len() < 200,
+            "three segments, one command: {} bytes",
+            bytes.len()
+        );
+
+        // the same again: nothing crosses but the plan
+        let bytes = writer.encode(&[window(&next, &moved)]);
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        println!("SAME_HEX {hex}");
+        assert_eq!(hex, SAME_HEX);
     }
 
-    /// The buffer above, as the Kotlin side's test holds it: a change here is a change of the format.
-    const FRAME_HEX: &str = "574b444c0200000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000006d61696e2e706e6706000000416e64616d70010000006608000000666f6e742e747466010000000c000000010000000700000000000000010000000a000000140000002c0100006400000009000000030000000303010200000000000000000a0000000500000000000000000000000100000001020000000300000000000000000000000a00000005000000ffffffff00000000000000000a00000005000000ff00000000000300000001020000000300000000000000000000000a00000005000000ffffffff01000000020000000a00000005000000ff00000000000300000001020000000300000000000000000000000a00000005000000ffffffff03000000040000000a00000005000000800000000000030000000200000000000000000100000001000000ff00ff00c80000000c00000005040000000105000000060000000c000000ffffff0000000000000000003200000014000000ff000000010100000000010000000100000000002040000024410c00000007000000000000000002000000020000000c00000009000000000000000002000000010000000200000001000000ff00000001332211ff66554480ffffffff08ffffffff04";
+    /// The buffers above, as the Kotlin side's test holds them: a change here is a change of the format.
+    const FRAME_HEX: &str = "574b444c0300000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000006d61696e2e706e6706000000416e64616d70010000006608000000666f6e742e747466010000000700000000000000010000000a000000140000002c01000064000000050000000000000006000000000000000100000008000000000000000900000000000000040000000700000000000000000000003200000014000000010100000001090000000303010200000000000000000a0000000500000000000000000000000100000001020000000300000000000000000000000a00000005000000ffffffff00000000000000000a00000005000000ff000000000001020000000300000000000000000000000a00000005000000ffffffff01000000020000000a00000005000000ff000000000001020000000300000000000000000000000a00000005000000ffffffff03000000040000000a000000050000008000000000000200000000000000000100000001000000ff00ff00c800000005040000000105000000060000000c000000ffffff0000000000000000003200000014000000ff00000001010000000001000000010000000000204000002441070000000000000000020000000200000009000000000000000002000000010000000200000001000000ff00000001332211ff665544800804";
+    const NEXT_HEX: &str = "574b444c0300000002000000040000006d61696e060000006e6f726d616c010000000700000000000000010000000a000000140000002c0100006400000005000000000000000a000000000000000100000008000000000000000900000000000000040000000700000000000000000000003200000014000000010300000000030000000101000000020000000000000000010000000100000000ff0000c80000000005000000";
+    const SAME_HEX: &str = "574b444c0300000002000000040000006d61696e060000006e6f726d616c010000000700000000000000010000000a000000140000002c0100006400000005000000000000000a00000000000000010000000800000000000000090000000000000004000000070000000000000000000000320000001400000000";
 
     #[test]
     fn a_menu_reads_back_as_it_was() {

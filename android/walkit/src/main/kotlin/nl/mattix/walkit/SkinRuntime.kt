@@ -14,7 +14,7 @@ import java.util.TimeZone
  * handed to the engine, which reads it from there. [close] frees the engine's side; a runtime
  * that is garbage collected unclosed is freed then.
  *
- * Every member of the reference engine's runtime is carried, and [DrawPlanner] plans over it.
+ * Every member of the reference engine's runtime is carried; the engine plans each frame itself ([drawPlanned]).
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -428,15 +428,24 @@ public class SkinRuntime(
     public fun tick(): Boolean = Native.rtTick(h(), -1)
 
     /** Every window's drawing with its place in the stack; draw each translated to its rectangle. */
-    public fun drawWindows(): List<Pair<Rect, List<DrawCmd>>> = frame(false).windows.map { it.rect to it.cmds }
+    public fun drawWindows(): List<Pair<Rect, List<DrawCmd>>> = frame(now()).windows.map { it.rect to it.cmds }
 
     /**
-     * Every window's drawing as [drawWindows] gives it, with the objects the last tick found moving
-     * by themselves, taken: what [DrawPlanner.draw] plans from.
+     * Every window's drawing as [drawWindows] gives it, with a plan for each ([WindowPlan]): what a
+     * renderer may keep of the window between frames, worked out by the engine at [nowMs] in any
+     * clock that only moves forward. A command unchanged since the frame before is the same object
+     * as in that frame.
      */
-    internal fun drawPlanned(): PackedFrame.Frame = frame(true)
+    public fun drawPlanned(nowMs: Long): Planned =
+        frame(nowMs).windows.let { windows -> Planned(windows.map { it.rect to it.cmds }, windows.map { it.plan }) }
 
-    /** Nanoseconds in the native draw call (the drawing and its packing), over every frame so far; for timing runs. */
+    /** Nanoseconds the engine spent planning its frames, the drawing itself left out; for timing runs. */
+    public val planNanos: Long get() = Native.rtStats(h())[PLAN_NANOS]
+
+    /** Windows the engine planned from the start, as against those that kept their plan; for tests and timing runs. */
+    public val fullPlans: Long get() = Native.rtStats(h())[FULL_PLANS]
+
+    /** Nanoseconds in the native draw call (the drawing, its planning and its packing), over every frame so far; for timing runs. */
     public var nativeDrawNanos: Long = 0L
         private set
 
@@ -448,11 +457,17 @@ public class SkinRuntime(
     public var frameBytes: Long = 0L
         private set
 
-    private fun frame(takeChanged: Boolean): PackedFrame.Frame {
+    /** Each window's commands as the last frame had them, which the next frame keeps stretches of. */
+    private var kept = HashMap<WindowId, List<DrawCmd>>()
+
+    private fun frame(nowMs: Long): PackedFrame.Frame {
         val t0 = System.nanoTime()
-        val bytes = Native.rtDrawWindows(h(), takeChanged)
+        val bytes = Native.rtDrawWindows(h(), nowMs)
         val t1 = System.nanoTime()
-        val frame = PackedFrame.decode(bytes)
+        val frame = PackedFrame.decode(bytes) { kept[it] }
+        val next = HashMap<WindowId, List<DrawCmd>>(frame.windows.size * 2)
+        for (w in frame.windows) next[w.id] = w.cmds
+        kept = next
         decodeNanos += System.nanoTime() - t1
         nativeDrawNanos += t1 - t0
         frameBytes += bytes.size
@@ -573,5 +588,9 @@ public class SkinRuntime(
         /** The screen a skin may place windows on before the host sets a view size: a Full HD portrait phone. */
         const val VIEWPORT_W = 1080
         const val VIEWPORT_H = 1920
+
+        /** Where the planner's numbers sit in what `rtStats` gives, after the engine's four. */
+        const val PLAN_NANOS = 4
+        const val FULL_PLANS = 5
     }
 }

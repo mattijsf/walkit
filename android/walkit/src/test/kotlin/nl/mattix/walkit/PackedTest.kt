@@ -3,6 +3,8 @@ package nl.mattix.walkit
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,8 +18,7 @@ class PackedTest {
 
     @Test
     fun `a frame decodes into its windows and commands`() {
-        val decoded = PackedFrame.decode(frame)
-        assertEquals(listOf(12), decoded.changed.toList())
+        val decoded = PackedFrame.decode(frame) { null }
         val windows = decoded.windows
         assertEquals(1, windows.size)
         val w = windows[0]
@@ -57,9 +58,45 @@ class PackedTest {
         assertTrue(pixels.stable)
         assertEquals(0xff112233.toInt(), pixels.argb[0])
         assertEquals(0x80445566.toInt(), pixels.argb[1])
-        assertEquals("the layout drew the shape", 3, shape.ownedBy)
-        assertEquals("a text object drew the pixels", 12, pixels.ownedBy)
-        assertNull("the window's end is nobody's", w.cmds[8].ownedBy)
+        val plan = w.plan
+        assertEquals(5L, plan.id)
+        assertEquals(6L, plan.version)
+        val run = plan.runs.single()
+        assertEquals(8L, run.id)
+        assertEquals(9L, run.version)
+        assertEquals(4, run.from)
+        assertEquals(7, run.to)
+        assertEquals(Rect(0, 0, 50, 20), run.bounds)
+    }
+
+    @Test
+    fun `the next frame keeps the commands that did not change, as the same objects`() {
+        val first = PackedFrame.decode(frame) { null }.windows[0]
+        val next = PackedFrame.decode(hex(NEXT_HEX)) { first.cmds }.windows[0]
+        assertEquals(9, next.cmds.size)
+        for (k in next.cmds.indices) {
+            if (k == 3) continue
+            assertSame("command $k kept", first.cmds[k], next.cmds[k])
+        }
+        val fill = next.cmds[3] as DrawCmd.Fill
+        assertEquals(0x00ff00, fill.color.value)
+        assertEquals(10L, next.plan.version)
+        val same = PackedFrame.decode(hex(SAME_HEX)) { next.cmds }.windows[0]
+        assertSame("a window as before keeps its list", next.cmds, same.cmds)
+    }
+
+    @Test
+    fun `a frame that keeps what the host never had is refused`() {
+        val first = PackedFrame.decode(frame) { null }.windows[0]
+        assertThrows(IllegalStateException::class.java) { PackedFrame.decode(hex(NEXT_HEX)) { null } }
+        assertThrows(IllegalStateException::class.java) { PackedFrame.decode(hex(SAME_HEX)) { null } }
+        assertEquals(
+            9,
+            PackedFrame
+                .decode(hex(SAME_HEX)) { first.cmds }
+                .windows[0]
+                .cmds.size,
+        )
     }
 
     @Test
@@ -92,18 +129,28 @@ class PackedTest {
             .toByteArray()
 
     private companion object {
-        /** `walkit::packed::tests::a_frame_packs_with_its_strings_once`'s buffer, printed by that test. */
-        val FRAME_HEX =
-            "574b444c0200000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000006d6169" +
-                "6e2e706e6706000000416e64616d70010000006608000000666f6e742e747466010000000c0000000100000007000000" +
-                "00000000010000000a000000140000002c0100006400000009000000030000000303010200000000000000000a000000" +
-                "0500000000000000000000000100000001020000000300000000000000000000000a00000005000000ffffffff000000" +
-                "00000000000a00000005000000ff00000000000300000001020000000300000000000000000000000a00000005000000" +
-                "ffffffff01000000020000000a00000005000000ff00000000000300000001020000000300000000000000000000000a" +
-                "00000005000000ffffffff03000000040000000a00000005000000800000000000030000000200000000000000000100" +
-                "000001000000ff00ff00c80000000c00000005040000000105000000060000000c000000ffffff000000000000000000" +
-                "3200000014000000ff000000010100000000010000000100000000002040000024410c00000007000000000000000002" +
-                "000000020000000c00000009000000000000000002000000010000000200000001000000ff00000001332211ff665544" +
-                "80ffffffff08ffffffff04"
+        /** `walkit::packed::tests::a_frame_packs_with_its_strings_once`'s buffers, printed by that test. */
+        const val FRAME_HEX =
+            "574b444c0300000007000000040000006d61696e060000006e6f726d616c070000006d61696e2e6267080000" +
+                "006d61696e2e706e6706000000416e64616d70010000006608000000666f6e742e7474660100000007000000" +
+                "00000000010000000a000000140000002c010000640000000500000000000000060000000000000001000000" +
+                "0800000000000000090000000000000004000000070000000000000000000000320000001400000001010000" +
+                "0001090000000303010200000000000000000a00000005000000000000000000000001000000010200000003" +
+                "00000000000000000000000a00000005000000ffffffff00000000000000000a00000005000000ff00000000" +
+                "0001020000000300000000000000000000000a00000005000000ffffffff01000000020000000a0000000500" +
+                "0000ff000000000001020000000300000000000000000000000a00000005000000ffffffff03000000040000" +
+                "000a000000050000008000000000000200000000000000000100000001000000ff00ff00c800000005040000" +
+                "000105000000060000000c000000ffffff0000000000000000003200000014000000ff000000010100000000" +
+                "0100000001000000000020400000244107000000000000000002000000020000000900000000000000000200" +
+                "0000010000000200000001000000ff00000001332211ff665544800804"
+        const val NEXT_HEX =
+            "574b444c0300000002000000040000006d61696e060000006e6f726d616c0100000007000000000000000100" +
+                "00000a000000140000002c0100006400000005000000000000000a0000000000000001000000080000000000" +
+                "0000090000000000000004000000070000000000000000000000320000001400000001030000000003000000" +
+                "0101000000020000000000000000010000000100000000ff0000c80000000005000000"
+        const val SAME_HEX =
+            "574b444c0300000002000000040000006d61696e060000006e6f726d616c0100000007000000000000000100" +
+                "00000a000000140000002c0100006400000005000000000000000a0000000000000001000000080000000000" +
+                "0000090000000000000004000000070000000000000000000000320000001400000000"
     }
 }

@@ -97,17 +97,10 @@ class DrawCmdSameTest {
         }
     }
 
-    @Test
-    fun `the owner is no part of what a command draws`() {
-        val a = DrawCmd.Fill(Rect(1, 2, 3, 4), Rgb(0x123456), 200).also { it.ownedBy = 3 }
-        val b = DrawCmd.Fill(Rect(1, 2, 3, 4), Rgb(0x123456), 200).also { it.ownedBy = 4 }
-        assertTrue(a.drawsSameAs(b))
-    }
-
-    /** The fields a command or a definition draws by: those it declares, less the owner it carries for the planner. */
+    /** The fields a command or a definition draws by: those it declares. */
     private fun fieldsOf(type: Class<*>): List<Field> =
         type.declaredFields
-            .filter { !Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.name != "ownedBy" }
+            .filter { !Modifier.isStatic(it.modifiers) && !it.isSynthetic }
             .onEach { it.isAccessible = true }
 
     private fun field(

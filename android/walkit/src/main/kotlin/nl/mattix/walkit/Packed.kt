@@ -20,6 +20,8 @@ internal class PackedReader(
 
     fun u32(): Long = buf.getInt().toLong() and 0xffffffffL
 
+    fun u64(): Long = buf.getLong()
+
     fun f32(): Float = buf.getFloat()
 
     fun bool(): Boolean = u8() != 0
@@ -55,7 +57,7 @@ internal class PackedReader(
 
     companion object {
         const val MAGIC = "WKDL"
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }
 
@@ -83,8 +85,9 @@ internal class PackedOut {
 }
 
 /**
- * A frame as the engine packs it: the objects the last tick found moving, and every window with
- * its drawing, each command marked with the object that drew it ([DrawCmd.ownedBy]).
+ * A frame as the engine packs it: every window with its plan and its drawing, of which only the
+ * commands that changed since the frame before cross; the rest are the commands the host kept
+ * of that frame ([decode] takes them from the window's list in the frame before).
  */
 internal object PackedFrame {
     /** One window of a frame. */
@@ -94,32 +97,70 @@ internal object PackedFrame {
         val layout: String,
         val rect: Rect,
         val cmds: List<DrawCmd>,
+        val plan: WindowPlan,
     )
 
-    /** A frame: the ids of the objects the last tick found moving by themselves, and the windows. */
+    /** A frame: its windows. */
     class Frame(
-        val changed: IntArray,
         val windows: List<Window>,
     )
 
-    fun decode(bytes: ByteArray): Frame {
+    /**
+     * [bytes] read as a frame, with [kept] giving each window's commands as the frame before had
+     * them (null for a window not in it); a window the frame says is as before, or keeps stretches
+     * of, takes them from there, so a command unchanged is the same object as in that frame.
+     */
+    fun decode(
+        bytes: ByteArray,
+        kept: (WindowId) -> List<DrawCmd>?,
+    ): Frame {
         val r = PackedReader(bytes)
         r.header()
-        val changed = IntArray(r.i32()) { r.i32() }
         val windows =
             List(r.i32()) {
                 val id = WindowId(r.i32())
                 val container = r.string()
                 val layout = r.string()
                 val rect = r.rect()
-                val cmds =
-                    List(r.i32()) {
-                        val owner = r.i32()
-                        cmd(r).also { if (owner >= 0) it.ownedBy = owner }
-                    }
-                Window(id, container, layout, rect, cmds)
+                val plan = plan(r)
+                val cmds = commands(r, kept(id))
+                Window(id, container, layout, rect, cmds, plan)
             }
-        return Frame(changed, windows)
+        return Frame(windows)
+    }
+
+    private fun plan(r: PackedReader): WindowPlan {
+        val id = r.u64()
+        val version = r.u64()
+        val runs = List(r.i32()) { LiveRun(r.u64(), r.u64(), r.i32(), r.i32(), r.rect()) }
+        return WindowPlan(id, version, runs)
+    }
+
+    /** A window's commands: as before, or kept and new stretches, in order. */
+    private fun commands(
+        r: PackedReader,
+        before: List<DrawCmd>?,
+    ): List<DrawCmd> {
+        if (r.u8() == 0) return checkNotNull(before) { "walkit packed frame: a window as before, with no frame before" }
+        val out = ArrayList<DrawCmd>(before?.size ?: 0)
+        var at = 0
+        repeat(r.i32()) {
+            val count =
+                r.u8().let { kind ->
+                    if (kind == 0) {
+                        val n = r.i32()
+                        val from = checkNotNull(before) { "walkit packed frame: a stretch kept, with no frame before" }
+                        out.addAll(from.subList(at, at + n))
+                        n
+                    } else {
+                        val n = r.i32()
+                        repeat(n) { out.add(cmd(r)) }
+                        n
+                    }
+                }
+            at += count
+        }
+        return out
     }
 
     private fun bitmap(r: PackedReader): BitmapDef {
