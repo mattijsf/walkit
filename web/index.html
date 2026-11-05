@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>walkit corpus</title>
+<style>
+  body { font: 14px/1.4 -apple-system, system-ui, sans-serif; margin: 16px; color: #222; background: #fff; }
+  pre { font: 12px/1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  button { font: inherit; padding: 6px 12px; }
+  #status { margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>walkit: the reference scenarios in this browser</h1>
+<p>Runs every scenario of the local set through the wasm engine on a stepped clock, as <code>walkit-trace</code> does on a desktop, and posts the per-scenario timing and the CRC of each trace back to the server.</p>
+<button id="run">Run</button> <label><input type="checkbox" id="post" checked> post results</label>
+<div id="status"></div>
+<pre id="log"></pre>
+<script type="module" src="browser.mjs"></script>
+</body>
+</html>

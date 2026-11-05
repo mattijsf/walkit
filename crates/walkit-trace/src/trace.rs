@@ -24,7 +24,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::fmt::Write as _;
-use std::path::Path;
 use std::rc::Rc;
 
 use walkit::draw::{DrawCmd, Gamma, Rect, Region, RegionImage, TextCmd};
@@ -33,7 +32,7 @@ use walkit::host::{EngineStats, SkinSetup};
 use walkit::player::{FakePlayer, Track};
 use walkit::SkinRuntime;
 
-use crate::host::TraceHost;
+use crate::host::{Decoder, TraceHost};
 use crate::scenario::Scenario;
 
 /// 2026-10-20 12:00:00 UTC, as the reference tests start.
@@ -103,11 +102,47 @@ fn describe(step: &Step) -> String {
     }
 }
 
-/// The trace of `sc` run on `files`, as text.
-pub fn record(sc: &Scenario, files: Box<dyn SkinFiles>, fonts: Option<&Path>) -> String {
+/// A clock for timing a run, in milliseconds of any resolution; the platform supplies it.
+pub type Perf = Box<dyn Fn() -> f64>;
+
+/// What a run took: the load, each tick, and each draw list, in milliseconds of the [`Perf`]
+/// clock. `draws` holds every draw list made (one per tick); `dirty` says which of them
+/// followed a tick that reported a change, as a host would draw only those.
+#[derive(Debug, Clone, Default)]
+pub struct Stats {
+    /// How long `load` took.
+    pub load_ms: f64,
+    /// Each tick's time.
+    pub ticks: Vec<f64>,
+    /// Each draw list's time.
+    pub draws: Vec<f64>,
+    /// Whether the tick before each draw reported a change.
+    pub dirty: Vec<bool>,
+    /// How many frames the trace holds.
+    pub frames: usize,
+}
+
+/// A recorded run: the trace text, and what it took.
+#[derive(Debug, Clone)]
+pub struct Recording {
+    /// The trace, `trace v1`.
+    pub text: String,
+    /// The timing.
+    pub stats: Stats,
+}
+
+/// The trace of `sc` run on `files`, with pictures decoded by `decoder`, the stand-in fonts
+/// read from `fonts`, and the run timed on `perf`.
+pub fn record(
+    sc: &Scenario,
+    files: Box<dyn SkinFiles>,
+    decoder: Decoder,
+    fonts: Option<Rc<dyn SkinFiles>>,
+    perf: Perf,
+) -> Recording {
     let files: Rc<dyn SkinFiles> = Rc::from(files);
     let out = Rc::new(RefCell::new(String::new()));
-    let host = TraceHost::new(files.clone(), out.clone(), fonts.map(|p| p.to_path_buf()));
+    let host = TraceHost::new(files.clone(), out.clone(), decoder, fonts);
     let invalidates = host.invalidates.clone();
     let now = Rc::new(Cell::new(START));
     let clock_now = now.clone();
@@ -153,13 +188,18 @@ pub fn record(sc: &Scenario, files: Box<dyn SkinFiles>, fonts: Option<&Path>) ->
         let _ = writeln!(o, "clock start={START} frame={FRAME_MS}");
         let _ = writeln!(o, "step load");
     }
+    let t0 = perf();
     rt.load();
+    let mut stats = Stats {
+        load_ms: perf() - t0,
+        ..Default::default()
+    };
     let mut frames = Frames {
         stats: rt.stats(),
         invalidates: 0,
         last: String::new(),
     };
-    frames.tick(&mut rt, &out, &invalidates, now.get());
+    frames.tick(&mut rt, &out, &invalidates, now.get(), &perf, &mut stats);
     for step in steps(sc) {
         let _ = writeln!(out.borrow_mut(), "step {}", describe(&step));
         match step {
@@ -167,7 +207,7 @@ pub fn record(sc: &Scenario, files: Box<dyn SkinFiles>, fonts: Option<&Path>) ->
                 let until = now.get() + ms;
                 while now.get() < until {
                     now.set((now.get() + FRAME_MS).min(until));
-                    frames.tick(&mut rt, &out, &invalidates, now.get());
+                    frames.tick(&mut rt, &out, &invalidates, now.get(), &perf, &mut stats);
                 }
             }
             Step::Play => rt.player().play(),
@@ -199,7 +239,7 @@ pub fn record(sc: &Scenario, files: Box<dyn SkinFiles>, fonts: Option<&Path>) ->
     }
     let _ = writeln!(out.borrow_mut(), "end t={}", now.get() - START);
     let text = out.borrow().clone();
-    text
+    Recording { text, stats }
 }
 
 /// A shared files handle as a boxed `SkinFiles`.
@@ -229,13 +269,22 @@ impl Frames {
         out: &Rc<RefCell<String>>,
         invalidates: &Rc<RefCell<i64>>,
         now: i64,
+        perf: &Perf,
+        timing: &mut Stats,
     ) {
-        rt.tick();
+        let t0 = perf();
+        let dirty = rt.tick();
+        let t1 = perf();
         let s = rt.stats();
         let t = now - START;
         let mut frame = String::new();
         let ids = rt.window_ids();
+        let t2 = perf();
         let drawn = rt.draw_windows();
+        let t3 = perf();
+        timing.ticks.push(t1 - t0);
+        timing.draws.push(t3 - t2);
+        timing.dirty.push(dirty);
         assert_eq!(
             ids.len(),
             drawn.len(),
@@ -278,10 +327,29 @@ impl Frames {
             o.push_str(&frame);
             o.push_str("endframe\n");
             self.last = frame;
+            timing.frames += 1;
         }
         self.stats = s;
         self.invalidates = inv;
     }
+}
+
+/// The CRC-32 (IEEE) of the pixels as bytes, each ARGB big-endian, as `java.util.zip.CRC32` sums them.
+pub fn crc32_of(argb: &[u32]) -> u32 {
+    let mut crc: u32 = 0xffff_ffff;
+    for p in argb {
+        for b in p.to_be_bytes() {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    (crc >> 1) ^ 0xedb8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+    }
+    !crc
 }
 
 /// A draw command as one line of the trace.
@@ -319,14 +387,10 @@ pub fn line(cmd: &DrawCmd) -> String {
             alpha,
             stable,
         } => {
-            let mut crc = crc32fast::Hasher::new();
-            for p in argb.iter() {
-                crc.update(&p.to_be_bytes());
-            }
             format!(
                 "pixels {} {w}x{h} a={alpha} crc={:08x}{}",
                 rect(r),
-                crc.finalize(),
+                crc32_of(argb),
                 if *stable { " stable" } else { "" }
             )
         }
@@ -474,6 +538,10 @@ mod tests {
         Box::new(m)
     }
 
+    fn rec(sc: &Scenario) -> String {
+        record(sc, small(), Box::new(|_, _| None), None, Box::new(|| 0.0)).text
+    }
+
     fn scenario(title: &str, taps: &[&str]) -> Scenario {
         Scenario {
             name: "small".into(),
@@ -493,8 +561,8 @@ mod tests {
 
     #[test]
     fn the_same_run_gives_the_same_trace_and_it_says_what_it_did() {
-        let trace = record(&scenario("Andamp", &[]), small(), None);
-        assert_eq!(trace, record(&scenario("Andamp", &[]), small(), None));
+        let trace = rec(&scenario("Andamp", &[]));
+        assert_eq!(trace, rec(&scenario("Andamp", &[])));
         let lines: Vec<&str> = trace.trim_end().lines().collect();
         assert_eq!(lines[0], "trace v1");
         assert_eq!(lines[1], "skin Small");
@@ -515,14 +583,14 @@ mod tests {
 
     #[test]
     fn what_the_skin_shows_is_in_the_trace_and_a_tap_too() {
-        let plain = record(&scenario("Andamp", &[]), small(), None);
-        let other = record(&scenario("Second Song", &[]), small(), None);
+        let plain = rec(&scenario("Andamp", &[]));
+        let other = rec(&scenario("Second Song", &[]));
         assert_ne!(plain, other);
         assert!(other.lines().any(|l| l.starts_with("text \"Second Song\"")));
-        let tapped = record(&scenario("Andamp", &["play"]), small(), None);
+        let tapped = rec(&scenario("Andamp", &["play"]));
         assert!(tapped.lines().any(|l| l == "tap play 120,50"));
         assert!(tapped.lines().any(|l| l == "log action PLAY  from play"));
-        let missing = record(&scenario("Andamp", &["nothing"]), small(), None);
+        let missing = rec(&scenario("Andamp", &["nothing"]));
         assert!(missing.lines().any(|l| l == "tap nothing missing"));
     }
 }

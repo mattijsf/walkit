@@ -7,7 +7,6 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use walkit::draw::FontDef;
@@ -15,33 +14,48 @@ use walkit::files::SkinFiles;
 use walkit::host::{MenuItem, SkinHost, SkinMenu, WindowId};
 
 /// A decoded picture: its size and its pixels as ARGB, row by row.
-struct Picture {
-    w: i32,
-    h: i32,
-    argb: Vec<u32>,
+#[derive(Debug, Clone)]
+pub struct Picture {
+    /// The width.
+    pub w: i32,
+    /// The height.
+    pub h: i32,
+    /// The pixels, ARGB, rows top first.
+    pub argb: Vec<u32>,
 }
+
+/// Decodes a skin picture from its file name and bytes; `None` when it cannot be read. The
+/// platform supplies it: a desktop run decodes with a library, a browser with the browser's decoder.
+pub type Decoder = Box<dyn FnMut(&str, &[u8]) -> Option<Picture>>;
 
 /// The trace host; see the module.
 pub struct TraceHost {
     files: Rc<dyn SkinFiles>,
     out: Rc<RefCell<String>>,
-    fonts: Option<PathBuf>,
+    decoder: Decoder,
+    /// The stand-in fonts by path (`fonts/LiberationSans.ttf`), for Windows' line metrics.
+    fonts: Option<Rc<dyn SkinFiles>>,
     /// How often the engine asked for a redraw.
     pub invalidates: Rc<RefCell<i64>>,
     images: HashMap<String, Option<Rc<Picture>>>,
-    font_files: HashMap<String, Option<Rc<[u8]>>>,
 }
 
 impl TraceHost {
-    /// A host reading `files`, writing into `out`, with stand-in fonts in `fonts`.
-    pub fn new(files: Rc<dyn SkinFiles>, out: Rc<RefCell<String>>, fonts: Option<PathBuf>) -> Self {
+    /// A host reading `files`, writing into `out`, decoding pictures with `decoder`, and reading
+    /// the stand-in fonts from `fonts`.
+    pub fn new(
+        files: Rc<dyn SkinFiles>,
+        out: Rc<RefCell<String>>,
+        decoder: Decoder,
+        fonts: Option<Rc<dyn SkinFiles>>,
+    ) -> Self {
         TraceHost {
             files,
             out,
+            decoder,
             fonts,
             invalidates: Rc::new(RefCell::new(0)),
             images: HashMap::new(),
-            font_files: HashMap::new(),
         }
     }
 
@@ -50,25 +64,11 @@ impl TraceHost {
         if let Some(p) = self.images.get(&key) {
             return p.clone();
         }
-        let decoded = self.files.read(file).and_then(|bytes| {
-            let img = image::load_from_memory(&bytes).ok()?;
-            let rgba = img.to_rgba8();
-            let (w, h) = rgba.dimensions();
-            let argb = rgba
-                .pixels()
-                .map(|p| {
-                    ((p[3] as u32) << 24)
-                        | ((p[0] as u32) << 16)
-                        | ((p[1] as u32) << 8)
-                        | p[2] as u32
-                })
-                .collect();
-            Some(Rc::new(Picture {
-                w: w as i32,
-                h: h as i32,
-                argb,
-            }))
-        });
+        let decoded = self
+            .files
+            .read(file)
+            .and_then(|bytes| (self.decoder)(file, &bytes))
+            .map(Rc::new);
         self.images.insert(key, decoded.clone());
         decoded
     }
@@ -80,7 +80,8 @@ impl TraceHost {
     }
 }
 
-fn items(menu: &SkinMenu) -> String {
+/// A menu as the trace writes it: `[id:text*! - text>[...]]`.
+pub fn menu_items(menu: &SkinMenu) -> String {
     let parts: Vec<String> = menu
         .items
         .iter()
@@ -98,10 +99,23 @@ fn items(menu: &SkinMenu) -> String {
                 )
             }
             MenuItem::Separator => "-".to_string(),
-            MenuItem::Submenu { text, menu } => format!("{text}>{}", items(menu)),
+            MenuItem::Submenu { text, menu } => format!("{text}>{}", menu_items(menu)),
         })
         .collect();
     format!("[{}]", parts.join(" "))
+}
+
+/// The fixed text rule: six tenths of the size per character, a tenth more in bold; no font.
+pub fn rule_text_width(text: &str, size: i32, bold: bool) -> i32 {
+    let len = text.encode_utf16().count() as i32;
+    len.wrapping_mul(size)
+        .wrapping_mul(if bold { 7 } else { 6 })
+        / 10
+}
+
+/// The fixed line rule: eight tenths of the size above the baseline, two below.
+pub fn rule_line_metrics(size: i32) -> (f32, f32) {
+    (size as f32 * 0.8, size as f32 * 0.2)
 }
 
 impl SkinHost for TraceHost {
@@ -117,37 +131,21 @@ impl SkinHost for TraceHost {
         Some(p.argb[(y * p.w + x) as usize])
     }
 
-    /// Six tenths of the size per character, a tenth more in bold; a fixed rule, no font.
     fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, bold: bool) -> i32 {
-        let len = text.encode_utf16().count() as i32;
-        len.wrapping_mul(size)
-            .wrapping_mul(if bold { 7 } else { 6 })
-            / 10
+        rule_text_width(text, size, bold)
     }
 
-    /// Eight tenths of the size above the baseline, two below.
     fn line_metrics(
         &mut self,
         _font: Option<&FontDef>,
         size: i32,
         _bold: bool,
     ) -> Option<(f32, f32)> {
-        Some((size as f32 * 0.8, size as f32 * 0.2))
+        Some(rule_line_metrics(size))
     }
 
     fn font_file(&mut self, file: &str) -> Option<Rc<[u8]>> {
-        if let Some(f) = self.font_files.get(file) {
-            return f.clone();
-        }
-        let bytes: Option<Rc<[u8]>> = self
-            .fonts
-            .as_ref()
-            .and_then(|dir| {
-                std::fs::read(dir.join(file.strip_prefix("fonts/").unwrap_or(file))).ok()
-            })
-            .map(Rc::from);
-        self.font_files.insert(file.to_string(), bytes.clone());
-        bytes
+        self.fonts.as_ref()?.read(file)
     }
 
     fn log(&mut self, message: &str) {
@@ -168,7 +166,7 @@ impl SkinHost for TraceHost {
     }
 
     fn choose_from_menu(&mut self, menu: &SkinMenu) -> Option<i32> {
-        self.write(&format!("menu {}", items(menu)));
+        self.write(&format!("menu {}", menu_items(menu)));
         Some(0)
     }
 

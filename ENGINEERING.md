@@ -13,8 +13,17 @@ tools/gate.sh                               # the push gate: fmt, clippy -D warn
 cargo test --workspace                      # the tests
 cargo run -p walkit-trace -- <scenarios.json> traces --skins <dir> --defaults <zip>   # record the reference scenarios
 tools/trace-diff.sh                         # diff traces/ against the reference engine's
-cargo build --profile small --target wasm32-unknown-unknown -p walkit   # the web build
+tools/web-build.sh                          # the web build: both profiles, wasm-opt, sizes
+node web/node.mjs <scenarios.json> traces-wasm --wasm web/dist/walkit-release.wasm \
+  --skins <dir> --defaults <zip> --fonts <dir>    # the same scenarios through the wasm module in node
+node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
+  --defaults <zip> --fonts <dir> --results results.jsonl   # the same in a browser, at http://127.0.0.1:8765/?auto
 ```
+
+The wasm build needs the `wasm32-unknown-unknown` target of a rustup toolchain (`rustup target
+add wasm32-unknown-unknown`); a cargo from Homebrew has none, so the scripts put `~/.cargo/bin`
+first. `wasm-opt` (Homebrew `binaryen`) is optional; `brotli` and `node` give the sizes and the
+web runs.
 
 ## Layout
 
@@ -26,9 +35,20 @@ cargo build --profile small --target wasm32-unknown-unknown -p walkit   # the we
   `runtime` (loading, layout, drawing, the tick, touches and actions, the objects scripts make,
   and the interpreter that runs the scripts' handlers) and `maki` (values, the `.maki` parser,
   the standard library's table, and what a loaded script keeps).
-- `crates/walkit-trace`: a command that runs a set of scenarios through the engine on a
-  stepped clock and writes each run's trace. Not published.
-- `tools/`: the gate and the trace diff.
+- `crates/walkit-trace`: the recorder that runs a scenario through the engine on a stepped
+  clock and writes the trace, as a platform-free library (the fixed host, the scenario, the
+  timing of each tick and draw list), and a command that adds the files, the archives, image
+  decoding and the JSON of a desktop run. Not published.
+- `crates/walkit-web`: the engine for the web, a `cdylib` for `wasm32-unknown-unknown` with a
+  C-style surface (`wk_*` exports, `host_*` imports): files in, a runtime the page drives
+  (`wk_rt_*`: load, clock, tick, draw list out as text, touches, windows, themes), and
+  `wk_record` for the reference scenarios on the fixed host. It is the one crate with unsafe
+  code, for the exports and the calls into the host; on any other target it is empty.
+- `web/`: the JS side. `walkit.mjs` loads the module and wraps the surface; `corpus.mjs` runs
+  the reference scenarios as `walkit-trace` does; `pictures.mjs` decodes PNG, BMP and GIF the
+  way the desktop build does; `zip.mjs` reads `.wal` archives; `node.mjs` is the node runner,
+  `serve.mjs` + `index.html` + `browser.mjs` the browser one. No build step, no npm.
+- `tools/`: the gate, the trace diff and the web build.
 
 ## The trace
 
@@ -48,9 +68,19 @@ The scenarios and the skins they run are a local set (`scenarios.json`, a folder
 files given with `--skins`, plus Winamp's default element set as a zip given with
 `--defaults`; `--fonts` names a folder with the free fonts that stand in for Windows' system
 fonts). A scenario names its skin's file, its folder name, the songs, and what the run does;
-the other `.wal` files in the folder are the skin's siblings. They are not in this repository
-and are never committed: the skins are other people's work. Traces are not committed either
-(tens of megabytes per run).
+the other `.wal` files in the folder are the skin's siblings (the skin itself included: Big
+Bento reads its scripts through `@SKINSPATH@`). They are not in this repository and are
+never committed: the skins are other people's work. Traces are not committed either (tens of
+megabytes per run).
+
+Two inputs decide parity with the reference engine, and both live outside this repository:
+the corpus skins are the `.wal` files of Andamp's `modernskin/src/test/resources` (Bento and
+Big Bento are only there), and `--fonts` must be the default-set fonts folder of an Andamp
+checkout at current main (`modernskin/src/main/resources/nl/mattix/andamp/modernskin/
+defaultset/fonts`, with DejaVu Sans Condensed and Liberation Sans, regular and bold); without
+Liberation Sans the baselines of Arial texts differ by fractions of a pixel. The web runs take
+the same inputs through `--skins`, `--defaults` and `--fonts`, and the trace recorded in node
+or a browser is byte-identical to the desktop build's for every scenario.
 
 ## Rules
 

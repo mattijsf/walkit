@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/walkit", "crates/walkit-trace"]
+members = ["crates/walkit", "crates/walkit-trace", "crates/walkit-web"]
 
 [workspace.package]
 version = "0.1.0"
