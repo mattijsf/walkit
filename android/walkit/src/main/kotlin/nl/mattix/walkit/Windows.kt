@@ -8,7 +8,8 @@ package nl.mattix.walkit
  */
 @JvmInline
 public value class WindowId(
-    internal val raw: Int,
+    /** The engine's number for the window; a host that converts ids into another engine's types makes them from it. */
+    public val raw: Int,
 )
 
 /** An edge of the viewport on one axis: the left or top one, or the right or bottom one. */
