@@ -4,6 +4,7 @@
 //! script lives in.
 
 use super::{SkinRuntime, EQ_FLAT};
+use crate::gui::{Kind, ObjId};
 use crate::maki::{Handle, Value};
 use crate::player::Status;
 
@@ -513,6 +514,43 @@ impl SkinRuntime {
             return open;
         }
         self.toggle_target(&bare).is_some_and(|c| self.is_open(c))
+    }
+
+    /// The host closed its visualizer window, which stands in for the skin's visualizer and
+    /// video windows: each of those a script had it open goes back into the skin, as the skin's
+    /// window's Reattach button puts it (Winamp Modern's `button.vis.reattach`), the button
+    /// in the skin's window for it whose id says "attach". The skin's window stays shut.
+    pub fn visualizer_window_closed(&mut self) {
+        for (kind, guid) in [("avs", super::AVS_GUID), ("video", super::VIDEO_GUID)] {
+            let Some(at) = self.shown_for_skin.iter().position(|k| k == kind) else {
+                continue;
+            };
+            self.shown_for_skin.remove(at);
+            let Some(window) = self
+                .containers
+                .iter()
+                .position(|c| SkinRuntime::holds(&c.attrs, guid))
+            else {
+                continue;
+            };
+            let layouts = self.containers[window].layouts.clone();
+            if let Some(button) = layouts.iter().find_map(|l| self.attach_button(*l)) {
+                self.button_click(button);
+            }
+        }
+        self.invalidate();
+    }
+
+    /// The button under `o` whose id says "attach", if any.
+    fn attach_button(&self, o: ObjId) -> Option<ObjId> {
+        let obj = &self.objects[o];
+        if matches!(obj.kind, Kind::Button(_)) && obj.base.id.to_lowercase().contains("attach") {
+            return Some(o);
+        }
+        if obj.group.is_some() {
+            return obj.children().iter().find_map(|c| self.attach_button(*c));
+        }
+        None
     }
 
     /// A script's `showWindow` of a window the app shows, named by GUID or alias: the app opens it.

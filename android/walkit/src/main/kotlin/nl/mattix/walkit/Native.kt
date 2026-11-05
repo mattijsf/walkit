@@ -163,6 +163,10 @@ internal object Native {
 
     @JvmStatic external fun rtLeftColumn(h: Long): IntArray
 
+    @JvmStatic external fun rtVisRect(h: Long): IntArray
+
+    @JvmStatic external fun rtVisualizerWindowClosed(h: Long)
+
     @JvmStatic external fun rtEdgePlacements(h: Long): Int
 
     @JvmStatic external fun rtColorThemes(h: Long): Array<String>
