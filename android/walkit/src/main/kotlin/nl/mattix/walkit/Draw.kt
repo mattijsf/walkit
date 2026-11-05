@@ -12,15 +12,18 @@ public data class Rect(
     val bottom: Int get() = top + height
 }
 
-/** A part of a skin image: the file and the source rectangle inside it, or null size for the whole file. */
+/**
+ * A part of a skin image: the element [id] (lowercase) in the skin's XML, the [file] and the source
+ * rectangle inside it, or null size for the whole file, and the gamma group the color theme tints it by.
+ */
 public class BitmapDef(
-    internal val id: String,
+    public val id: String,
     public val file: String,
     public val x: Int,
     public val y: Int,
     public val w: Int?,
     public val h: Int?,
-    internal val gammaGroup: String? = null,
+    public val gammaGroup: String? = null,
 )
 
 /**
