@@ -171,7 +171,10 @@ impl SkinRuntime {
     }
 
     fn is_control(&self, o: ObjId) -> bool {
-        matches!(self.objects[o].kind, Kind::Button(_) | Kind::Slider(_)) || self.is_grip(o)
+        matches!(
+            self.objects[o].kind,
+            Kind::Button(_) | Kind::Slider(_) | Kind::ColorThemeList(_) | Kind::PlaylistView(_)
+        ) || self.is_grip(o)
     }
 
     /// Whether `o` is a window's resize grip: its `resize`, as a script last set it, names an edge, and it lies in a window.
@@ -243,13 +246,20 @@ impl SkinRuntime {
     }
 
     /// Whether a script follows the finger across `o`, or across the group that exposes it.
-    fn follows_finger(&self, o: ObjId) -> bool {
-        self.dispatch_chain(o).iter().any(|c| {
-            self.scripts.iter().any(|s| {
-                s.listens_to_any(Handle::Gui(*c), &FOLLOW_EVENTS)
-                    || s.reads_mouse(Handle::Gui(*c), &PRESS_EVENTS)
-            })
-        })
+    fn follows_finger(&mut self, o: ObjId) -> bool {
+        let chain = self.dispatch_chain(o);
+        let mut any = false;
+        for c in &chain {
+            for s in 0..self.scripts.len() {
+                if self.scripts[s].listens_to_any(Handle::Gui(*c), &FOLLOW_EVENTS)
+                    || self.scripts[s].reads_mouse(Handle::Gui(*c), &PRESS_EVENTS)
+                {
+                    any = true;
+                }
+            }
+        }
+        self.take_script_logs();
+        any
     }
 
     /// Whether a mouse could click `o` in `window` at one of a few of its points.
@@ -545,8 +555,11 @@ impl SkinRuntime {
     }
 
     /// Whether a drag that starts on `o` moves the window.
-    pub(crate) fn moves_window(&self, o: ObjId) -> bool {
-        if matches!(self.objects[o].kind, Kind::Slider(_)) {
+    pub(crate) fn moves_window(&mut self, o: ObjId) -> bool {
+        if matches!(
+            self.objects[o].kind,
+            Kind::Slider(_) | Kind::ColorThemeList(_) | Kind::PlaylistView(_)
+        ) {
             return false;
         }
         if self.is_grip(o) {
@@ -638,17 +651,22 @@ impl SkinRuntime {
         let chain = self.dispatch_chain(o);
         let is_button = matches!(self.objects[o].kind, Kind::Button(_));
         let events = crate::maki::script::right_click_events(is_button);
-        if chain.iter().any(|c| {
-            self.scripts
-                .iter()
-                .any(|s| s.reaches_menu(Handle::Gui(*c), &events))
-        }) {
+        let mut reaches = false;
+        for c in &chain {
+            for s in 0..self.scripts.len() {
+                if self.scripts[s].reaches_menu(Handle::Gui(*c), &events) {
+                    reaches = true;
+                }
+            }
+        }
+        self.take_script_logs();
+        if reaches {
             return true;
         }
         let mut called: Vec<String> = Vec::new();
         for c in &chain {
-            for s in &self.scripts {
-                for e in s.events_called(Handle::Gui(*c), &events) {
+            for s in 0..self.scripts.len() {
+                for e in self.scripts[s].events_called(Handle::Gui(*c), &events) {
                     if !called.contains(&e) {
                         called.push(e);
                     }
@@ -656,12 +674,27 @@ impl SkinRuntime {
             }
         }
         let called: Vec<&str> = called.iter().map(|s| s.as_str()).collect();
-        !called.is_empty()
-            && chain.iter().any(|c| {
-                self.scripts
-                    .iter()
-                    .any(|s| s.reaches_menu(Handle::Gui(*c), &called))
-            })
+        let mut any = false;
+        if !called.is_empty() {
+            for c in &chain {
+                for s in 0..self.scripts.len() {
+                    if self.scripts[s].reaches_menu(Handle::Gui(*c), &called) {
+                        any = true;
+                    }
+                }
+            }
+        }
+        self.take_script_logs();
+        any
+    }
+
+    /// Writes the lines the scripts' bytecode walks asked to log.
+    fn take_script_logs(&mut self) {
+        for s in 0..self.scripts.len() {
+            if let Some(line) = self.scripts[s].pending_log.take() {
+                self.host.log(&line);
+            }
+        }
     }
 
     /// The objects an event on `o` fires on: `o`, then each group that exposes the one before as its xui child.
@@ -844,7 +877,11 @@ impl SkinRuntime {
                     self.switch_to(c, p);
                 }
             }
-            "CB_PREVPAGE" | "CB_PREV" | "CB_NEXTPAGE" | "CB_NEXT" => {}
+            "CB_PREVPAGE" | "CB_PREV" | "CB_NEXTPAGE" | "CB_NEXT" => {
+                if let Some(b) = self.bucket_for(source, target) {
+                    self.bucket_page(b, if a.starts_with("CB_PREV") { -1 } else { 1 });
+                }
+            }
             // a docked window's close button puts it away, unless canclose="0"; the main window stays
             "CLOSE" => {
                 let c = self
@@ -873,7 +910,30 @@ impl SkinRuntime {
                 self.config_flags.insert("eq_auto".into(), on);
             }
             "TEXT_LARGER" | "TEXT_SMALLER" => {}
-            "COLORTHEMES_SWITCH" | "COLORTHEMES_PREVIOUS" | "COLORTHEMES_NEXT" => {}
+            "COLORTHEMES_SWITCH" | "COLORTHEMES_PREVIOUS" | "COLORTHEMES_NEXT" => {
+                let parent = self.objects[source].base.parent;
+                let named = target.and_then(|t| {
+                    parent.and_then(|p| self.find_object(p, t)).or_else(|| {
+                        let windows = self.windows();
+                        windows.iter().find_map(|l| self.find_object(*l, t))
+                    })
+                });
+                let list = named
+                    .filter(|l| matches!(self.objects[*l].kind, Kind::ColorThemeList(_)))
+                    .or_else(|| {
+                        self.all_objects
+                            .iter()
+                            .copied()
+                            .find(|o| matches!(self.objects[*o].kind, Kind::ColorThemeList(_)))
+                    });
+                let Some(list) = list else { return };
+                match a.as_str() {
+                    "COLORTHEMES_SWITCH" => self.themes_switch_to_selected(list),
+                    "COLORTHEMES_PREVIOUS" => self.themes_step(list, -1),
+                    _ => self.themes_step(list, 1),
+                }
+                self.invalidate();
+            }
             _ => {
                 let parent = self.objects[source].base.parent;
                 let t = target.and_then(|t| {
@@ -957,50 +1017,6 @@ impl SkinRuntime {
     /// Whether `action_state` reads the state of `action`: a window, EQ on, EQ auto.
     pub(crate) fn has_action_state(&self, action: Option<&str>) -> bool {
         action.is_some_and(|a| STATE_ACTIONS.contains(&a.to_uppercase().as_str()))
-    }
-
-    /// A numeric config attribute; repeat is 0 off, 1 the playlist, -1 the song.
-    pub(crate) fn config_value(&mut self, name: &str) -> i32 {
-        match name.to_lowercase().as_str() {
-            "repeat" => self.player.repeat() as i32,
-            k => self
-                .config_values
-                .get(k)
-                .copied()
-                .unwrap_or(if self.config_flag(name) { 1 } else { 0 }),
-        }
-    }
-
-    pub(crate) fn set_config_value(&mut self, name: &str, value: i32) {
-        match name.to_lowercase().as_str() {
-            "repeat" => self.player.set_repeat(value != 0),
-            k => {
-                self.config_values.insert(k.to_string(), value);
-                self.config_flags.insert(k.to_string(), value != 0);
-            }
-        }
-    }
-
-    pub(crate) fn config_flag(&mut self, name: &str) -> bool {
-        match name.to_lowercase().as_str() {
-            "shuffle" => self.player.shuffle(),
-            "repeat" => self.player.repeat(),
-            "enable crossfading" | "crossfade" => self.player.crossfade(),
-            "enable equalizer" | "eq" => self.player.eq_enabled(),
-            k => self.config_flags.get(k).copied().unwrap_or(false),
-        }
-    }
-
-    pub(crate) fn set_config_flag(&mut self, name: &str, on: bool) {
-        match name.to_lowercase().as_str() {
-            "shuffle" => self.player.set_shuffle(on),
-            "repeat" => self.player.set_repeat(on),
-            "enable crossfading" | "crossfade" => self.player.set_crossfade(on),
-            "enable equalizer" | "eq" => self.player.set_eq_enabled(on),
-            k => {
-                self.config_flags.insert(k.to_string(), on);
-            }
-        }
     }
 }
 

@@ -25,6 +25,9 @@ const GEOMETRY: [&str; 13] = [
     "fitparent",
 ];
 const LABEL_SIZE: i32 = 15;
+/// The size of a group that writes none and has no background (Wasabi SDK basewnd).
+const UNSIZED_W: i32 = 320;
+const UNSIZED_H: i32 = 200;
 const LABEL_PAD: i32 = 8;
 /// An equalizer slider's lowest position, flat at 0.
 const EQ_LOW: i32 = -128;
@@ -161,6 +164,9 @@ impl SkinRuntime {
 
     /// The attributes a kind takes beyond the base ones.
     fn set_kind_param(&mut self, o: ObjId, k: &str, value: &str) -> bool {
+        if matches!(self.objects[o].kind, Kind::XFade(_)) && self.xfade_set_param(o, k, value) {
+            return true;
+        }
         if self.objects[o].group.is_some() {
             let taken = {
                 let g = self.objects[o].group.as_mut().expect("a group");
@@ -417,6 +423,17 @@ impl SkinRuntime {
                 }
                 true
             }
+            Kind::Frame(_) => self.frame_set_param(o, k, value),
+            Kind::Bucket(_) => self.bucket_set_param(o, k, value),
+            Kind::XFade(_) => false,
+            Kind::Vis(_) => self.vis_set_param(o, k, value),
+            Kind::EqVis(_) => self.eqvis_set_param(o, k, value),
+            Kind::ColorThemeList(_) => self.themes_set_param(o, k, value),
+            Kind::Gradient(_) => self.gradient_set_param(o, k, value),
+            Kind::PlaylistView(_) => {
+                matches!(k, "param" | "noshowcmdbar" | "autoopen" | "autoclose")
+            }
+            Kind::LayoutStatus(_) => self.status_bar_set_param(o, k, value),
         }
     }
 
@@ -549,8 +566,8 @@ impl SkinRuntime {
         let b = &self.objects[g].base;
         // then its background's size, then Wasabi's 320 x 200
         Some((
-            aw.or(b.default_w).or(bg.map(|s| s.0)).unwrap_or(320),
-            ah.or(b.default_h).or(bg.map(|s| s.1)).unwrap_or(200),
+            aw.or(b.default_w).or(bg.map(|s| s.0)).unwrap_or(UNSIZED_W),
+            ah.or(b.default_h).or(bg.map(|s| s.1)).unwrap_or(UNSIZED_H),
         ))
     }
 
@@ -586,7 +603,7 @@ impl SkinRuntime {
     /// Whether the frames run down the picture; with neither framewidth nor frameheight written,
     /// a picture as wide as the object runs down and any other across. `None` for a picture the
     /// object's size: one frame.
-    fn anim_vertical(&mut self, o: ObjId) -> Option<bool> {
+    pub(crate) fn anim_vertical(&mut self, o: ObjId) -> Option<bool> {
         if let Some(v) = self.anim(o).1.vertical_set {
             return Some(v);
         }
@@ -790,6 +807,18 @@ impl SkinRuntime {
         (0..states)
             .find(|s| (value_of(*s) != 0) == open)
             .unwrap_or(0)
+    }
+
+    /// An n-states button's config value for its current state.
+    pub(crate) fn button_cfg_value(&mut self, o: ObjId) -> i32 {
+        let state = self.button_state(o);
+        match &self.button(o).kind {
+            ButtonKind::NStates { values, .. } => values
+                .as_ref()
+                .and_then(|v| v.get(state as usize).copied())
+                .unwrap_or(state),
+            _ => 0,
+        }
     }
 
     /// Whether the thing this button toggles is on: an open window, a player switch.
@@ -1402,10 +1431,24 @@ impl SkinRuntime {
         let alpha = self.objects[o].base.effective_alpha;
         if self.objects[o].group.is_some() {
             self.draw_group(o, out);
+            if matches!(self.objects[o].kind, Kind::Frame(_)) {
+                self.frame_draw_divider(o, out);
+            }
             return;
         }
         match self.objects[o].kind.clone() {
-            Kind::Unknown { .. } | Kind::Group | Kind::Layout(_) => {}
+            Kind::Unknown { .. }
+            | Kind::Group
+            | Kind::Layout(_)
+            | Kind::Frame(_)
+            | Kind::Bucket(_)
+            | Kind::XFade(_) => {}
+            Kind::Vis(_) => self.draw_vis(o, out),
+            Kind::EqVis(_) => self.draw_eqvis(o, out),
+            Kind::Gradient(_) => self.draw_gradient(o, out),
+            Kind::ColorThemeList(_) => self.draw_theme_list(o, out),
+            Kind::PlaylistView(_) => self.draw_playlist(o, out),
+            Kind::LayoutStatus(_) => self.draw_status_bar(o, out),
             Kind::Layer(l) => self.draw_layer(o, &l, out),
             Kind::AnimatedLayer(l, a) => {
                 let Some(img) = l.image else { return };
@@ -1773,6 +1816,15 @@ impl SkinRuntime {
             return None;
         }
         if self.objects[o].group.is_some() {
+            match &self.objects[o].kind {
+                // entries scrolled out of the strip are not drawn there, and take no touch
+                Kind::Bucket(_) if !self.objects[o].base.rect.contains(px, py) => return None,
+                // only the page shown takes a touch, not the one fading out
+                Kind::XFade(_) => {
+                    return self.xfade_current(o).and_then(|c| self.hit_test(c, px, py))
+                }
+                _ => {}
+            }
             for c in self.objects[o].children().to_vec().into_iter().rev() {
                 if let Some(h) = self.hit_test(c, px, py) {
                     return Some(h);
@@ -1793,7 +1845,11 @@ impl SkinRuntime {
             };
         }
         match &self.objects[o].kind {
-            Kind::Grid(_) | Kind::ProgressGrid(..) | Kind::Unknown { .. } => None,
+            Kind::Grid(_)
+            | Kind::ProgressGrid(..)
+            | Kind::Unknown { .. }
+            | Kind::Gradient(_)
+            | Kind::LayoutStatus(_) => None,
             Kind::Layer(l) | Kind::AnimatedLayer(l, _) => {
                 // clicks pass through transparent pixels, as in Winamp
                 let image = l.image.clone();
@@ -1818,6 +1874,8 @@ impl SkinRuntime {
     /// `o` hears the button go down at a point of its window.
     pub(crate) fn object_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
         match &self.objects[o].kind {
+            Kind::ColorThemeList(_) => return self.themes_pointer_down(o, py),
+            Kind::PlaylistView(_) => return self.pl_pointer_down(o, py),
             Kind::Button(_) => {
                 self.button_mut(o).pressed = true;
                 self.repaint();
@@ -1837,9 +1895,11 @@ impl SkinRuntime {
     }
 
     pub(crate) fn object_pointer_move(&mut self, o: ObjId, px: i32, py: i32) {
-        if matches!(self.objects[o].kind, Kind::Slider(_)) {
-            self.slider_pointer_move(o, px, py);
-            return;
+        match self.objects[o].kind {
+            Kind::Slider(_) => return self.slider_pointer_move(o, px, py),
+            Kind::ColorThemeList(_) => return self.themes_pointer_move(o, py),
+            Kind::PlaylistView(_) => return self.pl_pointer_move(o, py),
+            _ => {}
         }
         self.dispatch(
             Handle::Gui(o),
@@ -1850,6 +1910,8 @@ impl SkinRuntime {
 
     pub(crate) fn object_pointer_up(&mut self, o: ObjId, px: i32, py: i32, inside: bool) {
         match self.objects[o].kind {
+            Kind::ColorThemeList(_) => self.themes_pointer_up(o, py, inside),
+            Kind::PlaylistView(_) => self.pl_pointer_up(o, py, inside),
             Kind::Button(_) => {
                 self.button_mut(o).pressed = false;
                 self.repaint();
@@ -1917,6 +1979,9 @@ impl SkinRuntime {
     }
 
     pub(crate) fn object_double_tap(&mut self, o: ObjId, px: i32, py: i32) {
+        if matches!(self.objects[o].kind, Kind::PlaylistView(_)) {
+            return self.pl_double_tap(o, px, py);
+        }
         self.dispatch(
             Handle::Gui(o),
             "onleftbuttondblclk",
@@ -2027,5 +2092,69 @@ pub(crate) fn glyph(f: &crate::draw::BitmapFontDef, cell: (i32, i32)) -> BitmapD
         w: Some(f.char_width),
         h: Some(f.char_height),
         gamma_group: f.gamma_group.clone(),
+    }
+}
+
+impl SkinRuntime {
+    /// The rectangle after any pending layout.
+    pub(crate) fn laid_out_rect(&mut self, o: ObjId) -> Rect {
+        self.ensure_layout();
+        self.objects[o].base.rect
+    }
+
+    /// Where the visualizer shows in the stack, in layout pixels: a shown window holder for
+    /// Winamp's visualizer or its video, cut to the groups around it. `None` when none shows.
+    pub(crate) fn vis_rect(&mut self) -> Option<Rect> {
+        if self.needs_layout {
+            self.do_layout();
+        }
+        fn find(rt: &SkinRuntime, o: ObjId) -> Option<ObjId> {
+            let obj = &rt.objects[o];
+            if !obj.base.visible {
+                return None;
+            }
+            if obj.group.is_some() {
+                if super::HOLDER_TAGS.contains(&obj.base.tag.as_str())
+                    && super::VIS_HOLDS
+                        .iter()
+                        .any(|g| SkinRuntime::holds(&obj.base.attrs, g))
+                {
+                    return Some(o);
+                }
+                return obj.children().iter().find_map(|c| find(rt, *c));
+            }
+            None
+        }
+        for l in self.windows() {
+            if !self.objects[l].base.visible {
+                continue;
+            }
+            let Some(holder) = self.objects[l]
+                .children()
+                .iter()
+                .find_map(|c| find(self, *c))
+            else {
+                continue;
+            };
+            let mut r = self.objects[holder].base.rect;
+            let mut p = self.objects[holder].base.parent;
+            while let Some(g) = p {
+                r = r.cut_to(&self.objects[g].base.rect);
+                p = self.objects[g].base.parent;
+            }
+            let (w, h) = self.layout_size(l);
+            r = r.cut_to(&Rect::new(0, 0, w, h));
+            if r.width <= 0 || r.height <= 0 {
+                continue;
+            }
+            let at = self.window_rect_of(l);
+            return Some(Rect::new(
+                at.left + r.left,
+                at.top + r.top,
+                r.width,
+                r.height,
+            ));
+        }
+        None
     }
 }

@@ -659,6 +659,322 @@ pub struct MenuData {
     pub down: Option<String>,
 }
 
+/// `<Wasabi:Frame>`: two groups side by side or stacked with a divider between them.
+#[derive(Debug, Clone)]
+pub struct FrameData {
+    /// `orientation="v"`: side by side.
+    pub vertical: bool,
+    /// `from="right"` / `"bottom"`: the position counts from the far side.
+    pub from_far: bool,
+    /// `width` / `height`: where the divider sits.
+    pub pos: i32,
+    /// `minwidth` / `minheight`.
+    pub min_pos: i32,
+    /// `maxwidth` / `maxheight`; a negative maximum counts from the far edge.
+    pub max_pos: Option<i32>,
+    /// The first pane.
+    pub first: Option<ObjId>,
+    /// The second pane.
+    pub second: Option<ObjId>,
+    /// The divider picture ("" for none; `None` for the default set's).
+    pub divider: Option<String>,
+    /// The grabber picture.
+    pub grabber: Option<String>,
+    /// Whether there is a divider at all.
+    pub resizable: bool,
+    /// Where the divider was last laid out.
+    pub sizer_rect: Rect,
+}
+
+impl Default for FrameData {
+    fn default() -> Self {
+        FrameData {
+            vertical: true,
+            from_far: false,
+            pos: 128,
+            min_pos: 0,
+            max_pos: None,
+            first: None,
+            second: None,
+            divider: None,
+            grabber: None,
+            resizable: true,
+            sizer_rect: Rect::EMPTY,
+        }
+    }
+}
+
+/// `<componentbucket>`: a strip of the groups whose groupdef has its `wndtype`.
+#[derive(Debug, Clone, Default)]
+pub struct BucketData {
+    /// `wndtype`, lowercase.
+    pub window_type: Option<String>,
+    /// `vertical="1"`: stacked.
+    pub vertical: bool,
+    /// `spacing`.
+    pub spacing: i32,
+    /// `leftmargin`.
+    pub left_margin: i32,
+    /// `rightmargin`.
+    pub right_margin: i32,
+    /// How far the entries are scrolled, in pixels along the strip.
+    pub scroll: i32,
+}
+
+/// `<groupxfade>`: shows the group its `groupid` names, fading from the one it showed before.
+#[derive(Debug, Clone)]
+pub struct XFadeData {
+    /// `speed`, seconds.
+    pub speed: f64,
+    /// The pages made so far, by lowercase group id.
+    pub pages: Vec<(String, ObjId)>,
+    /// The page shown.
+    pub current: Option<ObjId>,
+}
+
+impl Default for XFadeData {
+    fn default() -> Self {
+        XFadeData {
+            speed: 0.25,
+            pages: Vec::new(),
+            current: None,
+        }
+    }
+}
+
+/// How the oscilloscope draws its points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeStyle {
+    /// A dot per column.
+    Dots,
+    /// The points joined into a line.
+    Line,
+    /// Filled from each point to the middle.
+    Filled,
+}
+
+/// `<vis>`: Winamp's analyzer and oscilloscope.
+#[derive(Debug, Clone)]
+pub struct VisData {
+    /// Row colors, top row first.
+    pub rows: [Rgb; 16],
+    /// `colorbandpeak`.
+    pub peak_color: Rgb,
+    /// Oscilloscope colors, colorosc1 (the middle rows) to colorosc5 (the outer rows).
+    pub scope_colors: [Rgb; 5],
+    /// `gammagroup`.
+    pub gamma_group: Option<String>,
+    /// 1 spectrum, 2 oscilloscope; any other value shows nothing.
+    pub mode: i32,
+    /// `oscstyle`.
+    pub scope_style: ScopeStyle,
+    /// `peaks`.
+    pub peaks: bool,
+    /// `bandwidth="thin"`.
+    pub thin: bool,
+    /// `flipv`.
+    pub flip_v: bool,
+    /// `fliph`.
+    pub flip_h: bool,
+    /// `falloff`, 0..4.
+    pub falloff: i32,
+    /// `peakfalloff`, 0..4.
+    pub peak_falloff: i32,
+    /// Per data column: bar height in rows.
+    pub bars: [f32; 75],
+    /// Per data column: peak height in 1/256 rows.
+    pub peak: [f32; 75],
+    /// Per data column: peak speed.
+    pub speed: [f32; 75],
+    /// When the bars last stepped.
+    pub last_frame_at: i64,
+    /// The oscilloscope's last 25 ms step.
+    pub scope_at: i64,
+    /// Whether the oscilloscope showed the flat line of no waveform then.
+    pub scope_flat: bool,
+}
+
+/// Winamp's classic analyzer colors, top row (red) to bottom row (green).
+pub const CLASSIC_BANDS: [u32; 16] = [
+    0xEF3110, 0xCE2910, 0xD65A00, 0xD66600, 0xD67300, 0xC67B08, 0xDEA518, 0xD6B521, 0xBDDE29,
+    0x94DE21, 0x29CE10, 0x32BE10, 0x39B510, 0x319C08, 0x299400, 0x188408,
+];
+
+/// Winamp's classic oscilloscope colors, colorosc1 (white) to colorosc5.
+pub const CLASSIC_SCOPE: [u32; 5] = [0xFFFFFF, 0xD6D6DE, 0xB5BDBD, 0xA0AAAF, 0x949CA5];
+
+impl Default for VisData {
+    fn default() -> Self {
+        VisData {
+            rows: CLASSIC_BANDS.map(Rgb),
+            peak_color: Rgb(0x959596),
+            scope_colors: CLASSIC_SCOPE.map(Rgb),
+            gamma_group: None,
+            mode: 1,
+            scope_style: ScopeStyle::Line,
+            peaks: true,
+            thin: false,
+            flip_v: false,
+            flip_h: false,
+            falloff: 2,
+            peak_falloff: 1,
+            bars: [0.0; 75],
+            peak: [0.0; 75],
+            speed: [3.0; 75],
+            last_frame_at: -1,
+            scope_at: -1,
+            scope_flat: true,
+        }
+    }
+}
+
+/// `<eqvis>`: the EQ curve.
+#[derive(Debug, Clone)]
+pub struct EqVisData {
+    /// `colortop`.
+    pub top: Rgb,
+    /// `colormiddle`.
+    pub middle: Rgb,
+    /// `colorbottom`.
+    pub bottom: Rgb,
+    /// `colorpreamp`.
+    pub preamp: Rgb,
+    /// `gammagroup`.
+    pub gamma_group: Option<String>,
+}
+
+impl Default for EqVisData {
+    fn default() -> Self {
+        EqVisData {
+            top: Rgb(0xffffff),
+            middle: Rgb(0xffffff),
+            bottom: Rgb(0xffffff),
+            preamp: Rgb(0x888888),
+            gamma_group: None,
+        }
+    }
+}
+
+/// `<ColorThemes:List>`: the skin's color themes as a list.
+#[derive(Debug, Clone)]
+pub struct ThemeListData {
+    /// The highlighted row's theme: the one in use until the user taps another.
+    pub selected: Option<String>,
+    /// Whether the column header shows.
+    pub header: bool,
+    /// Whether the horizontal scrollbar shows.
+    pub hscroll: bool,
+    /// The first visible row, in pixels from the top of the rows.
+    pub scroll_px: i32,
+    /// The theme the list last followed.
+    pub shown_for: Option<String>,
+    /// Where the finger went down.
+    pub down_y: i32,
+    /// The scroll then.
+    pub down_scroll: i32,
+    /// Whether the finger dragged.
+    pub dragged: bool,
+}
+
+impl Default for ThemeListData {
+    fn default() -> Self {
+        ThemeListData {
+            selected: None,
+            header: true,
+            hscroll: true,
+            scroll_px: 0,
+            shown_for: None,
+            down_y: 0,
+            down_scroll: 0,
+            dragged: false,
+        }
+    }
+}
+
+/// `<gradient>`: a picture Winamp makes from color stops.
+#[derive(Debug, Clone)]
+pub struct GradientData {
+    /// `gradient_x1`.
+    pub x1: f32,
+    /// `gradient_y1`.
+    pub y1: f32,
+    /// `gradient_x2`.
+    pub x2: f32,
+    /// `gradient_y2`.
+    pub y2: f32,
+    /// The stops: position 0..1 and ARGB, sorted by position.
+    pub stops: Vec<(f32, u32)>,
+    /// `gammagroup`.
+    pub gamma_group: Option<String>,
+    /// The picture last made, and the size and tint it was made for.
+    pub made: Option<Rc<[u32]>>,
+    /// See `made`.
+    pub made_for: Option<(i32, i32, Option<crate::draw::Gamma>)>,
+}
+
+impl Default for GradientData {
+    fn default() -> Self {
+        GradientData {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 0.0,
+            stops: Vec::new(),
+            gamma_group: None,
+            made: None,
+            made_for: None,
+        }
+    }
+}
+
+/// The playlist editor's list, which Winamp fills with the player's playlist.
+#[derive(Debug, Clone)]
+pub struct PlaylistData {
+    /// The selected row, or -1.
+    pub selected: i32,
+    /// How far the rows are scrolled.
+    pub scroll_px: i32,
+    /// Where the finger went down.
+    pub down_y: i32,
+    /// The scroll then.
+    pub down_scroll: i32,
+    /// Whether the finger dragged.
+    pub dragged: bool,
+}
+
+impl Default for PlaylistData {
+    fn default() -> Self {
+        PlaylistData {
+            selected: -1,
+            scroll_px: 0,
+            down_y: 0,
+            down_scroll: 0,
+            dragged: false,
+        }
+    }
+}
+
+/// `<LayoutStatus>`: the status bar of a window with a status frame.
+#[derive(Debug, Clone)]
+pub struct LayoutStatusData {
+    /// `includeonly`: which components' commands show.
+    pub include_only: Option<Vec<String>>,
+    /// `exclude`.
+    pub exclude: Vec<String>,
+    /// `bg="0"`: no field.
+    pub background: bool,
+}
+
+impl Default for LayoutStatusData {
+    fn default() -> Self {
+        LayoutStatusData {
+            include_only: None,
+            exclude: Vec::new(),
+            background: true,
+        }
+    }
+}
+
 /// What each kind of object keeps besides its [`GuiBase`] (and its [`GroupData`] for a group).
 #[derive(Debug, Clone)]
 pub enum Kind {
@@ -698,6 +1014,24 @@ pub enum Kind {
     Images(ImagesData),
     /// A menu bar entry.
     Menu(MenuData),
+    /// Two panes with a divider.
+    Frame(FrameData),
+    /// A strip of groups of one window type.
+    Bucket(BucketData),
+    /// A group that fades between pages.
+    XFade(XFadeData),
+    /// The analyzer and oscilloscope.
+    Vis(Box<VisData>),
+    /// The EQ curve.
+    EqVis(EqVisData),
+    /// The color themes list.
+    ColorThemeList(ThemeListData),
+    /// A gradient picture.
+    Gradient(GradientData),
+    /// The playlist editor's list.
+    PlaylistView(PlaylistData),
+    /// A window's status bar.
+    LayoutStatus(LayoutStatusData),
 }
 
 /// One GUI object: its base, its group data when it holds children, and its kind.
@@ -744,8 +1078,16 @@ impl Obj {
             | Kind::ProgressGrid(..)
             | Kind::AlbumArt { .. }
             | Kind::RectObj(_)
-            | Kind::Images(_) => "GuiObject",
+            | Kind::Images(_)
+            | Kind::ColorThemeList(_)
+            | Kind::Gradient(_)
+            | Kind::PlaylistView(_) => "GuiObject",
             Kind::Menu(_) => "Menu",
+            Kind::Frame(_) | Kind::XFade(_) => "Group",
+            Kind::Bucket(_) => "ComponentBucket",
+            Kind::Vis(_) => "Vis",
+            Kind::EqVis(_) => "EqVis",
+            Kind::LayoutStatus(_) => "LayoutStatus",
         }
     }
 
