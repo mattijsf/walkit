@@ -655,6 +655,26 @@ pub fn rt_left_column<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong)
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// Where the visualizer shows in the stack, as a rect; empty when none shows.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_vis_rect<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let r = with_rt(env, h, |r| r.rt.vis_rect())?;
+        match r {
+            Some(r) => jints(env, &[r.left, r.top, r.width, r.height]),
+            None => jints(env, &[]),
+        }
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The host closed its visualizer window: what a script had it show goes back into the skin.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_visualizer_window_closed<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.visualizer_window_closed()))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_edge_placements<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
     env.with_env(|env| with_rt(env, h, |r| r.rt.edge_placements()))

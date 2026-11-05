@@ -50,9 +50,8 @@ into `DrawCmd`s. The stand-in fonts for Windows' system fonts (`fonts/Liberation
 the like) are read from the skin's files, so a host layers its default set, with those fonts,
 under the skin as Andamp does.
 
-What the native engine does not port yet is marked on each member of `SkinRuntime` and refuses
-with `UnsupportedOperationException`, or answers empty: the visualizer window (`visRect`,
-`visualizerWindowClosed`), and `DrawPlanner`.
+Every member of `SkinRuntime` is carried; `DrawPlanner` is the one piece not ported yet, and
+its `draw` refuses with `UnsupportedOperationException`.
 
 ## The parity run on a device
 

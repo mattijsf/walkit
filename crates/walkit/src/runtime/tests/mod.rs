@@ -7,6 +7,7 @@ mod options;
 mod presentation;
 mod settings;
 mod stack;
+mod vis;
 
 use std::rc::Rc;
 
@@ -37,6 +38,11 @@ const SKIN_XML: &str = r#"<WinampAbstractionLayer version="0.8"><include file="p
 
 /// A runtime on a skin whose `player.xml` is `player_xml`, on a clock stuck at 0, not loaded yet.
 pub(super) fn runtime(player_xml: &str) -> SkinRuntime {
+    runtime_with(player_xml, SkinSetup::default())
+}
+
+/// [`runtime`] set up as `setup` says.
+pub(super) fn runtime_with(player_xml: &str, setup: SkinSetup) -> SkinRuntime {
     let mut files = MemoryFiles::new();
     files.insert("skin.xml", SKIN_XML.as_bytes());
     files.insert("player.xml", player_xml.as_bytes());
@@ -45,7 +51,7 @@ pub(super) fn runtime(player_xml: &str) -> SkinRuntime {
         Box::new(files),
         Box::new(QuietHost),
         Box::new(FakePlayer::new(clock.clone())),
-        SkinSetup::default(),
+        setup,
         clock,
     )
 }

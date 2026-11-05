@@ -2103,8 +2103,11 @@ impl SkinRuntime {
     }
 
     /// Where the visualizer shows in the stack, in layout pixels: a shown window holder for
-    /// Winamp's visualizer or its video, cut to the groups around it. `None` when none shows.
-    pub(crate) fn vis_rect(&mut self) -> Option<Rect> {
+    /// Winamp's visualizer (`hold="guid:avs"`, Winamp Modern's drawer in its visualizer mode) or
+    /// for its video, which the host does not play, cut to the groups around it, as they cut
+    /// what is drawn inside them. `None` when none shows, or none of it is left uncut (a drawer
+    /// shut). The host draws its visualizer there.
+    pub fn vis_rect(&mut self) -> Option<Rect> {
         if self.needs_layout {
             self.do_layout();
         }
