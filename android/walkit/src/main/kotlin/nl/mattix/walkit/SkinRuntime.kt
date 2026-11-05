@@ -14,9 +14,8 @@ import java.util.TimeZone
  * handed to the engine, which reads it from there. [close] frees the engine's side; a runtime
  * that is garbage collected unclosed is freed then.
  *
- * What the native engine does not port yet is marked on each member and refuses with
- * [UnsupportedOperationException], or answers empty where the reference engine answers nothing
- * of note: the visualizer window ([visRect], [visualizerWindowClosed]).
+ * Every member of the reference engine's runtime is carried; [DrawPlanner] is the one piece of
+ * the package not ported yet.
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -362,12 +361,22 @@ public class SkinRuntime(
      */
     public val edgePlacements: Int get() = Native.rtEdgePlacements(h())
 
-    /** Where the visualizer shows in the stack. Not ported yet: refuses. */
-    public val visRect: Rect? get() = throw UnsupportedOperationException("walkit does not port visRect yet")
+    /**
+     * Where the visualizer shows in the stack, in layout pixels: a shown window holder for Winamp's
+     * visualizer (`hold="guid:avs"`, Winamp Modern's drawer in its visualizer mode) or for its video,
+     * which the app does not play, cut to the groups around it, as they cut what is drawn inside
+     * them. Null when none shows, or none of it is left uncut (a drawer shut). The app draws its
+     * visualizer there.
+     */
+    public val visRect: Rect? get() = Native.rtVisRect(h()).takeIf { it.size == 4 }?.let { Rect(it[0], it[1], it[2], it[3]) }
 
-    /** The app closed its visualizer window. Not ported yet: refuses. */
-    public fun visualizerWindowClosed(): Unit =
-        throw UnsupportedOperationException("walkit does not port visualizerWindowClosed yet")
+    /**
+     * The app closed its visualizer window, which stands in for the skin's own visualizer and video
+     * windows: each of those a script had it open goes back into the skin, as the skin's own
+     * window's Reattach button puts it (Winamp Modern's `button.vis.reattach`), the button in the
+     * skin's window for it whose id says "attach". The skin's window stays shut.
+     */
+    public fun visualizerWindowClosed(): Unit = Native.rtVisualizerWindowClosed(h())
 
     /** Closes the window opened last, as Back does. */
     public fun closeTopWindow(): Unit = Native.rtCloseTopWindow(h())
