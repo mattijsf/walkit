@@ -840,7 +840,9 @@ impl SkinRuntime {
             return Some(Region::Box(b.rect));
         }
         let mut drawn = Vec::new();
+        let tracking = std::mem::replace(&mut self.tracking_owners, false);
         self.draw_object(o, &mut drawn);
+        self.tracking_owners = tracking;
         let mut pics: Vec<Region> = drawn
             .into_iter()
             .filter_map(|c| match c {

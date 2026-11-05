@@ -10,14 +10,33 @@ use crate::gui::ObjId;
 impl SkinRuntime {
     /// The drawing of the window `layout` shows.
     pub(crate) fn draw_layout(&mut self, layout: ObjId) -> Vec<DrawCmd> {
+        self.draw_layout_owned(layout).0
+    }
+
+    /// The drawing of the window `layout` shows, and the object that drew each command: the
+    /// innermost object whose drawing it is, the layout for what no child drew, and nothing for
+    /// the end of a shape or a clip.
+    pub(crate) fn draw_layout_owned(
+        &mut self,
+        layout: ObjId,
+    ) -> (Vec<DrawCmd>, Vec<Option<ObjId>>) {
         if self.needs_layout {
             self.do_layout();
         }
         self.dirty = false;
         let mut drawn = Vec::new();
         self.draw_window(layout, &mut drawn);
+        let mut owners = std::mem::take(&mut self.drawn_owners);
+        owners.resize(drawn.len(), None);
+        for (cmd, owner) in drawn.iter().zip(owners.iter_mut()) {
+            *owner = match cmd {
+                DrawCmd::Unclip | DrawCmd::WindowEnd => None,
+                _ => owner.or(Some(layout)),
+            };
+        }
         let mut out = Vec::with_capacity(drawn.len());
-        for cmd in drawn {
+        let mut out_owners = Vec::with_capacity(drawn.len());
+        for (cmd, owner) in drawn.into_iter().zip(owners) {
             match cmd {
                 DrawCmd::Image {
                     bitmap,
@@ -35,6 +54,7 @@ impl SkinRuntime {
                             gamma,
                             smooth,
                         });
+                        out_owners.push(owner);
                     }
                 }
                 DrawCmd::WindowStart(region) => {
@@ -43,16 +63,30 @@ impl SkinRuntime {
                         .map(|d| d.shape_at)
                         .unwrap_or(-1);
                     out.push(self.window_start(layout, &region, at));
+                    out_owners.push(owner);
                 }
-                DrawCmd::BitmapText(cmd) => self.spell(&cmd, &mut out),
+                DrawCmd::BitmapText(cmd) => {
+                    let from = out.len();
+                    self.spell(&cmd, &mut out);
+                    for c in &out[from..] {
+                        out_owners.push(match c {
+                            DrawCmd::Unclip => None,
+                            _ => owner,
+                        });
+                    }
+                }
                 DrawCmd::Text(mut cmd) => {
                     self.place_text(&mut cmd);
                     out.push(DrawCmd::Text(cmd));
+                    out_owners.push(owner);
                 }
-                other => out.push(other),
+                other => {
+                    out.push(other);
+                    out_owners.push(owner);
+                }
             }
         }
-        out
+        (out, out_owners)
     }
 
     /// The layout's drawing: inside its shape when it has one.
@@ -68,13 +102,34 @@ impl SkinRuntime {
         } else {
             self.window_shape(layout)
         };
-        let Some(shape) = shape else {
-            self.draw_object(layout, out);
+        // the shape may have drawn objects to measure them: the owners start here
+        self.drawn_owners.clear();
+        self.tracking_owners = true;
+        match shape {
+            None => self.draw_object(layout, out),
+            Some(shape) => {
+                out.push(DrawCmd::WindowStart(shape));
+                self.draw_object(layout, out);
+                out.push(DrawCmd::WindowEnd);
+            }
+        }
+        self.tracking_owners = false;
+    }
+
+    /// Commands `from` to `to` of the window being drawn, as `owner` drew them unless a child of
+    /// it did: the innermost object claims a command.
+    pub(crate) fn claim_drawn(&mut self, from: usize, to: usize, owner: ObjId) {
+        if !self.tracking_owners {
             return;
-        };
-        out.push(DrawCmd::WindowStart(shape));
-        self.draw_object(layout, out);
-        out.push(DrawCmd::WindowEnd);
+        }
+        if self.drawn_owners.len() < to {
+            self.drawn_owners.resize(to, None);
+        }
+        for o in &mut self.drawn_owners[from..to] {
+            if o.is_none() {
+                *o = Some(owner);
+            }
+        }
     }
 
     /// `cmd` as a renderer draws it, added to `out`: inside its rectangle, each character's cell

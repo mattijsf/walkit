@@ -14,8 +14,7 @@ import java.util.TimeZone
  * handed to the engine, which reads it from there. [close] frees the engine's side; a runtime
  * that is garbage collected unclosed is freed then.
  *
- * Every member of the reference engine's runtime is carried; [DrawPlanner] is the one piece of
- * the package not ported yet.
+ * Every member of the reference engine's runtime is carried, and [DrawPlanner] plans over it.
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -431,10 +430,13 @@ public class SkinRuntime(
 
     /** Every window's drawing with its place in the stack; draw each translated to its rectangle. */
     public fun drawWindows(): List<Pair<Rect, List<DrawCmd>>> =
-        PackedFrame.decode(Native.rtDrawWindows(h())).map {
-            it.rect to
-                it.cmds
-        }
+        PackedFrame.decode(Native.rtDrawWindows(h(), false)).windows.map { it.rect to it.cmds }
+
+    /**
+     * Every window's drawing as [drawWindows] gives it, with the objects the last tick found moving
+     * by themselves, taken: what [DrawPlanner.draw] plans from.
+     */
+    internal fun drawPlanned(): PackedFrame.Frame = PackedFrame.decode(Native.rtDrawWindows(h(), true))
 
     // ---- touches -------------------------------------------------------------------------------
 

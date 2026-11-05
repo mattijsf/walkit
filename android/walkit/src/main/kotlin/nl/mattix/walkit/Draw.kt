@@ -83,6 +83,12 @@ public value class Rgb(
 
 /** What the renderer draws, in order, in layout pixels; the engine hands a frame of these per window. */
 public sealed class DrawCmd {
+    /**
+     * The object that drew this, as the engine names it (an id that stays the same from frame to
+     * frame while the skin is loaded), for [DrawPlanner]; null for the window's structure.
+     */
+    internal open var ownedBy: Any? = null
+
     /** A bitmap, or the part of it [bitmap] names, stretched to [dst]. */
     public class Image(
         public val bitmap: BitmapDef,
@@ -109,8 +115,32 @@ public sealed class DrawCmd {
         public val region: Region,
     ) : DrawCmd()
 
-    /** End of the shaped window [WindowStart] began. */
-    public object WindowEnd : DrawCmd()
+    /** End of the shaped window [WindowStart] began: one shared object that keeps no owner. */
+    public object WindowEnd : DrawCmd() {
+        override var ownedBy: Any?
+            get() = null
+            set(value) = Unit
+    }
+
+    /**
+     * Whether [other] draws exactly what this draws: the same kind of command with the same values,
+     * the same part of the same picture in the same tint, the same font, and pixels with the same
+     * content. A renderer may then keep what it drew for one and show it for the other. A window's
+     * shape is the same when it is made of the same pictures, boxes and operations, whether or not
+     * the engine worked it out again.
+     */
+    internal fun drawsSameAs(other: DrawCmd): Boolean =
+        when (this) {
+            is Image -> other is Image && sameAs(other)
+            is Fill -> other is Fill && rect == other.rect && color == other.color && alpha == other.alpha
+            is WindowStart -> other is WindowStart && region.sameShapeAs(other.region)
+            WindowEnd -> other === WindowEnd
+            is Text -> other is Text && sameAs(other)
+            is BitmapText -> other is BitmapText && text == other.text && rect == other.rect
+            is Clip -> other is Clip && rect == other.rect
+            Unclip -> other === Unclip
+            is Pixels -> other is Pixels && sameAs(other)
+        }
 
     /**
      * A run of [text] in [font] at [size], drawn at [x] and [baseline] in [color] at [alpha], with a
@@ -149,8 +179,12 @@ public sealed class DrawCmd {
         public val rect: Rect,
     ) : DrawCmd()
 
-    /** The end of the last [Clip]. */
-    public object Unclip : DrawCmd()
+    /** The end of the last [Clip]; like [WindowEnd], one shared object that keeps no owner. */
+    public object Unclip : DrawCmd() {
+        override var ownedBy: Any?
+            get() = null
+            set(value) = Unit
+    }
 
     /**
      * A small ARGB picture ([w] x [h], rows top first) stretched over [rect] with nearest pixels: the
@@ -197,6 +231,14 @@ public sealed class Region {
         public val keep: List<Region>,
         public val cut: List<Region>,
     ) : Region()
+
+    /** Every picture in it. */
+    internal fun pics(): List<DrawCmd.Image> =
+        when (this) {
+            is Pic -> listOf(image)
+            is Box -> emptyList()
+            is Op -> (listOfNotNull(base) + add + keep + cut).flatMap { it.pics() }
+        }
 
     /** The box around it, or null when it holds nothing. */
     public fun bounds(): Rect? =
@@ -278,3 +320,40 @@ public sealed class Region {
         )
     }
 }
+
+private fun DrawCmd.Image.sameAs(o: DrawCmd.Image) =
+    dst == o.dst && alpha == o.alpha && smooth == o.smooth && gamma == o.gamma && bitmap.sameAs(o.bitmap)
+
+private fun DrawCmd.Text.sameAs(o: DrawCmd.Text) =
+    text == o.text && size == o.size && color == o.color && rect == o.rect && alpha == o.alpha && bold == o.bold &&
+        shadow == o.shadow && shadowDx == o.shadowDx && shadowDy == o.shadowDy && font.sameAs(o.font) &&
+        x == o.x && baseline == o.baseline
+
+private fun DrawCmd.Pixels.sameAs(o: DrawCmd.Pixels) =
+    rect == o.rect && w == o.w && h == o.h && alpha == o.alpha && stable == o.stable &&
+        (argb === o.argb || argb.contentEquals(o.argb))
+
+/** The same part of the same file: a part made again each frame (an animation's frame) draws the same. */
+private fun BitmapDef.sameAs(o: BitmapDef) =
+    this === o || (x == o.x && y == o.y && w == o.w && h == o.h && id == o.id && file == o.file && gammaGroup == o.gammaGroup)
+
+/** The same font: a system font a text names is made again each frame. */
+private fun FontDef?.sameAs(o: FontDef?) = this === o || (this != null && o != null && id == o.id && file == o.file)
+
+/** The same shape: the same pictures in the same places, the same boxes, combined the same way. */
+private fun Region.sameShapeAs(o: Region): Boolean =
+    this === o ||
+        when (this) {
+            is Region.Pic -> o is Region.Pic && image.drawsSameAs(o.image)
+            is Region.Box -> o is Region.Box && rect == o.rect
+            is Region.Op -> o is Region.Op && sameShapeAs(o)
+        }
+
+private fun Region.Op.sameShapeAs(o: Region.Op): Boolean {
+    val b = base
+    val ob = o.base
+    val sameBase = if (b == null || ob == null) b === ob else b.sameShapeAs(ob)
+    return sameBase && add.sameShapesAs(o.add) && keep.sameShapesAs(o.keep) && cut.sameShapesAs(o.cut)
+}
+
+private fun List<Region>.sameShapesAs(o: List<Region>) = size == o.size && indices.all { this[it].sameShapeAs(o[it]) }

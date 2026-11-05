@@ -248,11 +248,17 @@ pub fn rt_draw_windows<'l>(
     mut env: EnvUnowned<'l>,
     _class: JClass<'l>,
     h: jlong,
+    take_changed: jboolean,
 ) -> JByteArray<'l> {
     env.with_env(|env| {
         let bytes = with_rt(env, h, |r| {
             let ids = r.rt.window_ids();
-            let drawn = r.rt.draw_windows();
+            let changed = if take_changed {
+                r.rt.take_tick_changed()
+            } else {
+                Vec::new()
+            };
+            let drawn = r.rt.draw_windows_owned();
             let infos: Vec<_> = ids
                 .iter()
                 .map(|id| (r.rt.window_info(*id), r.rt.window_rect(*id)))
@@ -261,15 +267,16 @@ pub fn rt_draw_windows<'l>(
                 .iter()
                 .zip(drawn.iter())
                 .zip(infos.iter())
-                .map(|((id, (_, cmds)), (info, rect))| PackedWindow {
+                .map(|((id, win), (info, rect))| PackedWindow {
                     id: id.0,
                     container: &info.container,
                     layout: &info.layout,
                     rect: *rect,
-                    cmds,
+                    cmds: &win.cmds,
+                    owners: &win.owners,
                 })
                 .collect();
-            walkit::packed::encode(&windows)
+            walkit::packed::encode(&windows, &changed)
         })?;
         env.byte_array_from_slice(&bytes)
     })
