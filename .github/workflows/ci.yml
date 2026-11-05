@@ -1,0 +1,17 @@
+name: CI
+
+# Manual-only to keep Actions minutes near zero: the lefthook pre-push gate
+# runs the same checks locally on every push. Start it from the Actions tab
+# ("Run workflow") or with: gh workflow run ci.yml
+on:
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt, clippy
+      - run: tools/gate.sh
