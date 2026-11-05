@@ -58,7 +58,9 @@ web runs.
 - `web/`: the JS side. `walkit.mjs` loads the module and wraps the surface; `corpus.mjs` runs
   the reference scenarios as `walkit-trace` does; `pictures.mjs` decodes PNG, BMP and GIF the
   way the native binary does; `zip.mjs` reads `.wal` archives; `node.mjs` is the node runner,
-  `serve.mjs` + `index.html` + `browser.mjs` the browser one. No build step, no npm.
+  `serve.mjs` + `index.html` + `browser.mjs` the browser one; `player.html` + `player.mjs`
+  show a skin on the engine in the browser, drawn by `render.mjs` from the packed frames
+  `frame.mjs` reads, and `pngdiff.mjs` compares a frame with the phone's. No build step, no npm.
 - `tools/`: the gate, the trace diff and the web build.
 
 The Android library takes the Rust targets `aarch64-linux-android` and `x86_64-linux-android`,

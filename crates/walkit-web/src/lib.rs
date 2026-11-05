@@ -7,7 +7,10 @@
 //! wraps all of it).
 //!
 //! Two surfaces:
-//! - `wk_rt_*`: a runtime on a host of imports (`host_*`), for a page that shows a skin.
+//! - `wk_rt_*`: a runtime on a host of imports (`host_*`), for a page that shows a skin. A
+//!   frame comes out as text (`wk_rt_draw`, one command per line, no pixel data) or as the
+//!   packed frame of `walkit::packed` (`wk_rt_draw_frame`): every window with its plan and
+//!   only the commands that changed since the frame before, pixels included, for a renderer.
 //! - `wk_record`: a scenario of the reference set run on the fixed trace host, timed on the
 //!   host's clock, for the parity check and the measurements. The pictures still come from the
 //!   host (`host_decode`), as the trace host decodes none itself.
@@ -38,6 +41,8 @@ use std::rc::Rc;
 
 use walkit::files::{LayeredFiles, MemoryFiles, SkinFiles, SkinsFolderFiles};
 use walkit::host::SkinSetup;
+use walkit::packed::{FrameWindow, FrameWriter};
+use walkit::plan::DrawPlanner;
 use walkit::player::FakePlayer;
 use walkit::SkinRuntime;
 
@@ -50,10 +55,12 @@ struct Stack {
     siblings: Vec<(String, usize)>,
 }
 
-/// A runtime the host drives, with the clock it steps.
+/// A runtime the host drives, with the clock it steps, and what plans and writes its frames.
 struct Rt {
     rt: SkinRuntime,
     now: Rc<std::cell::Cell<i64>>,
+    planner: DrawPlanner,
+    frames: FrameWriter,
 }
 
 #[derive(Default)]
@@ -364,7 +371,12 @@ pub extern "C" fn wk_rt_new(
             },
             clock,
         );
-        s.runtimes.push(Some(Rt { rt, now }));
+        s.runtimes.push(Some(Rt {
+            rt,
+            now,
+            planner: DrawPlanner::new(),
+            frames: FrameWriter::new(),
+        }));
         s.runtimes.len() as i32 - 1
     })
 }
@@ -424,6 +436,79 @@ pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
     };
     with_state(|s| s.result = text.into_bytes());
     1
+}
+
+/// Every window's drawing with its plan, as the packed frame of `walkit::packed` writes it,
+/// planned at `now_ms`, with only the commands that changed since the frame before; the bytes
+/// are the result.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
+    let Some(bytes) = with_rt(id, |r| {
+        let ids = r.rt.window_ids();
+        let moving = r.rt.take_tick_changed();
+        let drawn = r.rt.draw_windows_owned();
+        let planned = r.planner.plan(&ids, drawn, &moving, now_ms as i64);
+        let infos: Vec<_> = planned.iter().map(|w| r.rt.window_info(w.id)).collect();
+        let windows: Vec<FrameWindow> = planned
+            .iter()
+            .zip(infos.iter())
+            .map(|(w, info)| FrameWindow {
+                id: w.id,
+                container: &info.container,
+                layout: &info.layout,
+                rect: w.rect,
+                cmds: &w.cmds,
+                plan: &w.plan,
+            })
+            .collect();
+        r.frames.encode(&windows)
+    }) else {
+        return 0;
+    };
+    with_state(|s| s.result = bytes);
+    1
+}
+
+/// The main window as it shows now, or -1 when the skin has none.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_main_window(id: i32) -> i32 {
+    with_rt(id, |r| r.rt.main_window().map(|w| w.0 as i32).unwrap_or(-1)).unwrap_or(-1)
+}
+
+/// Whether window `window` resizes both ways (a host fits such a window to its view).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_window_resizable(id: i32, window: i32) -> i32 {
+    with_rt(id, |r| {
+        r.rt.window_info(walkit::host::WindowId(window as u32))
+            .resizable_both_ways as i32
+    })
+    .unwrap_or(0)
+}
+
+/// Resizes window `window` to `w` x `h`, within what the skin allows it.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_resize_window(id: i32, window: i32, w: i32, h: i32) -> i32 {
+    with_rt(id, |r| {
+        r.rt.resize_window(walkit::host::WindowId(window as u32), w, h)
+    })
+    .map(|_| 1)
+    .unwrap_or(0)
+}
+
+/// A right click, or a long press, at the last pointer position; `seq` names the touch.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_right_click(id: i32, seq: i32) -> i32 {
+    with_rt(id, |r| r.rt.right_click(seq))
+        .map(|_| 1)
+        .unwrap_or(0)
+}
+
+/// A double tap at `x`, `y` of the stack.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_double_tap(id: i32, x: i32, y: i32, seq: i32) -> i32 {
+    with_rt(id, |r| r.rt.double_tap(x, y, seq))
+        .map(|_| 1)
+        .unwrap_or(0)
 }
 
 /// The finger goes down at a point of the stack.

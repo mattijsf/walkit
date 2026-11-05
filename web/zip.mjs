@@ -38,8 +38,25 @@ export function unzip(bytes, inflateRaw) {
     if (method === 0) out.set(name, data);
     else if (method === 8) {
       const inflated = inflateRaw(data);
-      if (inflated.length === usize) out.set(name, inflated);
+      if (inflated instanceof Promise || inflated.length === usize) out.set(name, inflated);
     }
   }
   return out;
+}
+
+/**
+ * The entries of `bytes` as [unzip] gives them, with `inflateRaw(bytes)` giving a Promise (a
+ * page's DecompressionStream): for a `.wal` dropped on a page.
+ */
+export async function unzipAsync(bytes, inflateRaw) {
+  const pending = [];
+  const out = unzip(bytes, (data) => {
+    const p = inflateRaw(data);
+    pending.push(p);
+    return p;
+  });
+  // deflated entries came back as promises; stored ones as bytes
+  const resolved = new Map();
+  for (const [name, data] of out) resolved.set(name, data instanceof Promise ? await data : data);
+  return resolved;
 }
