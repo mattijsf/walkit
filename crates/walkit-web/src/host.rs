@@ -18,6 +18,7 @@ fn font_name(font: Option<&FontDef>) -> String {
 }
 
 /// The host decodes a picture; see `host_decode`.
+#[cfg(feature = "trace")]
 pub fn decode(file: &str, bytes: &[u8]) -> Option<walkit_trace::Picture> {
     imports::decode(file, bytes)
 }
@@ -65,7 +66,7 @@ impl SkinHost for JsHost {
     }
 
     fn choose_from_menu(&mut self, menu: &SkinMenu) -> Option<i32> {
-        imports::choose_from_menu(&walkit_trace::host::menu_items(menu))
+        imports::choose_from_menu(&walkit::listing::menu(menu))
     }
 
     fn windows_changed(&mut self, windows: &[WindowId]) {
