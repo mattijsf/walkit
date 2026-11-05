@@ -158,6 +158,11 @@ impl SkinRuntime {
         self.in_window(window, x, y, |rt, sx, sy| rt.pointer_up(sx, sy))
     }
 
+    /// `double_tap` at a point of `window`, in that window's pixels.
+    pub fn double_tap_in(&mut self, window: crate::host::WindowId, x: i32, y: i32, seq: i32) {
+        self.in_window(window, x, y, |rt, sx, sy| rt.double_tap(sx, sy, seq))
+    }
+
     /// The topmost object at a point of the stack.
     pub(crate) fn hit_test_stack(&mut self, x: i32, y: i32) -> Option<ObjId> {
         let l = self.window_at(x, y)?;
@@ -747,6 +752,15 @@ impl SkinRuntime {
     /// Runs `block` as a touch the listener made, from which a script may pop a menu. `fresh`
     /// starts a new touch, whose menu count starts over.
     pub fn gesture<T>(&mut self, fresh: bool, block: impl FnOnce(&mut Self) -> T) -> T {
+        self.gesture_begin(fresh);
+        let r = block(self);
+        self.gesture_end();
+        r
+    }
+
+    /// Starts a touch the listener made, as [`SkinRuntime::gesture`] does around its block, for
+    /// a host across a boundary that cannot pass the block; [`SkinRuntime::gesture_end`] ends it.
+    pub fn gesture_begin(&mut self, fresh: bool) {
         if fresh {
             self.pointer.menus_this_gesture = 0;
             self.pointer.menus_ended = false;
@@ -754,9 +768,11 @@ impl SkinRuntime {
             self.pointer.press_ended = false;
         }
         self.pointer.gesture_depth += 1;
-        let r = block(self);
-        self.pointer.gesture_depth -= 1;
-        r
+    }
+
+    /// Ends the touch [`SkinRuntime::gesture_begin`] started; one that was not started ends nothing.
+    pub fn gesture_end(&mut self) {
+        self.pointer.gesture_depth = self.pointer.gesture_depth.saturating_sub(1);
     }
 
     /// The listener's pick from a menu a script popped, by command id, or 0.
