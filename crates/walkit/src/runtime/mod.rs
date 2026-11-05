@@ -28,7 +28,8 @@ use crate::draw::{BitmapDef, BitmapFontDef, DrawCmd, FontDef, Gamma, Rect, Regio
 use crate::files::SkinFiles;
 use crate::gui::{Container, ContainerId, Kind, Obj, ObjId};
 use crate::host::{
-    Clock, EngineStats, ObjectInfo, SavedSettings, SkinHost, SkinSetup, WindowId, WindowInfo,
+    Clock, EngineStats, ObjectInfo, Presentation, SavedSettings, SkinHost, SkinSetup, WindowId,
+    WindowInfo,
 };
 use crate::maki::{Handle, Script, SystemObject, Value};
 use crate::player::{Player, Status};
@@ -949,6 +950,143 @@ impl SkinRuntime {
     /// The space the app has for the stack.
     pub fn view_size(&self) -> Option<(i32, i32)> {
         self.view_size
+    }
+
+    /// How the host shows the windows, as one value.
+    pub fn presentation(&self) -> Presentation {
+        Presentation {
+            view_size: self.view_size,
+            viewport: (self.viewport_w, self.viewport_h),
+            columns: self.columns,
+            column_width: self.column_width,
+            stretch_last: self.stretch_last,
+            touch_slop: self.touch_slop,
+        }
+    }
+
+    /// Sets how the host shows the windows; what differs changes, as setting the viewport, the
+    /// columns, the column width, the stretch, the touch slop and the view size one by one does.
+    pub fn set_presentation(&mut self, p: &Presentation) {
+        self.set_viewport(p.viewport.0, p.viewport.1);
+        self.set_columns(p.columns);
+        self.set_column_width(p.column_width);
+        self.set_stretch_last(p.stretch_last);
+        self.touch_slop = p.touch_slop;
+        self.set_view_size(p.view_size);
+    }
+
+    /// How many columns the stack is set out in once the host gives it a view size: at 2 the
+    /// windows that show a list go in a column right of the main window, else every window
+    /// docks under the main one. A change lays the windows out again.
+    pub fn set_columns(&mut self, columns: i32) {
+        if columns != self.columns {
+            self.columns = columns;
+            self.relayout();
+        }
+    }
+
+    /// How wide the windows in the right column of two columns are, in layout pixels; 0 for as
+    /// wide as what shows of the main window. A change lays the windows out again.
+    pub fn set_column_width(&mut self, width: i32) {
+        if width != self.column_width {
+            self.column_width = width;
+            self.relayout();
+        }
+    }
+
+    /// Whether the last docked window takes the height the view leaves under the others, when
+    /// it can be made taller and shows a list. Off, every window keeps the height the skin gives it.
+    pub fn set_stretch_last(&mut self, stretch: bool) {
+        if stretch != self.stretch_last {
+            self.stretch_last = stretch;
+            self.relayout();
+        }
+    }
+
+    /// How far beside an object a finger may land and still mean it, in layout pixels.
+    pub fn set_touch_slop(&mut self, slop: i32) {
+        self.touch_slop = slop;
+    }
+
+    /// Where `id` visibly ends on the right; with `lay_out_first` after laying it out at its
+    /// size, as the stack is measured.
+    pub fn content_right_of(&mut self, id: WindowId, lay_out_first: bool) -> i32 {
+        let l = self.layout_of(id);
+        if lay_out_first {
+            self.layout_root(l);
+        }
+        self.content_right(l)
+    }
+
+    /// Whether a window docked under the main one shows a list.
+    pub fn list_window_open(&mut self) -> bool {
+        let others: Vec<ObjId> = self.windows().into_iter().skip(1).collect();
+        others.iter().any(|l| self.shows_list(*l))
+    }
+
+    /// How far right the stack shows in one column while the main window shows `width` across
+    /// (0 for what it shows now): that width, or a docked window its minimum width makes wider.
+    /// It changes no window's size and runs no layout pass. 0 without a main window.
+    pub fn shown_width(&mut self, width: i32) -> i32 {
+        let Some(main) = self.main_layout() else {
+            return 0;
+        };
+        let others: Vec<ObjId> = self.windows().into_iter().skip(1).collect();
+        self.layout_root(main);
+        let across = if width > 0 {
+            width
+        } else {
+            self.content_right(main)
+        };
+        let widest = others
+            .iter()
+            .map(|l| self.size_at(*l, across).0)
+            .max()
+            .unwrap_or(0);
+        across.max(widest)
+    }
+
+    /// How large the stack is in `columns` with a view and every window at its natural height,
+    /// with a right column `column_width` wide, in layout pixels. It changes no window's size
+    /// and runs no layout pass, so the skin hears nothing: the host weighs one column against
+    /// two with it. `None` without a main window.
+    pub fn natural_stack_size(&mut self, columns: i32, column_width: i32) -> Option<(i32, i32)> {
+        let main = self.main_layout()?;
+        let others: Vec<ObjId> = self.windows().into_iter().skip(1).collect();
+        let (mut right, mut bottom) = self.layout_size(main);
+        self.layout_root(main);
+        for column in self.columns_of(main, &others, columns, column_width) {
+            let mut y = column.top;
+            for l in column.windows {
+                let (w, h) = self.size_at(l, column.width);
+                right = right.max(column.x + w);
+                y += h;
+            }
+            bottom = bottom.max(y);
+        }
+        Some((right, bottom))
+    }
+
+    /// The left column of the stack in two columns, in layout pixels from the stack's corner:
+    /// from the left edge to where the right column starts, and from the top to where the lowest
+    /// window in it ends as Winamp docks to it. `None` for a stack in one column: the columns are
+    /// not 2, or no list window is open.
+    pub fn left_column(&mut self) -> Option<Rect> {
+        let main = self.main_layout()?;
+        let others: Vec<ObjId> = self.windows().into_iter().skip(1).collect();
+        if self.columns != 2 || !others.iter().any(|l| self.shows_list(*l)) {
+            return None;
+        }
+        let mut column = vec![main];
+        column.extend(others.iter().copied().filter(|l| !self.shows_list(*l)));
+        let mut right = 0;
+        let mut bottom = 0;
+        for l in column {
+            let r = self.window_rect_of(l);
+            right = right.max(r.right());
+            bottom = bottom.max(r.top + self.snapped_size(l).1);
+        }
+        Some(Rect::new(0, 0, right, bottom))
     }
 
     /// How many times a script moved the main window against an edge of the viewport after the

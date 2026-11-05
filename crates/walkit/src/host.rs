@@ -195,6 +195,43 @@ pub struct EngineStats {
     pub shapes_worked_out: i64,
 }
 
+/// How the host shows a skin's windows ([`crate::SkinRuntime::presentation`]), in layout pixels:
+/// `view_size` is the space the host has for the stack (`None` leaves each window at the size
+/// it has); `viewport` the screen scripts may place windows on before there is a view size;
+/// `columns` 2 sets the windows that show a list out right of the main window, anything else
+/// docks every window under it; `column_width` how wide that right column is, 0 for as wide as
+/// what shows of the main window; `stretch_last` whether the last docked list window takes the
+/// height left under the others; `touch_slop` how far beside an object a finger may land and
+/// still mean it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Presentation {
+    /// The space the host has for the stack.
+    pub view_size: Option<(i32, i32)>,
+    /// The screen scripts see before there is a view size.
+    pub viewport: (i32, i32),
+    /// How many columns the stack is set out in: 2, or one.
+    pub columns: i32,
+    /// How wide the right column is; 0 for as wide as what shows of the main window.
+    pub column_width: i32,
+    /// Whether the last docked list window takes the height left.
+    pub stretch_last: bool,
+    /// How far beside an object a finger may land.
+    pub touch_slop: i32,
+}
+
+impl Default for Presentation {
+    fn default() -> Self {
+        Presentation {
+            view_size: None,
+            viewport: (1080, 1920),
+            columns: 1,
+            column_width: 0,
+            stretch_last: true,
+            touch_slop: 6,
+        }
+    }
+}
+
 /// What a skin keeps between runs: its settings by attribute name, as Winamp keeps them in
 /// studio.xnf (`attributes`), and its scripts' private and public values (setPrivateString,
 /// setPublicInt and the like) by lowercase "section/item" or "public/item" (`strings`, `ints`).

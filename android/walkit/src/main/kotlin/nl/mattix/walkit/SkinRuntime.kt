@@ -16,9 +16,7 @@ import java.util.TimeZone
  *
  * What the native engine does not port yet is marked on each member and refuses with
  * [UnsupportedOperationException], or answers empty where the reference engine answers nothing
- * of note: the stack arrangement in columns ([presentation], [contentRight], [shownWidth],
- * [naturalStackSize], [leftColumn], [listWindowOpen]), and the visualizer window ([visRect],
- * [visualizerWindowClosed]).
+ * of note: the visualizer window ([visRect], [visualizerWindowClosed]).
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(
@@ -201,29 +199,36 @@ public class SkinRuntime(
         get() = Native.rtViewSize(h()).takeIf { it.size == 2 }?.let { it[0] to it[1] }
         set(value) = Native.rtSetViewSize(h(), value?.first ?: 0, value?.second ?: 0)
 
-    private var presentationNow = Presentation()
-
     /**
-     * How the host shows the windows, as one value ([Presentation]). The engine takes
-     * [Presentation.viewSize] and [Presentation.viewport]; columns, the column width, stretching
-     * the last window and the touch slop are not ported yet, and a value that sets them away from
-     * their defaults refuses.
+     * How the host shows the windows, as one value ([Presentation]); setting it changes what
+     * differs, as setting the view size, the viewport, the columns, the column width, the stretch
+     * and the touch slop one by one does.
      */
     public var presentation: Presentation
-        get() = presentationNow.copy(viewSize = viewSize, viewport = viewport)
-        set(value) {
-            val defaults = Presentation()
-            if (value.columns != defaults.columns ||
-                value.columnWidth != defaults.columnWidth ||
-                value.stretchLast != defaults.stretchLast ||
-                value.touchSlop != defaults.touchSlop
-            ) {
-                throw UnsupportedOperationException("walkit does not port columns, column width, stretchLast or touchSlop yet")
-            }
-            presentationNow = value
-            Native.rtSetViewport(h(), value.viewport.first, value.viewport.second)
-            viewSize = value.viewSize
+        get() {
+            val p = Native.rtPresentation(h())
+            return Presentation(
+                viewSize = if (p[0] != 0) p[1] to p[2] else null,
+                viewport = p[3] to p[4],
+                columns = p[5],
+                columnWidth = p[6],
+                stretchLast = p[7] != 0,
+                touchSlop = p[8],
+            )
         }
+        set(value) =
+            Native.rtSetPresentation(
+                h(),
+                value.viewSize != null,
+                value.viewSize?.first ?: 0,
+                value.viewSize?.second ?: 0,
+                value.viewport.first,
+                value.viewport.second,
+                value.columns,
+                value.columnWidth,
+                value.stretchLast,
+                value.touchSlop,
+            )
 
     // ---- loading and themes --------------------------------------------------------------------
 
@@ -310,28 +315,43 @@ public class SkinRuntime(
         height: Int,
     ): Unit = Native.rtResizeWindow(h(), id.raw, width, height)
 
-    /** Where [id] visibly ends on the right. Not ported yet: refuses. */
+    /**
+     * Where [id] visibly ends on the right; with [layOutFirst] after laying it out at its size,
+     * as the stack is measured.
+     */
     public fun contentRight(
         id: WindowId,
         layOutFirst: Boolean = false,
-    ): Int =
-        throw UnsupportedOperationException("walkit does not port contentRight yet (window ${id.raw}, layOutFirst=$layOutFirst)")
+    ): Int = Native.rtContentRight(h(), id.raw, layOutFirst)
 
-    /** Whether a window docked under the main one shows a list. Not ported yet: refuses. */
-    public val listWindowOpen: Boolean get() = throw UnsupportedOperationException("walkit does not port listWindowOpen yet")
+    /** Whether a window docked under the main one shows a list (a playlist editor, a media library, a color theme list). */
+    public val listWindowOpen: Boolean get() = Native.rtListWindowOpen(h())
 
-    /** How far right the stack shows in one column. Not ported yet: refuses. */
-    public fun shownWidth(width: Int = 0): Int =
-        throw UnsupportedOperationException("walkit does not port shownWidth yet ($width)")
+    /**
+     * How far right the stack shows in one column while the main window shows [width] across (0 for
+     * what it shows now): that width, or a docked window its minimum width makes wider, in layout
+     * pixels. It changes no window's size and runs no layout pass. 0 without a main window.
+     */
+    public fun shownWidth(width: Int = 0): Int = Native.rtShownWidth(h(), width)
 
-    /** How large the stack is in columns. Not ported yet: refuses. */
+    /**
+     * How large the stack is in [columns] at every window's natural height, with a right column
+     * [columnWidth] wide, in layout pixels. It changes no window's size and runs no layout pass, so
+     * the skin hears nothing: the host weighs one column against two with it. Null without a main
+     * window.
+     */
     public fun naturalStackSize(
         columns: Int,
         columnWidth: Int = 0,
-    ): Pair<Int, Int>? = throw UnsupportedOperationException("walkit does not port naturalStackSize yet ($columns, $columnWidth)")
+    ): Pair<Int, Int>? = Native.rtNaturalStackSize(h(), columns, columnWidth).takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    /** The left column of the stack in two columns. Not ported yet: refuses. */
-    public fun leftColumn(): Rect? = throw UnsupportedOperationException("walkit does not port leftColumn yet")
+    /**
+     * The left column of the stack in two columns, in layout pixels from the stack's top-left
+     * corner: from the left edge to where the right column starts, and from the top to where the
+     * lowest window in it ends as Winamp docks to it. Null for a stack in one column: the columns
+     * are not 2, or no list window is open.
+     */
+    public fun leftColumn(): Rect? = Native.rtLeftColumn(h()).takeIf { it.size == 4 }?.let { Rect(it[0], it[1], it[2], it[3]) }
 
     /** Whether a window besides the main one is open, which Back would put away. */
     public val windowOpen: Boolean get() = Native.rtWindowOpen(h())
