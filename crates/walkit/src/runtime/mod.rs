@@ -216,6 +216,10 @@ pub struct SkinRuntime {
     told_windows: Vec<WindowId>,
     /// The objects the last tick found moving by themselves.
     pub(crate) tick_changed: Vec<ObjId>,
+    /// The object that drew each command of the window being drawn, in the order drawn.
+    pub(crate) drawn_owners: Vec<Option<ObjId>>,
+    /// Whether a window's drawing is under way, so its groups note who drew what.
+    pub(crate) tracking_owners: bool,
     slide_lead: i64,
     expanded_nodes: i64,
     built: i64,
@@ -346,6 +350,8 @@ impl SkinRuntime {
             last_rects: HashMap::new(),
             told_windows: Vec::new(),
             tick_changed: Vec::new(),
+            drawn_owners: Vec::new(),
+            tracking_owners: false,
             slide_lead: 0,
             expanded_nodes: 0,
             built: 0,
@@ -1942,6 +1948,42 @@ impl SkinRuntime {
             .map(|l| (self.window_rect_of(l), self.draw_layout(l)))
             .collect()
     }
+
+    /// Every window's drawing as [`SkinRuntime::draw_windows`] gives it, with the object that
+    /// drew each command, for a host that plans what it keeps between frames.
+    pub fn draw_windows_owned(&mut self) -> Vec<DrawnWindow> {
+        if self.needs_layout {
+            self.do_layout();
+        }
+        self.windows()
+            .into_iter()
+            .map(|l| {
+                let rect = self.window_rect_of(l);
+                let (cmds, owners) = self.draw_layout_owned(l);
+                DrawnWindow { rect, cmds, owners }
+            })
+            .collect()
+    }
+
+    /// The objects the last tick found moving by themselves (a ticker stepping, a visualizer, a
+    /// seek thumb), taken once: a host's planner counts them live from their first change.
+    pub fn take_tick_changed(&mut self) -> Vec<ObjId> {
+        std::mem::take(&mut self.tick_changed)
+    }
+}
+
+/// One window's drawing with the object that drew each command ([`SkinRuntime::draw_windows_owned`]):
+/// `owners[i]` is the object (an id into the skin's objects, the same from frame to frame while
+/// the skin is loaded) whose drawing `cmds[i]` is, or `None` for a command that is the window's
+/// structure (the end of a shape or a clip).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawnWindow {
+    /// Where the window sits in the stack.
+    pub rect: Rect,
+    /// Its drawing.
+    pub cmds: Vec<DrawCmd>,
+    /// Who drew each command.
+    pub owners: Vec<Option<ObjId>>,
 }
 
 /// The player's shuffle, repeat and crossfade switches as bits 1, 2 and 4.

@@ -44,7 +44,11 @@ internal object Native {
         slideLead: Long,
     ): Boolean
 
-    @JvmStatic external fun rtDrawWindows(h: Long): ByteArray
+    @JvmStatic
+    external fun rtDrawWindows(
+        h: Long,
+        takeChanged: Boolean,
+    ): ByteArray
 
     @JvmStatic external fun rtWindowIds(h: Long): IntArray
 

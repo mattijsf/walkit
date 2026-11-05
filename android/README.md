@@ -50,8 +50,8 @@ into `DrawCmd`s. The stand-in fonts for Windows' system fonts (`fonts/Liberation
 the like) are read from the skin's files, so a host layers its default set, with those fonts,
 under the skin as Andamp does.
 
-Every member of `SkinRuntime` is carried; `DrawPlanner` is the one piece not ported yet, and
-its `draw` refuses with `UnsupportedOperationException`.
+Every member of `SkinRuntime` is carried, and `DrawPlanner` plans a frame as the reference's does:
+the engine marks each command with the object that drew it, and the planner runs on the Kotlin side.
 
 ## The parity run on a device
 
