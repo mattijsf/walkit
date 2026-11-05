@@ -10,7 +10,8 @@
 //! the sound data are each read on their first use, and every later read in the call comes
 //! from those. A command or a setting clears them, so a script that sets the volume reads
 //! the volume it set. A frame's drawing asks the player a hundred times over; this way it
-//! crosses into Kotlin a few times.
+//! crosses into Kotlin a few times. A player that numbers its playlist (`playlistVersion`)
+//! has it read once per change: the list is kept with its number across calls.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -37,7 +38,10 @@ const EQ_ENABLED: usize = 10;
 const EQ_PREAMP: usize = 11;
 const PAN: usize = 12;
 const TRACK_INDEX: usize = 13;
-const EQ_BANDS: usize = 14;
+const PLAYLIST_NUMBERED: usize = 14;
+const PLAYLIST_LOW: usize = 15;
+const PLAYLIST_HIGH: usize = 16;
+const EQ_BANDS: usize = 17;
 
 /// What a native call has read of the player so far; cleared as the next call starts.
 #[derive(Default)]
@@ -62,15 +66,42 @@ impl PlayerCache {
     }
 }
 
-/// The player bridge as the engine drives the player, with what the call in progress read of it.
+/// The player bridge as the engine drives the player, with what the call in progress read of
+/// it, and the playlist as last read with its number.
 pub struct JniPlayer {
     bridge: Bridge,
     cache: Rc<PlayerCache>,
+    tracks_kept: RefCell<Option<(i64, Vec<Track>)>>,
 }
 
 impl JniPlayer {
     pub fn new(bridge: Bridge, cache: Rc<PlayerCache>) -> JniPlayer {
-        JniPlayer { bridge, cache }
+        JniPlayer {
+            bridge,
+            cache,
+            tracks_kept: RefCell::new(None),
+        }
+    }
+
+    /// The playlist's number, when the player gives one.
+    fn playlist_version(&self) -> Option<i64> {
+        if self.number(PLAYLIST_NUMBERED) == 0 {
+            return None;
+        }
+        let low = self.number(PLAYLIST_LOW) as u32 as i64;
+        let high = self.number(PLAYLIST_HIGH) as i64;
+        Some((high << 32) | low)
+    }
+
+    /// The playlist as the bridge gives it now.
+    fn read_tracks(&self) -> Vec<Track> {
+        let titles = self.strings(jni_str!("trackTitles"));
+        let lengths = self.ints(jni_str!("trackLengths"));
+        titles
+            .into_iter()
+            .zip(lengths)
+            .map(|(title, length_ms)| Track { title, length_ms })
+            .collect()
     }
 
     fn string(&self, name: &'static jni::strings::JNIStr) -> String {
@@ -305,18 +336,21 @@ impl Player for JniPlayer {
     }
 
     fn tracks(&self) -> Vec<Track> {
+        if let Some(version) = self.playlist_version() {
+            let mut kept = self.tracks_kept.borrow_mut();
+            if let Some((v, tracks)) = kept.as_ref() {
+                if *v == version {
+                    return tracks.clone();
+                }
+            }
+            let tracks = self.read_tracks();
+            *kept = Some((version, tracks.clone()));
+            return tracks;
+        }
         self.cache
             .tracks
             .borrow_mut()
-            .get_or_insert_with(|| {
-                let titles = self.strings(jni_str!("trackTitles"));
-                let lengths = self.ints(jni_str!("trackLengths"));
-                titles
-                    .into_iter()
-                    .zip(lengths)
-                    .map(|(title, length_ms)| Track { title, length_ms })
-                    .collect()
-            })
+            .get_or_insert_with(|| self.read_tracks())
             .clone()
     }
 

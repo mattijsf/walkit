@@ -8,9 +8,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The native side reads the player once per call (its numbers as one snapshot) and keeps what the
- * host answers for good (a text's width), so a frame crosses into Kotlin a few times, not a
- * hundred.
+ * The native side reads the player once per call (its numbers as one snapshot; a numbered playlist
+ * once per change) and keeps what the host answers for good (a text's width), so a frame crosses
+ * into Kotlin a few times, not a hundred.
  */
 @RunWith(AndroidJUnit4::class)
 class BoundaryReadsTest {
@@ -25,12 +25,16 @@ class BoundaryReadsTest {
 
     /** The fake player, counting how often the runtime reads its position and its title. */
     private class CountingPlayer(
-        private val inner: FakePlayer = FakePlayer().apply { clock = { 0L } },
+        val inner: FakePlayer = FakePlayer().apply { clock = { 0L } },
+        private val numbered: Boolean = true,
     ) : Player by inner {
         var positions = 0
         var titles = 0
+        var playlists = 0
         override val positionMs: Int get() = inner.positionMs.also { positions++ }
         override val title: String get() = inner.title.also { titles++ }
+        override val tracks: List<Track> get() = inner.tracks.also { playlists++ }
+        override val playlistVersion: Long? get() = if (numbered) inner.playlistVersion else null
     }
 
     /** The trace host, counting the texts it is asked to measure. */
@@ -87,6 +91,37 @@ class BoundaryReadsTest {
             rt.tick()
             rt.drawWindows()
             assertTrue("a title read per call at most, got ${player.titles}", player.titles <= 2)
+        }
+    }
+
+    @Test
+    fun aNumberedPlaylistIsReadOncePerChange() {
+        val player = CountingPlayer()
+        SkinRuntime(files, CountingHost(files), player, SkinSetup(), clock = { 0L }).use { rt ->
+            rt.load()
+            player.playlists = 0
+            repeat(5) {
+                rt.tick()
+                rt.drawWindows()
+            }
+            assertTrue("read once at most while its number holds, got ${player.playlists}", player.playlists <= 1)
+            player.inner.playlist = listOf(Track("one", 1_000), Track("two", 2_000))
+            player.playlists = 0
+            rt.tick()
+            rt.drawWindows()
+            assertEquals("read once after it changed", 1, player.playlists)
+        }
+    }
+
+    @Test
+    fun anUnnumberedPlaylistIsReadOncePerCall() {
+        val player = CountingPlayer(numbered = false)
+        SkinRuntime(files, CountingHost(files), player, SkinSetup(), clock = { 0L }).use { rt ->
+            rt.load()
+            player.playlists = 0
+            rt.tick()
+            rt.drawWindows()
+            assertTrue("once per call at most, got ${player.playlists}", player.playlists in 1..2)
         }
     }
 
