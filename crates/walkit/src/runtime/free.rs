@@ -193,6 +193,20 @@ impl SkinRuntime {
         self.free.z.clone()
     }
 
+    /// The window a point of the viewport lies in, the top one where they overlap, by the part
+    /// of each that docks (Winamp Modern's main window is shaped around its closed drawer);
+    /// `None` on the desktop between the windows.
+    pub(crate) fn window_under(&mut self, x: i32, y: i32) -> Option<ObjId> {
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let windows = self.z_windows();
+        windows
+            .into_iter()
+            .rev()
+            .find(|l| self.docking_rect(*l).contains(x, y))
+    }
+
     /// A press on window `l` raises it to the top; the main window brings the windows docked
     /// to it along, under it in their order.
     pub(crate) fn raise_window(&mut self, l: ObjId) {
