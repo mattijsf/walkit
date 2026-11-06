@@ -489,6 +489,10 @@ document.body.addEventListener("drop", async (e) => {
     }
     await loadModule();
     const params = new URL(location.href).searchParams;
+    // A phone shows the skin at zoom 1, unless the link says otherwise.
+    const zoomWanted = params.get("zoom");
+    if (zoomWanted) $("zoom").value = zoomWanted;
+    else if (window.innerWidth < 2 * Number($("viewW").value) + 64) $("zoom").value = "1";
     const wanted = params.get("skin");
     if (wanted && files.includes(wanted)) {
       select.value = wanted;
