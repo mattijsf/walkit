@@ -47,8 +47,9 @@ masked by its shape. The pointer drives the skin (a long press or a right click 
 menu in a prompt); the buttons drive the engine's fake player, which plays a demo track. A
 view size fits the stack as the phone does, and a main window that resizes both ways fills it.
 "free windows" (or `?free` in the link) sets the windows out apart on the view as a desktop:
-each moves by a drag on its move areas and docks and snaps as Winamp 5.666 docks them (the
-rules as measured in the reference VM).
+each opens at its container's `default_x`, `default_y`, moves by a drag on its move areas,
+sizes by its grip, and docks and snaps as Winamp 5.666 docks them (as measured in
+the reference VM).
 
 ```bash
 node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \

@@ -16,9 +16,10 @@ const PLAYER_XML: &str = concat!(
     r#"</layout><layout id="shade" w="300" h="25"/></container>"#,
     r#"<container id="pl" name="Playlist" default_visible="0">"#,
     r#"<layout id="normal" w="300" h="100" linkwidth="shade">"#,
-    r#"<layer id="pl.sizer" resize="bottomright" x="290" y="90" w="10" h="10"/>"#,
+    r#"<layer id="pl.sizer" resize="bottomright" x="-10" relatx="1" y="-10" relaty="1" w="10" h="10"/>"#,
     r#"</layout><layout id="shade" w="200" h="25" linkwidth="normal"/></container>"#,
     r#"<container id="eq" name="Equalizer" default_visible="0"><layout id="normal" w="300" h="60"/></container>"#,
+    r#"<container id="ml" name="Library" default_visible="0" default_x="300" default_y="900"><layout id="normal" w="400" h="200"/></container>"#,
 );
 
 fn free() -> SkinRuntime {
@@ -51,6 +52,17 @@ fn drag_to(rt: &mut SkinRuntime, id: &str, x: i32, y: i32) {
     let r = rect_of(rt, id);
     let (gx, gy) = (r.left + 150, r.top + 5);
     let (dx, dy) = (x - r.left, y - r.top);
+    rt.pointer_down(gx, gy, 1);
+    for i in 1..=4 {
+        rt.pointer_move(gx + dx * i / 4, gy + dy * i / 4);
+    }
+    rt.pointer_up(gx + dx, gy + dy);
+}
+
+/// Drags window `id`'s grip (its bottom-right 10x10 sizer) by `dx`, `dy`, in a few steps.
+fn resize_by(rt: &mut SkinRuntime, id: &str, dx: i32, dy: i32) {
+    let r = rect_of(rt, id);
+    let (gx, gy) = (r.right() - 5, r.bottom() - 5);
     rt.pointer_down(gx, gy, 1);
     for i in 1..=4 {
         rt.pointer_move(gx + dx * i / 4, gy + dy * i / 4);
@@ -319,4 +331,103 @@ fn layouts_that_link_their_widths_share_it_through_a_switch() {
     );
     rt.switch_to(c, "normal");
     assert_eq!(rect_of(&mut rt, "pl"), Rect::new(0, 120, 300, 100));
+}
+
+#[test]
+fn a_resized_edge_snaps_to_the_viewport() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    drag_to(&mut rt, "pl", 0, 400);
+    // the right edge dragged to 7 px from the viewport's right edge lands on it
+    resize_by(&mut rt, "pl", 693, 0);
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(0, 400, 1000, 100));
+    // and 12 px from the bottom edge is too far
+    resize_by(&mut rt, "pl", 0, 488);
+    assert_eq!(rect_of(&mut rt, "pl").height, 588);
+}
+
+#[test]
+fn a_resized_edge_snaps_to_the_same_edge_of_a_window_it_touches() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    // docked under the main window's body; its right edge dragged away, then back to 6 px
+    resize_by(&mut rt, "pl", 40, 0);
+    assert_eq!(rect_of(&mut rt, "pl").width, 340);
+    resize_by(&mut rt, "pl", -34, 0);
+    assert_eq!(
+        rect_of(&mut rt, "pl").width,
+        300,
+        "on the main window's right edge"
+    );
+}
+
+#[test]
+fn a_resized_edge_snaps_to_the_facing_edge_of_a_window_beside_it() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    assert!(rt.open_window("eq"));
+    drag_to(&mut rt, "eq", 400, 130);
+    // the playlist's right edge (300) dragged to 394 lands on the equalizer's left edge
+    resize_by(&mut rt, "pl", 94, 0);
+    assert_eq!(rect_of(&mut rt, "pl").width, 400);
+    // a window below that the playlist would not touch is no target: its bottom edge passes
+    // 6 px short of the equalizer's top, off to the side
+    drag_to(&mut rt, "eq", 600, 600);
+    resize_by(&mut rt, "pl", 0, 374);
+    assert_eq!(rect_of(&mut rt, "pl").height, 474);
+}
+
+#[test]
+fn a_window_docked_under_a_resized_one_stays_where_it_is() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    assert!(rt.open_window("eq"));
+    drag_to(&mut rt, "eq", 0, 224);
+    assert_eq!(rect_of(&mut rt, "eq").top, 220, "docked under the playlist");
+    resize_by(&mut rt, "pl", 0, 40);
+    assert_eq!(rect_of(&mut rt, "pl").height, 140);
+    assert_eq!(
+        rect_of(&mut rt, "eq").top,
+        220,
+        "not carried by the playlist's bottom edge"
+    );
+}
+
+#[test]
+fn a_window_with_a_default_spot_opens_there_inside_the_viewport() {
+    let mut rt = free();
+    assert!(rt.open_window("eq"));
+    assert_eq!(
+        rect_of(&mut rt, "eq"),
+        Rect::new(0, 120, 300, 60),
+        "a container without a spot takes the stack's"
+    );
+    assert!(rt.open_window("ml"));
+    // default_x 300 holds; default_y 900 would put 100 of its 200 rows off the viewport
+    assert_eq!(rect_of(&mut rt, "ml"), Rect::new(300, 800, 400, 200));
+    assert_eq!(rect_of(&mut rt, "eq").top, 120, "and the others stay");
+}
+
+#[test]
+fn a_window_open_as_the_mode_comes_on_keeps_the_stack_spot_and_a_reopened_one_its_own() {
+    let mut rt = free();
+    assert!(rt.open_window("ml"));
+    assert_eq!(rect_of(&mut rt, "ml"), Rect::new(0, 120, 400, 200));
+    drag_to(&mut rt, "ml", 500, 500);
+    assert!(rt.close_window("ml"));
+    assert!(rt.open_window("ml"));
+    assert_eq!(rect_of(&mut rt, "ml").left, 500, "where it was closed");
+}
+
+#[test]
+fn a_window_the_host_sizes_apart_keeps_that_size() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    let pl = id_of(&rt, "pl");
+    rt.resize_window(pl, 360, 140);
+    rt.place_window(pl, 20, 300);
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(20, 300, 360, 140));
+    // and through the next arrangement
+    assert!(rt.open_window("eq"));
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(20, 300, 360, 140));
 }

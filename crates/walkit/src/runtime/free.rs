@@ -36,6 +36,9 @@ pub(crate) struct FreeState {
     redock: Vec<(ObjId, Rect, Vec<ObjId>)>,
     /// The windows from the bottom to the top.
     z: Vec<ObjId>,
+    /// Whether the windows have been set out apart once since the mode came on: the windows open
+    /// then keep the stack's spots, and a window opened later takes its container's spot.
+    settled: bool,
 }
 
 impl Default for FreeState {
@@ -46,6 +49,7 @@ impl Default for FreeState {
             drag: None,
             redock: Vec::new(),
             z: Vec::new(),
+            settled: false,
         }
     }
 }
@@ -131,6 +135,26 @@ fn moved(r: Rect, dx: i32, dy: i32) -> Rect {
     Rect::new(r.left + dx, r.top + dy, r.width, r.height)
 }
 
+/// `r` with its left edge at `x`, the right edge where it was.
+fn with_left(r: Rect, x: i32) -> Rect {
+    Rect::new(x, r.top, r.right() - x, r.height)
+}
+
+/// `r` with its right edge at `x`, the left edge where it was.
+fn with_right(r: Rect, x: i32) -> Rect {
+    Rect::new(r.left, r.top, x - r.left, r.height)
+}
+
+/// `r` with its top edge at `y`, the bottom edge where it was.
+fn with_top(r: Rect, y: i32) -> Rect {
+    Rect::new(r.left, y, r.width, r.bottom() - y)
+}
+
+/// `r` with its bottom edge at `y`, the top edge where it was.
+fn with_bottom(r: Rect, y: i32) -> Rect {
+    Rect::new(r.left, r.top, r.width, y - r.top)
+}
+
 impl SkinRuntime {
     /// Whether the windows are set out apart.
     pub(crate) fn free_windows(&self) -> bool {
@@ -144,12 +168,16 @@ impl SkinRuntime {
         }
         self.free.on = on;
         self.free.drag = None;
+        self.free.settled = false;
         self.relayout();
     }
 
-    /// Places every window at its own spot. A window without one yet takes the spot the stack
-    /// gives it, so the first look is the stack's; from then on each window keeps where it is
-    /// and the size the skin or the listener gave it.
+    /// Places every window at its own spot. The windows open when the mode comes on keep the
+    /// spots the stack gave them, so the first look is the stack's. A window opened later with no
+    /// spot yet opens where its container's `default_x`, `default_y` put it, as Winamp opens a
+    /// window it has no spot for, kept inside the viewport; a container without a spot takes the
+    /// one the stack gives it. From then on each window keeps where it is and the size the skin or
+    /// the listener gave it.
     pub(crate) fn arrange_free(&mut self) {
         let windows = self.windows();
         let unplaced: Vec<ObjId> = windows
@@ -157,13 +185,31 @@ impl SkinRuntime {
             .copied()
             .filter(|l| !self.objects[*l].layout().is_some_and(|d| d.free_placed))
             .collect();
+        let settled = std::mem::replace(&mut self.free.settled, true);
         if !unplaced.is_empty() {
             self.arrange_stack();
             for l in unplaced {
                 let r = self.window_rect_of(l);
+                let spot = self.objects[l]
+                    .layout()
+                    .and_then(|d| d.container)
+                    .map(|c| &self.containers[c])
+                    .filter(|c| settled && c.has_default_spot)
+                    .map(|c| (c.default_x, c.default_y));
+                let (x, y) = match spot {
+                    Some((x, y)) => {
+                        // kept inside the viewport at the size it will have apart
+                        let (w, h) = self.own_free_size(l).unwrap_or((r.width, r.height));
+                        (
+                            x.min(self.viewport_w - w).max(0),
+                            y.min(self.viewport_h - h).max(0),
+                        )
+                    }
+                    None => (r.left, r.top),
+                };
                 let d = self.objects[l].layout_mut().expect("a layout");
-                d.view_x = r.left;
-                d.view_y = r.top;
+                d.view_x = x;
+                d.view_y = y;
                 d.free_placed = true;
             }
         }
@@ -175,17 +221,31 @@ impl SkinRuntime {
         for l in windows {
             if l != main {
                 // the size the listener gave it by its grip, else the skin's
-                let sized = self.objects[l].layout().and_then(|d| d.user_size);
-                let b = &self.objects[l].base;
-                let skin_w = b.attr("w").and_then(crate::gui::to_int_lenient);
-                let skin_h = b.attr("h").and_then(crate::gui::to_int_lenient);
-                self.objects[l].base.w = sized.map(|s| s.0).or(skin_w);
-                self.objects[l].base.h = sized.map(|s| s.1).or(skin_h);
+                let (w, h) = self.own_free_size(l).unzip();
+                self.objects[l].base.w = w;
+                self.objects[l].base.h = h;
             }
             let (w, h) = self.layout_size(l);
             let d = self.objects[l].layout().expect("a layout");
             let r = Rect::new(d.view_x, d.view_y, w, h);
             self.placed.insert(l, r);
+        }
+    }
+
+    /// The size window `l` has apart, when it is not the main window: the one the listener gave
+    /// it by its grip, else the skin's `w`, `h`; `None` for neither.
+    fn own_free_size(&self, l: ObjId) -> Option<(i32, i32)> {
+        if Some(l) == self.main_layout() {
+            return None;
+        }
+        let sized = self.objects[l].layout().and_then(|d| d.user_size);
+        let b = &self.objects[l].base;
+        let skin_w = b.attr("w").and_then(crate::gui::to_int_lenient);
+        let skin_h = b.attr("h").and_then(crate::gui::to_int_lenient);
+        match (sized, skin_w, skin_h) {
+            (Some(s), _, _) => Some(s),
+            (None, Some(w), Some(h)) => Some((w, h)),
+            _ => None,
         }
     }
 
@@ -303,17 +363,13 @@ impl SkinRuntime {
         self.docked_group(l).len() > 1
     }
 
-    /// Where `r`, window `l`'s rect, lands when the listener moves it there: snapped to the
-    /// viewport's edges and to the other windows, those in `group` left out as the ones moving
-    /// along.
-    pub(crate) fn autodock(&mut self, l: ObjId, r: Rect, group: &[ObjId]) -> Rect {
+    /// What a window snaps to: the viewport first, then the docking rects of the windows from
+    /// the last opened to the first, as Winamp tries them; `l` itself and `group` left out.
+    /// `true` marks a window, which also offers its facing edges and must be touched.
+    fn snap_targets(&mut self, l: ObjId, group: &[ObjId]) -> Vec<(bool, Rect)> {
         if self.needs_layout {
             self.do_layout();
         }
-        let d = self.free.dock_distance;
-        let m = self.snap_margins(l);
-        let mut ri = inset(r, m);
-        // the viewport first, then the windows from the last opened to the first, as Winamp
         let mut targets: Vec<(bool, Rect)> =
             vec![(false, Rect::new(0, 0, self.viewport_w, self.viewport_h))];
         let others: Vec<ObjId> = self
@@ -326,6 +382,72 @@ impl SkinRuntime {
             let dr = self.docking_rect(w);
             targets.push((true, dr));
         }
+        targets
+    }
+
+    /// Where the edges of window `l`'s rect `r` that a grip drags land (`edges` names them, as
+    /// a grip's `resize` does): each snaps to the viewport's same edge, to the same edge of a
+    /// window, or to the facing edge of one, when the window is then touched and not
+    /// overlapped; the other edges stay. Winamp snaps a resize so.
+    pub(crate) fn autodock_edges(&mut self, l: ObjId, r: Rect, edges: &str) -> Rect {
+        let targets = self.snap_targets(l, &[]);
+        let d = self.free.dock_distance;
+        let m = self.snap_margins(l);
+        let mut ri = inset(r, m);
+        let left = edges.contains("left");
+        let top = edges.contains("top");
+        let right = edges.contains("right");
+        let bottom = edges.contains("bottom");
+        let near = |a: i32, b: i32| (b - d) < a && a < (b + d);
+        for (window, o) in targets {
+            let before = ri;
+            let mut snapped_x = false;
+            let mut snapped_y = false;
+            if left && near(ri.left, o.left) {
+                ri = with_left(ri, o.left);
+                snapped_x = true;
+            }
+            if window && right && !snapped_x && near(ri.right(), o.left) {
+                ri = with_right(ri, o.left);
+                snapped_x = true;
+            }
+            if top && near(ri.top, o.top) {
+                ri = with_top(ri, o.top);
+                snapped_y = true;
+            }
+            if window && bottom && !snapped_y && near(ri.bottom(), o.top) {
+                ri = with_bottom(ri, o.top);
+                snapped_y = true;
+            }
+            if right && !snapped_x && near(ri.right(), o.right()) {
+                ri = with_right(ri, o.right());
+                snapped_x = true;
+            }
+            if window && left && !snapped_x && near(ri.left, o.right()) {
+                ri = with_left(ri, o.right());
+            }
+            if bottom && !snapped_y && near(ri.bottom(), o.bottom()) {
+                ri = with_bottom(ri, o.bottom());
+                snapped_y = true;
+            }
+            if window && top && !snapped_y && near(ri.top, o.bottom()) {
+                ri = with_top(ri, o.bottom());
+            }
+            if ri.width < 1 || ri.height < 1 || (window && (!touches(ri, o) || overlaps(ri, o))) {
+                ri = before;
+            }
+        }
+        outset(ri, m)
+    }
+
+    /// Where `r`, window `l`'s rect, lands when the listener moves it there: snapped to the
+    /// viewport's edges and to the other windows, those in `group` left out as the ones moving
+    /// along.
+    pub(crate) fn autodock(&mut self, l: ObjId, r: Rect, group: &[ObjId]) -> Rect {
+        let targets = self.snap_targets(l, group);
+        let d = self.free.dock_distance;
+        let m = self.snap_margins(l);
+        let mut ri = inset(r, m);
         let near = |a: i32, b: i32| (b - d) < a && a < (b + d);
         for (window, o) in targets {
             let before = ri;

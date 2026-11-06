@@ -1143,6 +1143,8 @@ pub struct Container {
     pub default_x: i32,
     /// `default_y`.
     pub default_y: i32,
+    /// Whether the skin gave the container a spot (`default_x` or `default_y`).
+    pub has_default_spot: bool,
 }
 
 impl Container {
@@ -1164,6 +1166,7 @@ impl Container {
             default_y: attr("default_y")
                 .and_then(|v| to_int_lenient(&v))
                 .unwrap_or(0),
+            has_default_spot: attr("default_x").is_some() || attr("default_y").is_some(),
             attrs,
             layouts: Vec::new(),
             current: None,
