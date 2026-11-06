@@ -51,6 +51,8 @@ view size fits the stack as the phone does, and a main window that resizes both 
 node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
   --defaults <zip> --fonts <dir> --snapshots snapshots
 # then open http://127.0.0.1:8765/player.html?skin=Bento.wal
+# add --host 0.0.0.0 to open it to the local network: a phone on the same wifi shows the
+# skin at its own pixels (`?zoom=2` asks for more)
 ```
 
 "Check frame" draws the frame Andamp's check mode draws on a phone (a fresh runtime on a clock
