@@ -8,6 +8,7 @@
 //! for a time, an empty array for a size.
 
 use std::cell::{Cell, RefCell};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -18,11 +19,12 @@ use jni::{jni_mangle, Env, EnvUnowned};
 use walkit::host::{
     Edge, OptionEntry, OptionKey, Presentation, SavedSettings, SkinSetup, WindowId,
 };
+use walkit::maki::{Handle, Value};
 use walkit::packed::{FrameWindow, FrameWriter};
 use walkit::plan::DrawPlanner;
 use walkit::SkinRuntime;
 
-use crate::bridge::{bytes_of, jints, jstring, throw, Bridge, Failure};
+use crate::bridge::{bytes_of, jints, jstring, throw, Bridge, Failure, Thrown};
 use crate::files::JniFiles;
 use crate::host::{HostCache, JniHost};
 use crate::player::{JniPlayer, PlayerCache};
@@ -61,11 +63,28 @@ fn with_rt<T>(env: &mut Env, h: jlong, f: impl FnOnce(&mut Rt) -> T) -> Result<T
     let r = rt(h)?;
     r.player_cache.clear();
     r.host_cache.clear();
-    let out = f(r);
-    if let Some(msg) = r.failure.borrow_mut().take() {
-        return Err(throw(env, &format!("walkit host callback failed: {msg}")));
+    // a callback that failed is what the call reports, even when the engine then panicked on
+    // the answer it did not get (a skin whose files cannot be read has no skin.xml)
+    let out = catch_unwind(AssertUnwindSafe(|| f(r)));
+    if let Some(t) = r.failure.borrow_mut().take() {
+        return Err(report(env, t));
     }
-    Ok(out)
+    match out {
+        Ok(v) => Ok(v),
+        Err(panic) => resume_unwind(panic),
+    }
+}
+
+/// Throws what a callback failed with as the native call's exception: the host's own, or a
+/// `RuntimeException` naming the failure.
+fn report(env: &mut Env, t: Thrown) -> Error {
+    match t {
+        Thrown::Exception(e) => match env.throw(&*e) {
+            Ok(()) => Error::JavaException,
+            Err(e) => e,
+        },
+        Thrown::Message(m) => throw(env, &format!("walkit host callback failed: {m}")),
+    }
 }
 
 /// A small packed answer: ints, then strings as a length and UTF-8 bytes, little-endian.
@@ -189,8 +208,8 @@ pub fn rt_new<'l>(
         let zone_offset = Rc::new(Cell::new(0));
         let zone = zone_offset.clone();
         rt.set_zone_offset(Box::new(move |_| zone.get()));
-        if let Some(msg) = failure.borrow_mut().take() {
-            return Err(throw(env, &format!("walkit host callback failed: {msg}")));
+        if let Some(t) = failure.borrow_mut().take() {
+            return Err(report(env, t));
         }
         let boxed = Box::new(Rt {
             rt,
@@ -1210,6 +1229,276 @@ pub fn rt_menu_choice<'l>(
             return Err(throw(env, "not a packed menu"));
         };
         with_rt(env, h, |r| r.rt.menu_choice(&menu))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+// ---- what a test does as a script would (`nl.mattix.walkit.fixtures`) --------------------------
+//
+// A handle crosses as a kind (0 object, 1 container, 2 System, 3 made) and an index, -1 for
+// none. A value crosses packed: a tag (0 null, 1 int, 2 string, 3 handle), then the int, the
+// string, or the kind and index.
+
+fn handle_of(kind: jint, index: jint) -> Option<Handle> {
+    if index < 0 {
+        return None;
+    }
+    let i = index as usize;
+    Some(match kind {
+        0 => Handle::Gui(i),
+        1 => Handle::Container(i),
+        2 => Handle::System(i),
+        _ => Handle::Made(i),
+    })
+}
+
+fn kind_index(h: Handle) -> (i32, i32) {
+    match h {
+        Handle::Gui(i) => (0, i as i32),
+        Handle::Container(i) => (1, i as i32),
+        Handle::System(i) => (2, i as i32),
+        Handle::Made(i) => (3, i as i32),
+    }
+}
+
+fn handle_index(h: Option<Handle>) -> jint {
+    h.map(|h| kind_index(h).1).unwrap_or(-1)
+}
+
+impl Out {
+    fn value(&mut self, v: &Value) {
+        match v {
+            Value::Null => self.i32(0),
+            Value::Int(i) => {
+                self.i32(1);
+                self.i32(*i);
+            }
+            Value::Num(n) => {
+                self.i32(1);
+                self.i32(*n as i32);
+            }
+            Value::Bool(b) => {
+                self.i32(1);
+                self.i32(*b as i32);
+            }
+            Value::Str(s) => {
+                self.i32(2);
+                self.string(s);
+            }
+            Value::Obj(h) => {
+                let (k, i) = kind_index(*h);
+                self.i32(3);
+                self.i32(k);
+                self.i32(i);
+            }
+        }
+    }
+}
+
+impl In<'_> {
+    fn value(&mut self) -> Option<Value> {
+        Some(match self.i32()? {
+            0 => Value::Null,
+            1 => Value::Int(self.i32()?),
+            2 => Value::string(self.string()?),
+            _ => Value::Obj(handle_of(self.i32()?, self.i32()?)?),
+        })
+    }
+}
+
+/// The object with id `id` in the main window, as a script finds it; -1 for none.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_object<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    id: JString<'l>,
+) -> jint {
+    env.with_env(|env| {
+        let id = id.to_string();
+        with_rt(env, h, |r| handle_index(r.rt.script_object(&id)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The layout of window `window`, as a script holds it; -1 for none.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_layout<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    window: jint,
+) -> jint {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            handle_index(r.rt.script_layout(WindowId(window as u32)))
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The container with id `id`, as a script finds it; -1 for none.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_container<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    id: JString<'l>,
+) -> jint {
+    env.with_env(|env| {
+        let id = id.to_string();
+        with_rt(env, h, |r| handle_index(r.rt.script_container(&id)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// An object of class `class` as a script's `new` makes it; -1 when it cannot be made.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_make<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    class: JString<'l>,
+) -> jint {
+    env.with_env(|env| {
+        let class = class.to_string();
+        with_rt(env, h, |r| handle_index(r.rt.script_make(&class)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The `Config` item `name` with `guid`, as scripts reach it; -1 for none.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_config_item<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    name: JString<'l>,
+    guid: JString<'l>,
+) -> jint {
+    env.with_env(|env| {
+        let name = name.to_string();
+        let guid = guid.to_string();
+        with_rt(env, h, |r| {
+            handle_index(r.rt.script_config_item(&name, &guid))
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Runs `method` on the handle with packed `args`; the packed answer, or null for no such method.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_call<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    kind: jint,
+    index: jint,
+    method: JString<'l>,
+    args: JByteArray<'l>,
+) -> JByteArray<'l> {
+    env.with_env(|env| {
+        let method = method.to_string();
+        let bytes = bytes_of(env, args.into())?.unwrap_or_default();
+        let mut r = In {
+            bytes: &bytes,
+            at: 0,
+        };
+        let read = (|| {
+            let n = r.i32()?;
+            (0..n).map(|_| r.value()).collect::<Option<Vec<Value>>>()
+        })();
+        let Some(args) = read else {
+            return Err(throw(env, "not packed script arguments"));
+        };
+        let Some(receiver) = handle_of(kind, index) else {
+            return Err(throw(env, "no such object"));
+        };
+        let out = with_rt(env, h, |r| {
+            r.rt.script_call(receiver, &method, &args).map(|v| {
+                let mut out = Out::default();
+                out.value(&v);
+                out
+            })
+        })?;
+        match out {
+            Some(out) => out.bytes(env),
+            None => Ok(JByteArray::null()),
+        }
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Puts the object on its way to a target, as `gotoTarget` does; see `rtScriptEndSlides`.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_begin_slide<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    index: jint,
+) {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            if let Some(o) = handle_of(0, index) {
+                r.rt.begin_slide_as_script(o);
+            }
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Ends every slide, as the slides reaching their targets do.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_end_slides<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.end_slides_as_script()))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// When the next of the skin's timers fires, in the clock's ms; `Long.MIN_VALUE` when none runs.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_next_timer_at<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jlong {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.next_timer_at().unwrap_or(i64::MIN)))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Starts or stops writing down the events the engine fires, for `rtScriptTakeEvents`.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_record_events<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    on: jboolean,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.record_events(on)))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// The events fired since the last take: a count, then each as a kind, an index, the event's
+/// name, and its arguments as a count and packed values.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_script_take_events<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> JByteArray<'l> {
+    env.with_env(|env| {
+        let out = with_rt(env, h, |r| {
+            let events = r.rt.take_recorded_events();
+            let mut out = Out::default();
+            out.i32(events.len() as i32);
+            for e in events {
+                let (k, i) = kind_index(e.target);
+                out.i32(k);
+                out.i32(i);
+                out.string(&e.event);
+                out.i32(e.args.len() as i32);
+                for a in &e.args {
+                    out.value(a);
+                }
+            }
+            out
+        })?;
+        out.bytes(env)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

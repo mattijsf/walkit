@@ -13,7 +13,9 @@ rust-version = "1.85"
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
+# a panic in the engine unwinds to the JNI boundary, where it is thrown as a Java exception a
+# host reports as the skin's failure; an abort would end the host's process
+panic = "unwind"
 strip = true
 
 # the web build: smallest code, speed second

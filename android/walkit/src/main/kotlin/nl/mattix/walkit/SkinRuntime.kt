@@ -50,8 +50,8 @@ public class SkinRuntime(
             clock(),
         )
 
-    /** The engine's side, with the clock set to now; a closed runtime refuses. */
-    private fun h(): Long {
+    /** The engine's side, with the clock set to now; a closed runtime refuses. The test fixtures reach it too. */
+    internal fun h(): Long {
         check(handle != 0L) { "the runtime is closed" }
         val now = clock()
         Native.rtSetNow(handle, now, TimeZone.getDefault().getOffset(now))
@@ -522,7 +522,7 @@ public class SkinRuntime(
     public fun doubleTap(
         x: Int,
         y: Int,
-        seq: Int,
+        seq: Int = 0,
     ): Unit = Native.rtDoubleTap(h(), x, y, seq)
 
     /** [doubleTap] at a point of [window], in its own pixels. */
@@ -575,7 +575,14 @@ public class SkinRuntime(
      * [SkinHost.chooseFromMenu] when a touch is in progress ([gesture]), at most a few times per
      * touch, and not after one closed without the listener.
      */
-    public fun menuChoice(menu: SkinMenu): Int = Native.rtMenuChoice(h(), PackedMenu.encode(menu))
+    public fun menuChoice(menu: SkinMenu): Int {
+        hostBridge.offered = menu
+        try {
+            return Native.rtMenuChoice(h(), PackedMenu.encode(menu))
+        } finally {
+            hostBridge.offered = null
+        }
+    }
 
     /**
      * Ends the press under the finger without a release: a button no longer shows pressed and gives

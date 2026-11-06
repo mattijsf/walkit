@@ -11,7 +11,7 @@ package nl.mattix.walkit
  */
 internal object Native {
     init {
-        System.loadLibrary("walkit")
+        HostLibrary.load()
     }
 
     @Suppress("LongParameterList") // one call for what the runtime is made of
@@ -320,4 +320,66 @@ internal object Native {
         h: Long,
         menu: ByteArray,
     ): Int
+
+    // ---- what a test does as a script would (the test fixtures) ----------------------------
+    // A handle is a kind (0 object, 1 container, 2 System, 3 made) and an index, -1 for none; a
+    // value is packed as a tag (0 null, 1 int, 2 string, 3 handle) and what follows it.
+
+    @JvmStatic
+    external fun rtScriptObject(
+        h: Long,
+        id: String,
+    ): Int
+
+    @JvmStatic
+    external fun rtScriptLayout(
+        h: Long,
+        window: Int,
+    ): Int
+
+    @JvmStatic
+    external fun rtScriptContainer(
+        h: Long,
+        id: String,
+    ): Int
+
+    @JvmStatic
+    external fun rtScriptMake(
+        h: Long,
+        className: String,
+    ): Int
+
+    @JvmStatic
+    external fun rtScriptConfigItem(
+        h: Long,
+        name: String,
+        guid: String,
+    ): Int
+
+    @JvmStatic
+    external fun rtScriptCall(
+        h: Long,
+        kind: Int,
+        index: Int,
+        method: String,
+        args: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    external fun rtScriptBeginSlide(
+        h: Long,
+        index: Int,
+    )
+
+    @JvmStatic external fun rtScriptEndSlides(h: Long)
+
+    @JvmStatic external fun rtScriptNextTimerAt(h: Long): Long
+
+    @JvmStatic
+    external fun rtScriptRecordEvents(
+        h: Long,
+        on: Boolean,
+    )
+
+    @JvmStatic external fun rtScriptTakeEvents(h: Long): ByteArray
 }

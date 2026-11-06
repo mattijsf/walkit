@@ -14,6 +14,7 @@ mod maki;
 mod objects;
 mod options;
 mod pointer;
+pub mod scripted;
 mod system;
 #[cfg(test)]
 mod tests;
@@ -165,6 +166,8 @@ pub struct SkinRuntime {
     pub(crate) animations: Vec<ObjId>,
     /// Objects on their way to a target set with `setTarget*` and `gotoTarget`.
     pub(crate) moving: Vec<ObjId>,
+    /// The events fired while a test records them; see `scripted`.
+    pub(crate) recorded: Option<Vec<scripted::RecordedEvent>>,
     pub(crate) private_ints: HashMap<String, i32>,
     pub(crate) private_strings: HashMap<String, String>,
     config_flags: HashMap<String, bool>,
@@ -304,6 +307,7 @@ impl SkinRuntime {
             starting_buckets: Vec::new(),
             animations: Vec::new(),
             moving: Vec::new(),
+            recorded: None,
             private_ints: HashMap::new(),
             private_strings: HashMap::new(),
             config_flags: HashMap::new(),
@@ -1340,6 +1344,7 @@ impl SkinRuntime {
         if !self.enter_event(event) {
             return 0;
         }
+        self.record(target, event, args);
         let mut n = 0;
         for s in 0..self.scripts.len() {
             if s < self.scripts.len() && self.scripts[s].hears(event) {
@@ -1366,6 +1371,7 @@ impl SkinRuntime {
         if !self.enter_event(event) {
             return Value::Null;
         }
+        self.record(target, event, args);
         let mut result = Value::Null;
         for s in 0..self.scripts.len() {
             if s < self.scripts.len() && self.scripts[s].hears(event) {

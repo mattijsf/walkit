@@ -73,8 +73,39 @@ internal class HostBridge(
             true -> 1
         }
 
+    /**
+     * The menu the runtime is asking the listener's pick from through [SkinRuntime.menuChoice],
+     * while that call runs: the host gets that same object back, as a host that waits on a menu
+     * by identity expects, rather than a copy read from the packed menu.
+     */
+    var offered: SkinMenu? = null
+
     /** `Int.MIN_VALUE` for null. */
-    fun chooseFromMenu(packed: ByteArray): Int = host.chooseFromMenu(PackedMenu.decode(packed)) ?: Int.MIN_VALUE
+    fun chooseFromMenu(packed: ByteArray): Int {
+        val decoded = PackedMenu.decode(packed)
+        val menu = offered?.takeIf { it.sameAs(decoded) } ?: decoded
+        return host.chooseFromMenu(menu) ?: Int.MIN_VALUE
+    }
+
+    /** Whether two menus list the same items. */
+    private fun SkinMenu.sameAs(o: SkinMenu): Boolean =
+        items.size == o.items.size &&
+            items.zip(o.items).all { (a, b) ->
+                when (a) {
+                    is SkinMenu.Command -> {
+                        b is SkinMenu.Command && a.id == b.id && a.text == b.text && a.checked == b.checked &&
+                            a.disabled == b.disabled
+                    }
+
+                    SkinMenu.Separator -> {
+                        b === SkinMenu.Separator
+                    }
+
+                    is SkinMenu.Submenu -> {
+                        b is SkinMenu.Submenu && a.text == b.text && a.menu.sameAs(b.menu)
+                    }
+                }
+            }
 
     fun windowsChanged(ids: IntArray): Unit = host.windowsChanged(ids.map { WindowId(it) })
 
