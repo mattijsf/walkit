@@ -13,7 +13,7 @@ const PLAYER_XML: &str = concat!(
     r#"<container id="main" name="t" default_visible="1">"#,
     r#"<layout id="normal" w="300" h="200" snapadjustbottom="80">"#,
     r#"<group id="body" x="0" y="0" w="300" h="120" sysregion="1" rectrgn="1"/>"#,
-    r#"</layout></container>"#,
+    r#"</layout><layout id="shade" w="300" h="25"/></container>"#,
     r#"<container id="pl" name="Playlist" default_visible="0"><layout id="normal" w="300" h="100">"#,
     r#"<layer id="pl.sizer" resize="bottomright" x="290" y="90" w="10" h="10"/>"#,
     r#"</layout></container>"#,
@@ -270,4 +270,37 @@ fn a_press_on_the_desktop_between_the_windows_moves_nothing() {
     rt.pointer_move(250, 280);
     rt.pointer_up(250, 280);
     assert_eq!(rect_of(&mut rt, "main").top, 0);
+}
+
+#[test]
+fn a_layout_switch_keeps_the_place_and_the_docked_windows_follow_the_new_edges() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    drag_to(&mut rt, "main", 50, 30);
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(50, 150, 300, 100));
+    let c = rt.container("main").expect("the main container");
+    rt.switch_to(c, "shade");
+    assert_eq!(
+        rect_of(&mut rt, "main"),
+        Rect::new(50, 30, 300, 25),
+        "the shade bar where the window was"
+    );
+    assert_eq!(
+        rect_of(&mut rt, "pl").top,
+        55,
+        "the playlist under the shade bar"
+    );
+    rt.switch_to(c, "normal");
+    assert_eq!(
+        rect_of(&mut rt, "main"),
+        Rect::new(50, 30, 300, 200),
+        "back where it was"
+    );
+    assert_eq!(
+        rect_of(&mut rt, "pl").top,
+        150,
+        "the playlist back under the window"
+    );
+    // the switched window keeps its place on top
+    assert_eq!(z_order(&mut rt), vec!["pl", "main"]);
 }
