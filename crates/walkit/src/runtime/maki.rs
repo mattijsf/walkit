@@ -183,8 +183,11 @@ impl SkinRuntime {
             }
             "layer" => {
                 let id = self.objects.len();
-                self.objects
-                    .push(Obj::new("layer", Kind::Layer(Default::default()), false));
+                self.objects.push(Obj::new(
+                    "layer",
+                    Kind::Layer(crate::gui::LayerData::default()),
+                    false,
+                ));
                 return Some(Handle::Gui(id));
             }
             "application" => Made::Application,

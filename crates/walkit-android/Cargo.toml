@@ -15,3 +15,6 @@ crate-type = ["cdylib"]
 [dependencies]
 jni = "0.22"
 walkit = { path = "../walkit" }
+
+[lints]
+workspace = true

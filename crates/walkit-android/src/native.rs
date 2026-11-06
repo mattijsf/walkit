@@ -30,6 +30,7 @@ use crate::host::{HostCache, JniHost};
 use crate::player::{JniPlayer, PlayerCache};
 
 /// A runtime the Kotlin side drives, with the clock it sets.
+#[allow(clippy::struct_field_names)] // `rt` is the runtime; the rest is what drives it
 struct Rt {
     rt: SkinRuntime,
     now: Rc<Cell<i64>>,
@@ -237,7 +238,7 @@ pub fn rt_free<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
         }
         Ok(())
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Sets the clock the runtime reads, in ms, and how far local time is from UTC at that moment.
@@ -255,14 +256,14 @@ pub fn rt_set_now<'l>(
             r.zone_offset.set(zone_offset_ms);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Loads the skin: `skin.xml` and everything it includes, the windows, the scripts.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_load<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.load()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Advances timers, tickers and player-driven objects, with the next target slide placed
@@ -342,12 +343,8 @@ pub fn rt_window_ids<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) 
 /// The main window as it shows now, or -1 when the skin has none.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_main_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
-    env.with_env(|env| {
-        with_rt(env, h, |r| {
-            r.rt.main_window().map(|w| w.0 as i32).unwrap_or(-1)
-        })
-    })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    env.with_env(|env| with_rt(env, h, |r| r.rt.main_window().map_or(-1, |w| w.0 as i32)))
+        .resolve::<ThrowRuntimeExAndDefault>()
 }
 
 /// What window `id` is like now: id, width, height, min and max sizes, whether it resizes both
@@ -426,9 +423,7 @@ pub fn rt_window_of<'l>(
 ) -> jint {
     env.with_env(|env| {
         let c = container.to_string();
-        with_rt(env, h, |r| {
-            r.rt.window_of(&c).map(|w| w.0 as i32).unwrap_or(-1)
-        })
+        with_rt(env, h, |r| r.rt.window_of(&c).map_or(-1, |w| w.0 as i32))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }
@@ -505,10 +500,10 @@ pub fn rt_resize_window<'l>(
 ) {
     env.with_env(|env| {
         with_rt(env, h, |r| {
-            r.rt.resize_window(WindowId(id as u32), width, height)
+            r.rt.resize_window(WindowId(id as u32), width, height);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Puts window `id` at `x`, `y` in the viewport, among windows set out apart.
@@ -522,7 +517,7 @@ pub fn rt_place_window<'l>(
     y: jint,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.place_window(WindowId(id as u32), x, y)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Whether a window besides the main one is open.
@@ -536,7 +531,7 @@ pub fn rt_window_open<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong)
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_close_top_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.close_top_window()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The space the app has for the stack; 0 by 0 leaves each window at its size.
@@ -554,10 +549,10 @@ pub fn rt_set_view_size<'l>(
                 Some((w, height))
             } else {
                 None
-            })
+            });
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The space the app has for the stack, or an empty array for none.
@@ -580,7 +575,7 @@ pub fn rt_set_viewport<'l>(
     height: jint,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.set_viewport(w, height)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The screen as scripts ask for it.
@@ -594,7 +589,7 @@ pub fn rt_viewport<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) ->
 }
 
 /// How many times a script placed the main window against an edge after a menu pick.
-/// What getSkinName() answers.
+/// What `getSkinName()` answers.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_skin_name<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JString<'l> {
     env.with_env(|env| {
@@ -616,7 +611,7 @@ pub fn rt_set_skin_name<'l>(
         let name = name.to_string();
         with_rt(env, h, |r| r.rt.set_skin_name(&name))
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// How the host shows the windows: whether there is a view size and its width and height, the
@@ -676,7 +671,7 @@ pub fn rt_set_presentation<'l>(
         };
         with_rt(env, h, |r| r.rt.set_presentation(&p))
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Where window `id` visibly ends on the right; with `lay_out_first` after laying it out.
@@ -763,7 +758,7 @@ pub fn rt_vis_rect<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) ->
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_visualizer_window_closed<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.visualizer_window_closed()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 #[jni_mangle("nl.mattix.walkit.Native")]
@@ -798,7 +793,9 @@ pub fn rt_color_themes<'l>(
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_color_theme<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JString<'l> {
     env.with_env(|env| {
-        let t = with_rt(env, h, |r| r.rt.color_theme().map(|s| s.to_string()))?;
+        let t = with_rt(env, h, |r| {
+            r.rt.color_theme().map(std::string::ToString::to_string)
+        })?;
         jstring(env, t.as_deref())
     })
     .resolve::<ThrowRuntimeExAndDefault>()
@@ -816,7 +813,7 @@ pub fn rt_select_color_theme<'l>(
         let n = name.to_string();
         with_rt(env, h, |r| r.rt.select_color_theme(&n))
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Counts changes to what a host keeps of the skin between runs.
@@ -886,7 +883,7 @@ pub fn rt_restore_settings<'l>(
         };
         with_rt(env, h, |r| r.rt.restore_settings(&saved))
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Counts changes to the skin's Config items.
@@ -1002,7 +999,7 @@ pub fn rt_stats<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JL
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_ensure_layout<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.ensure_layout()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The stack's size.
@@ -1057,7 +1054,7 @@ pub fn rt_next_due_at<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong)
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_invalidate<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.invalidate()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 // ---- touches ---------------------------------------------------------------------------------
@@ -1073,7 +1070,7 @@ pub fn rt_pointer_down<'l>(
     seq: jint,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_down(x, y, seq)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The finger moves to a point of the stack.
@@ -1086,14 +1083,14 @@ pub fn rt_pointer_move<'l>(
     y: jint,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_move(x, y)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The finger lifts at a point of the stack.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_pointer_up<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, x: jint, y: jint) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_up(x, y)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The finger goes down at a point of window `window`, in its own pixels.
@@ -1109,10 +1106,10 @@ pub fn rt_pointer_down_in<'l>(
 ) {
     env.with_env(|env| {
         with_rt(env, h, |r| {
-            r.rt.pointer_down_in(WindowId(window as u32), x, y, seq)
+            r.rt.pointer_down_in(WindowId(window as u32), x, y, seq);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The finger moves to a point of window `window`, in its own pixels.
@@ -1127,10 +1124,10 @@ pub fn rt_pointer_move_in<'l>(
 ) {
     env.with_env(|env| {
         with_rt(env, h, |r| {
-            r.rt.pointer_move_in(WindowId(window as u32), x, y)
+            r.rt.pointer_move_in(WindowId(window as u32), x, y);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The finger lifts at a point of window `window`, in its own pixels.
@@ -1145,10 +1142,10 @@ pub fn rt_pointer_up_in<'l>(
 ) {
     env.with_env(|env| {
         with_rt(env, h, |r| {
-            r.rt.pointer_up_in(WindowId(window as u32), x, y)
+            r.rt.pointer_up_in(WindowId(window as u32), x, y);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// A second tap of a double tap, at a point of the stack.
@@ -1162,7 +1159,7 @@ pub fn rt_double_tap<'l>(
     seq: jint,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.double_tap(x, y, seq)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// A second tap of a double tap, at a point of window `window`, in its own pixels.
@@ -1178,10 +1175,10 @@ pub fn rt_double_tap_in<'l>(
 ) {
     env.with_env(|env| {
         with_rt(env, h, |r| {
-            r.rt.double_tap_in(WindowId(window as u32), x, y, seq)
+            r.rt.double_tap_in(WindowId(window as u32), x, y, seq);
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The seq of the last press that landed on an object with a skin menu, or `Int.MIN_VALUE`.
@@ -1202,14 +1199,14 @@ pub fn rt_move_target<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong)
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_right_click<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, seq: jint) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.right_click(seq)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Ends the press under the finger without a release.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_pointer_cancel<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_cancel()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Starts a touch the listener made, in which a script may pop a menu; `fresh` starts the count over.
@@ -1221,14 +1218,14 @@ pub fn rt_gesture_begin<'l>(
     fresh: jboolean,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.gesture_begin(fresh)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Ends the touch `rtGestureBegin` started.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_gesture_end<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.gesture_end()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The listener's pick from the menu (packed as `walkit::packed::encode_menu` writes), by
@@ -1279,7 +1276,7 @@ fn kind_index(h: Handle) -> (i32, i32) {
 }
 
 fn handle_index(h: Option<Handle>) -> jint {
-    h.map(|h| kind_index(h).1).unwrap_or(-1)
+    h.map_or(-1, |h| kind_index(h).1)
 }
 
 impl Out {
@@ -1461,14 +1458,14 @@ pub fn rt_script_begin_slide<'l>(
             }
         })
     })
-    .resolve::<ThrowRuntimeExAndDefault>()
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Ends every slide, as the slides reaching their targets do.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_script_end_slides<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.end_slides_as_script()))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// When the next of the skin's timers fires, in the clock's ms; `Long.MIN_VALUE` when none runs.
@@ -1487,7 +1484,7 @@ pub fn rt_script_record_events<'l>(
     on: jboolean,
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.record_events(on)))
-        .resolve::<ThrowRuntimeExAndDefault>()
+        .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The events fired since the last take: a count, then each as a kind, an index, the event's

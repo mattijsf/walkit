@@ -230,7 +230,7 @@ impl SkinRuntime {
                     Some(path) if chain.contains(&path) || chain.len() >= MAX_INCLUDE_DEPTH => {
                         self.host.log(&format!(
                             "include skipped: {file} (includes itself or nests too deep)"
-                        ))
+                        ));
                     }
                     Some(path) => {
                         let text = utf8(&self.files.read(&path).expect("exists"));
@@ -425,15 +425,12 @@ impl SkinRuntime {
     /// A `<color>`'s value under the lowercase id `k`. A value that is no RGB names another
     /// color; the later definition wins in either form.
     fn define_color(&mut self, k: &str, v: &str) {
-        match crate::gui::parse_rgb(v) {
-            Some(rgb) => {
-                self.colors.insert(k.to_string(), rgb);
-                self.color_aliases.remove(k);
-            }
-            None => {
-                self.color_aliases.insert(k.to_string(), v.to_lowercase());
-                self.colors.remove(k);
-            }
+        if let Some(rgb) = crate::gui::parse_rgb(v) {
+            self.colors.insert(k.to_string(), rgb);
+            self.color_aliases.remove(k);
+        } else {
+            self.color_aliases.insert(k.to_string(), v.to_lowercase());
+            self.colors.remove(k);
         }
     }
 
@@ -896,28 +893,27 @@ impl SkinRuntime {
             self.base_usage.insert(format!("script:{rest}"));
         }
         let key = file.to_lowercase();
-        let program = match self.programs.get(&key) {
-            Some(p) => p.clone(),
-            None => {
-                let short = format!("scripts/{}", file.rsplit('/').next().unwrap_or(file));
-                let bytes = self.files.read(file).or_else(|| self.files.read(&short));
-                let program = match bytes {
-                    None => {
-                        self.host.log(&format!("script not found: {file}"));
+        let program = if let Some(p) = self.programs.get(&key) {
+            p.clone()
+        } else {
+            let short = format!("scripts/{}", file.rsplit('/').next().unwrap_or(file));
+            let bytes = self.files.read(file).or_else(|| self.files.read(&short));
+            let program = match bytes {
+                None => {
+                    self.host.log(&format!("script not found: {file}"));
+                    None
+                }
+                // the parser reports any damaged file as an error
+                Some(bytes) => match crate::maki::parser::parse(&bytes, file) {
+                    Ok(p) => Some(Rc::new(p)),
+                    Err(e) => {
+                        self.host.log(&format!("script {file}: {e}"));
                         None
                     }
-                    // the parser reports any damaged file as an error
-                    Some(bytes) => match crate::maki::parser::parse(&bytes, file) {
-                        Ok(p) => Some(Rc::new(p)),
-                        Err(e) => {
-                            self.host.log(&format!("script {file}: {e}"));
-                            None
-                        }
-                    },
-                };
-                self.programs.insert(key, program.clone());
-                program
-            }
+                },
+            };
+            self.programs.insert(key, program.clone());
+            program
         };
         let Some(program) = program else { return };
         let s = self.systems.len();

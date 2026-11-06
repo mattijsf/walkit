@@ -238,7 +238,7 @@ impl Player for JniPlayer {
     }
 
     fn set_volume(&mut self, v: i32) {
-        self.set_int(jni_str!("setVolume"), v)
+        self.set_int(jni_str!("setVolume"), v);
     }
 
     fn shuffle(&self) -> bool {
@@ -246,7 +246,7 @@ impl Player for JniPlayer {
     }
 
     fn set_shuffle(&mut self, on: bool) {
-        self.set_bool(jni_str!("setShuffle"), on)
+        self.set_bool(jni_str!("setShuffle"), on);
     }
 
     fn repeat(&self) -> bool {
@@ -254,7 +254,7 @@ impl Player for JniPlayer {
     }
 
     fn set_repeat(&mut self, on: bool) {
-        self.set_bool(jni_str!("setRepeat"), on)
+        self.set_bool(jni_str!("setRepeat"), on);
     }
 
     fn crossfade(&self) -> bool {
@@ -262,7 +262,7 @@ impl Player for JniPlayer {
     }
 
     fn set_crossfade(&mut self, on: bool) {
-        self.set_bool(jni_str!("setCrossfade"), on)
+        self.set_bool(jni_str!("setCrossfade"), on);
     }
 
     fn eq_enabled(&self) -> bool {
@@ -270,7 +270,7 @@ impl Player for JniPlayer {
     }
 
     fn set_eq_enabled(&mut self, on: bool) {
-        self.set_bool(jni_str!("setEqEnabled"), on)
+        self.set_bool(jni_str!("setEqEnabled"), on);
     }
 
     fn eq_bands(&self) -> Vec<i32> {
@@ -283,7 +283,7 @@ impl Player for JniPlayer {
     }
 
     fn set_eq_preamp(&mut self, v: i32) {
-        self.set_int(jni_str!("setEqPreamp"), v)
+        self.set_int(jni_str!("setEqPreamp"), v);
     }
 
     fn pan(&self) -> i32 {
@@ -291,35 +291,35 @@ impl Player for JniPlayer {
     }
 
     fn set_pan(&mut self, v: i32) {
-        self.set_int(jni_str!("setPan"), v)
+        self.set_int(jni_str!("setPan"), v);
     }
 
     fn play(&mut self) {
-        self.run(jni_str!("play"))
+        self.run(jni_str!("play"));
     }
 
     fn pause(&mut self) {
-        self.run(jni_str!("pause"))
+        self.run(jni_str!("pause"));
     }
 
     fn stop(&mut self) {
-        self.run(jni_str!("stop"))
+        self.run(jni_str!("stop"));
     }
 
     fn next(&mut self) {
-        self.run(jni_str!("next"))
+        self.run(jni_str!("next"));
     }
 
     fn previous(&mut self) {
-        self.run(jni_str!("previous"))
+        self.run(jni_str!("previous"));
     }
 
     fn eject(&mut self) {
-        self.run(jni_str!("eject"))
+        self.run(jni_str!("eject"));
     }
 
     fn seek_to(&mut self, ms: i32) {
-        self.set_int(jni_str!("seekTo"), ms)
+        self.set_int(jni_str!("seekTo"), ms);
     }
 
     fn set_eq_band(&mut self, band: i32, value: i32) {
@@ -359,7 +359,7 @@ impl Player for JniPlayer {
     }
 
     fn play_track(&mut self, index: i32) {
-        self.set_int(jni_str!("playTrack"), index)
+        self.set_int(jni_str!("playTrack"), index);
     }
 
     fn spectrum(&self) -> Vec<f32> {

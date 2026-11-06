@@ -506,7 +506,7 @@ impl SkinRuntime {
     pub(crate) fn named_window_visible(&mut self, id: &str) -> bool {
         let bare = id.to_lowercase();
         let bare = bare.strip_prefix("guid:").unwrap_or(&bare).to_string();
-        let kind = self.window_kind(&bare);
+        let kind = Self::window_kind(&bare);
         if kind == "avs" && self.vis_rect().is_some() {
             return true;
         }
@@ -557,7 +557,7 @@ impl SkinRuntime {
     pub(crate) fn show_host_window(&mut self, id: &str) {
         let bare = id.to_lowercase();
         let bare = bare.strip_prefix("guid:").unwrap_or(&bare).to_string();
-        let kind = self.window_kind(&bare);
+        let kind = Self::window_kind(&bare);
         if !super::HOST_WINDOWS.contains(&kind.as_str()) {
             return;
         }

@@ -43,7 +43,7 @@ impl SkinRuntime {
         self.container(id).map(Handle::Container)
     }
 
-    /// An object of class `class` (Timer, PopupMenu, ...), as a script's `new` makes it.
+    /// An object of class `class` (Timer, `PopupMenu`, ...), as a script's `new` makes it.
     pub fn script_make(&mut self, class: &str) -> Option<Handle> {
         let guid = stdapi::guid_of(class)?;
         self.create(guid)

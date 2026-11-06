@@ -156,22 +156,22 @@ impl SkinRuntime {
 
     /// `pointer_down` at a point of `window`, in its own pixels.
     pub fn pointer_down_in(&mut self, window: crate::host::WindowId, x: i32, y: i32, seq: i32) {
-        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_down(sx, sy, seq))
+        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_down(sx, sy, seq));
     }
 
     /// `pointer_move` at a point of `window`, in its own pixels.
     pub fn pointer_move_in(&mut self, window: crate::host::WindowId, x: i32, y: i32) {
-        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_move(sx, sy))
+        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_move(sx, sy));
     }
 
     /// `pointer_up` at a point of `window`, in its own pixels.
     pub fn pointer_up_in(&mut self, window: crate::host::WindowId, x: i32, y: i32) {
-        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_up(sx, sy))
+        self.in_window(window, x, y, |rt, sx, sy| rt.pointer_up(sx, sy));
     }
 
     /// `double_tap` at a point of `window`, in its own pixels.
     pub fn double_tap_in(&mut self, window: crate::host::WindowId, x: i32, y: i32, seq: i32) {
-        self.in_window(window, x, y, |rt, sx, sy| rt.double_tap(sx, sy, seq))
+        self.in_window(window, x, y, |rt, sx, sy| rt.double_tap(sx, sy, seq));
     }
 
     /// The topmost object at a point of the stack.
@@ -439,7 +439,7 @@ impl SkinRuntime {
                     }
                 }
             }
-        })
+        });
     }
 
     /// Presses what a finger at a point of the stack means, and returns it; `None` for nothing.
@@ -509,7 +509,7 @@ impl SkinRuntime {
 
     /// The finger moves to a point of the stack.
     pub fn pointer_move(&mut self, sx: i32, sy: i32) {
-        self.gesture(false, |rt| rt.pointer_move_at(sx, sy))
+        self.gesture(false, |rt| rt.pointer_move_at(sx, sy));
     }
 
     /// Sends the deferred press where the finger went down, unless its object has gone from the skin.
@@ -560,7 +560,7 @@ impl SkinRuntime {
 
     /// The finger lifts at a point of the stack.
     pub fn pointer_up(&mut self, sx: i32, sy: i32) {
-        self.gesture(false, |rt| rt.pointer_up_at(sx, sy))
+        self.gesture(false, |rt| rt.pointer_up_at(sx, sy));
     }
 
     fn pointer_up_at(&mut self, sx: i32, sy: i32) {
@@ -593,7 +593,7 @@ impl SkinRuntime {
             rt.aim_menu(sx, sy, seq);
             rt.pointer.move_seq = None;
             rt.double_tap_at(sx, sy);
-        })
+        });
     }
 
     fn double_tap_at(&mut self, sx: i32, sy: i32) {
@@ -697,13 +697,12 @@ impl SkinRuntime {
             if d > slop2 {
                 continue;
             }
-            let has = match self.pointer.skin_menus.get(&o) {
-                Some(h) => *h,
-                None => {
-                    let h = self.has_skin_menu(o);
-                    self.pointer.skin_menus.insert(o, h);
-                    h
-                }
+            let has = if let Some(h) = self.pointer.skin_menus.get(&o) {
+                *h
+            } else {
+                let h = self.has_skin_menu(o);
+                self.pointer.skin_menus.insert(o, h);
+                h
             };
             if has && best.is_none_or(|(_, bd)| d < bd) {
                 best = Some((o, d));
@@ -789,7 +788,7 @@ impl SkinRuntime {
             if let Some(aim) = rt.pointer.menu_aim.filter(|a| a.seq == seq) {
                 rt.right_click_at(aim);
             }
-        })
+        });
     }
 
     fn right_click_at(&mut self, aim: MenuAim) {
@@ -872,7 +871,7 @@ impl SkinRuntime {
 
     /// Ends the press under the finger without a release.
     pub fn pointer_cancel(&mut self) {
-        self.gesture(false, |rt| rt.end_press())
+        self.gesture(false, |rt| rt.end_press());
     }
 
     /// Lets go of the pressed object without a release, and tells it the finger left.
@@ -933,7 +932,7 @@ impl SkinRuntime {
                 let Some(param) = param else { return };
                 let id = param.to_lowercase();
                 let id = id.strip_prefix("guid:").unwrap_or(&id).to_string();
-                let kind = self.window_kind(&id);
+                let kind = Self::window_kind(&id);
                 let answers = self.host_actions
                     && (HOST_WINDOWS.contains(&kind.as_str()) || self.toggle_target(&id).is_none());
                 if answers {
@@ -1043,27 +1042,24 @@ impl SkinRuntime {
 
     /// A TOGGLE action: opens or closes the window `id` names, or flips a flag of that name when there is no such window.
     fn toggle_window(&mut self, id: &str, param: &str) {
-        match self.toggle_target(id) {
-            Some(c) => {
-                if self.opened.contains(&c) {
-                    self.close_container(c);
-                } else {
-                    // a component opened by its GUID takes the focus (Winamp Modern's playlist
-                    // editor, autofocus); a container shown for the first time does not
-                    // (Winamp3's EQ), one shown again does
-                    let takes_focus =
-                        param.to_lowercase().contains("guid:") || self.shown_before.contains(&c);
-                    self.open_container(c);
-                    if takes_focus {
-                        self.focused = self.containers[c].current;
-                    }
+        if let Some(c) = self.toggle_target(id) {
+            if self.opened.contains(&c) {
+                self.close_container(c);
+            } else {
+                // a component opened by its GUID takes the focus (Winamp Modern's playlist
+                // editor, autofocus); a container shown for the first time does not
+                // (Winamp3's EQ), one shown again does
+                let takes_focus =
+                    param.to_lowercase().contains("guid:") || self.shown_before.contains(&c);
+                self.open_container(c);
+                if takes_focus {
+                    self.focused = self.containers[c].current;
                 }
             }
-            None => {
-                let key = format!("window:{id}");
-                let on = !self.config_flags.get(&key).copied().unwrap_or(false);
-                self.config_flags.insert(key, on);
-            }
+        } else {
+            let key = format!("window:{id}");
+            let on = !self.config_flags.get(&key).copied().unwrap_or(false);
+            self.config_flags.insert(key, on);
         }
     }
 
@@ -1074,7 +1070,7 @@ impl SkinRuntime {
                 let Some(param) = param else { return false };
                 let id = param.to_lowercase();
                 let id = id.strip_prefix("guid:").unwrap_or(&id).to_string();
-                let kind = self.window_kind(&id);
+                let kind = Self::window_kind(&id);
                 if let Some(open) = self.host.window_open(&kind) {
                     return open;
                 }
@@ -1094,7 +1090,7 @@ impl SkinRuntime {
     }
 
     /// Whether `action_state` reads the state of `action`: a window, EQ on, EQ auto.
-    pub(crate) fn has_action_state(&self, action: Option<&str>) -> bool {
+    pub(crate) fn has_action_state(action: Option<&str>) -> bool {
         action.is_some_and(|a| STATE_ACTIONS.contains(&a.to_uppercase().as_str()))
     }
 }

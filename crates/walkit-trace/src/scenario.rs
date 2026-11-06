@@ -11,7 +11,7 @@ pub struct Scenario {
     pub name: String,
     /// The `.wal` file in the skins folder.
     pub wal: String,
-    /// Winamp's getSkinName(): the skin's folder name.
+    /// Winamp's `getSkinName()`: the skin's folder name.
     pub skin: String,
     /// The song titles.
     pub playlist: Vec<String>,
@@ -87,7 +87,7 @@ impl Scenario {
         let list = |v: &str| -> Vec<String> {
             v.split('|')
                 .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect()
         };
         let pair = |v: &str| -> Option<(i32, i32)> {
@@ -130,7 +130,7 @@ pub fn parse_json(text: &str) -> Result<Vec<Scenario>, String> {
     let strings = |o: &Value, key: &str| -> Option<Vec<String>> {
         o.get(key)?.as_array().map(|a| {
             a.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                 .collect()
         })
     };
@@ -144,10 +144,14 @@ pub fn parse_json(text: &str) -> Result<Vec<Scenario>, String> {
     let string = |o: &Value, key: &str| -> Result<String, String> {
         o.get(key)
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .ok_or_else(|| format!("a scenario has no {key}"))
     };
-    let flag = |o: &Value, key: &str| o.get(key).and_then(|v| v.as_bool()).unwrap_or(false);
+    let flag = |o: &Value, key: &str| {
+        o.get(key)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    };
     arr.iter()
         .map(|o| {
             Ok(Scenario {
@@ -158,7 +162,7 @@ pub fn parse_json(text: &str) -> Result<Vec<Scenario>, String> {
                 theme: o
                     .get("theme")
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
+                    .map(std::string::ToString::to_string),
                 view: pair(o, "view"),
                 show: strings(o, "show").unwrap_or_default(),
                 main_size: pair(o, "mainsize"),

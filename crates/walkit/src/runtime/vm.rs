@@ -270,18 +270,15 @@ impl SkinRuntime {
                     let name = pop_value!().as_string();
                     let owner = pop_value!().as_object();
                     let kind = Kind::of_type(o.arg).unwrap_or(Kind::Object);
-                    match owner {
-                        Some(owner) => {
-                            let key = self.scripts[s].member(owner, &name, kind)?;
-                            push(&mut stack, Slot::Member(key))?;
-                        }
-                        None => {
-                            let id = program.id.clone();
-                            self.host.log(&format!("{id}: member {name} on null"));
-                            let mut cell = Cell::new(kind, Value::Null);
-                            cell.assign(Value::Null);
-                            push(&mut stack, Slot::Temp(cell))?;
-                        }
+                    if let Some(owner) = owner {
+                        let key = self.scripts[s].member(owner, &name, kind)?;
+                        push(&mut stack, Slot::Member(key))?;
+                    } else {
+                        let id = program.id.clone();
+                        self.host.log(&format!("{id}: member {name} on null"));
+                        let mut cell = Cell::new(kind, Value::Null);
+                        cell.assign(Value::Null);
+                        push(&mut stack, Slot::Temp(cell))?;
                     }
                 }
                 op::MOV => {
@@ -369,7 +366,7 @@ impl SkinRuntime {
                 }
                 op::NOT => {
                     let v = pop_value!();
-                    push_value(&mut stack, Value::Int(if v.truthy() { 0 } else { 1 }))?;
+                    push_value(&mut stack, Value::Int(i32::from(!v.truthy())))?;
                 }
                 op::BIT_NOT => {
                     let v = pop_value!().as_int();

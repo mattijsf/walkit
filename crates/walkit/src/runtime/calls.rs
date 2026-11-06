@@ -134,7 +134,7 @@ impl SkinRuntime {
 
     /// Whether a script's resize of `layout` to `to` is a maximize, which a phone does not do:
     /// the main window set over the whole viewport. The window stays as it is. A maximize a tap
-    /// asks for shows the app's fullscreen visualizer instead (VIS_FS); one a script repeats by
+    /// asks for shows the app's fullscreen visualizer instead (`VIS_FS`); one a script repeats by
     /// itself does nothing more.
     pub(crate) fn maximizes(&mut self, layout: ObjId, to: Rect) -> bool {
         let (vw, vh) = self.viewport();

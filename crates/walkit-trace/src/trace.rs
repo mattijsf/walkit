@@ -138,7 +138,7 @@ pub fn record(
     files: Box<dyn SkinFiles>,
     decoder: Decoder,
     fonts: Option<Rc<dyn SkinFiles>>,
-    perf: Perf,
+    perf: &Perf,
 ) -> Recording {
     let files: Rc<dyn SkinFiles> = Rc::from(files);
     let out = Rc::new(RefCell::new(String::new()));
@@ -199,7 +199,7 @@ pub fn record(
         invalidates: 0,
         last: String::new(),
     };
-    frames.tick(&mut rt, &out, &invalidates, now.get(), &perf, &mut stats);
+    frames.tick(&mut rt, &out, &invalidates, now.get(), perf, &mut stats);
     for step in steps(sc) {
         let _ = writeln!(out.borrow_mut(), "step {}", describe(&step));
         match step {
@@ -207,7 +207,7 @@ pub fn record(
                 let until = now.get() + ms;
                 while now.get() < until {
                     now.set((now.get() + FRAME_MS).min(until));
-                    frames.tick(&mut rt, &out, &invalidates, now.get(), &perf, &mut stats);
+                    frames.tick(&mut rt, &out, &invalidates, now.get(), perf, &mut stats);
                 }
             }
             Step::Play => rt.player().play(),
@@ -372,7 +372,8 @@ mod tests {
     }
 
     fn rec(sc: &Scenario) -> String {
-        record(sc, small(), Box::new(|_, _| None), None, Box::new(|| 0.0)).text
+        let perf: Perf = Box::new(|| 0.0);
+        record(sc, small(), Box::new(|_, _| None), None, &perf).text
     }
 
     fn scenario(title: &str, taps: &[&str]) -> Scenario {
@@ -385,7 +386,7 @@ mod tests {
             view: None,
             show: Vec::new(),
             main_size: None,
-            taps: taps.iter().map(|t| t.to_string()).collect(),
+            taps: taps.iter().map(std::string::ToString::to_string).collect(),
             have_library: true,
             no_defaults: true,
             no_siblings: true,

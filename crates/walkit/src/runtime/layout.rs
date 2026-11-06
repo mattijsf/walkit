@@ -384,19 +384,19 @@ impl SkinRuntime {
             let other = rt.container_layout(container?, id?).filter(|o| *o != l)?;
             Some(rt.own_size(other))
         };
-        let mut width = if !w_set {
+        let mut width = if w_set {
+            own.0
+        } else {
             linked(self, link_width.as_deref())
                 .map(|s| s.0)
                 .unwrap_or(own.0)
-        } else {
-            own.0
         };
-        let mut height = if !h_set {
+        let mut height = if h_set {
+            own.1
+        } else {
             linked(self, link_height.as_deref())
                 .map(|s| s.1)
                 .unwrap_or(own.1)
-        } else {
-            own.1
         };
         let d = self.objects[l].layout().expect("a layout");
         if !self.moving.contains(&l) {
@@ -684,10 +684,10 @@ impl SkinRuntime {
                 .unwrap_or(255);
             self.refresh_alpha(o, pa);
         }
-        if was_zero != (self.objects[o].base.alpha() == 0) {
-            self.invalidate()
+        if was_zero == (self.objects[o].base.alpha() == 0) {
+            self.repaint();
         } else {
-            self.repaint()
+            self.invalidate();
         }
     }
 
@@ -792,10 +792,8 @@ impl SkinRuntime {
             // a group that wrote no sysregion shapes the window when one of its children does
             if obj.base.sysregion_set || obj.is_layout() {
                 obj.base.sysregion
-            } else if obj.children().iter().any(|c| self.region_op(*c) != 0) {
-                1
             } else {
-                0
+                i32::from(obj.children().iter().any(|c| self.region_op(*c) != 0))
             }
         } else {
             obj.base.sysregion

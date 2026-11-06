@@ -29,13 +29,21 @@ web runs.
 ## Layout
 
 - `crates/walkit`: the engine, a library (an `rlib`; the web and Android crates wrap it into
-  their libraries). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented. Its
+  their libraries). No unsafe code (`#![forbid(unsafe_code)]`); every public item documented; clippy's pedantic set
+  on for the workspace (`[workspace.lints]` in `Cargo.toml`, less the cast lints an engine in
+  layout pixels and bytes trips on), with warnings as errors in the gate. Its
   modules follow the reference engine's files: `files` (the skin's files and how a host stacks
   them), `xml`, `draw` (the draw list), `host` (what the engine asks of its host), `player`,
   `gui` (what each kind of object keeps, in one arena the runtime reaches by index), `text`,
   `runtime` (loading, layout, drawing, the tick, touches and actions, the objects scripts make,
   and the interpreter that runs the scripts' handlers) and `maki` (values, the `.maki` parser,
-  the standard library's table, and what a loaded script keeps). `runtime/free.rs` sets the
+  the standard library's table, and what a loaded script keeps). The runtime is one `SkinRuntime`
+  whose methods are spread over themed files: `resources` (bitmaps, fonts, colors), `windows`
+  (containers, windows and the presentation), `events` (change tracking and dispatch), `shapes`
+  (text placement, window shapes, fitting pictures), `tree` (the object tree, the layout pass,
+  the draw lists), and per kind of object `objects` (attributes), `sizes`, `animated`,
+  `buttons`, `sliders`, `draw_kinds` and `touches`, beside `build`, `layout`, `draw`, `pointer`,
+  `tick`, `lists`, `vis`, `options`, `system`, `calls`, `maki` and `vm`. `runtime/free.rs` sets the
   windows out apart when the host asks for it (`Presentation::free_windows`): each where it
   is (a new one at its container's `default_x`, `default_y`), moved by a drag and sized by its
   grip, docking and snapping as Winamp 5.666 does, raised by a press (the main window with the
