@@ -11,18 +11,19 @@ changes its imports and little else.
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.4.5
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.4.6
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
 `Presentation.freeWindows` sets the windows out apart instead of stacking them: each window
-where it is (`SkinRuntime.placeWindow` puts one where the host kept it), moved by a drag on its
-move areas through the pointer calls, docking and snapping as Winamp 5.666 does; the frame's
-window rects say where each one is.
+where it is (`SkinRuntime.placeWindow` puts one where the host kept it; a new one opens at its
+container's `default_x`, `default_y`), moved by a drag on its move areas and sized by its grip
+through the pointer calls, docking and snapping as Winamp 5.666 does; the frame's window rects
+say where each one is.
 
 The AAR ships consumer ProGuard rules for what the native side reaches by name, so a
 consumer's shrinker needs no extra rules. Its test fixtures
-(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.4.5"))`) carry the engine built
+(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.4.6"))`) carry the engine built
 for the machine that published them (`cargoBuildHost`, a plain `cargo build`), so a consumer's
 JVM unit tests run skins on it: `SkinRuntime` loads `libwalkit.so` on Android and falls back to
 that build on a JVM (`HostLibrary`). The fixtures also carry `nl.mattix.walkit.fixtures`, helpers

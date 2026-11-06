@@ -205,7 +205,9 @@ impl SkinRuntime {
         self.layout_object(o).is_some() && GRIP_EDGES.iter().any(|e| edges.contains(e))
     }
 
-    /// Sizes the window as the finger at `x`, `y` drags its grip, as Winamp sizes it.
+    /// Sizes the window as the finger at `x`, `y` drags its grip, as Winamp sizes it. Apart,
+    /// the edges the grip moves snap to the viewport and to the other windows, and a window
+    /// whose left or top edge moves keeps its right or bottom edge where it was.
     fn drag_grip(&mut self, r: &Resize, x: i32, y: i32) {
         let l = r.window;
         let (mut w, mut h) = r.size;
@@ -221,6 +223,20 @@ impl SkinRuntime {
         if r.edges.contains("top") {
             h -= y - r.y;
         }
+        let apart = self.free_windows();
+        let at = self.window_rect_of(l);
+        if apart {
+            let mut want = Rect::new(at.left, at.top, w, h);
+            if r.edges.contains("left") {
+                want.left = at.right() - w;
+            }
+            if r.edges.contains("top") {
+                want.top = at.bottom() - h;
+            }
+            let got = self.autodock_edges(l, want, &r.edges);
+            w = got.width;
+            h = got.height;
+        }
         let (vw, vh) = self.viewport();
         let d = self.objects[l].layout().expect("a layout");
         let size = (
@@ -229,6 +245,21 @@ impl SkinRuntime {
         );
         if Some(l) != self.main_layout() {
             self.objects[l].layout_mut().expect("a layout").user_size = Some(size);
+        }
+        if apart {
+            let x = if r.edges.contains("left") {
+                at.right() - size.0
+            } else {
+                at.left
+            };
+            let y = if r.edges.contains("top") {
+                at.bottom() - size.1
+            } else {
+                at.top
+            };
+            let d = self.objects[l].layout_mut().expect("a layout");
+            d.view_x = x;
+            d.view_y = y;
         }
         if size != self.layout_size(l) {
             self.resize_layout_to(l, size.0, size.1);
@@ -582,8 +613,12 @@ impl SkinRuntime {
         self.pointer.menu_aim.map(|a| a.seq)
     }
 
-    /// The seq of the last press when it landed on no object, or the object it pressed moves the window.
+    /// The seq of the last press when it landed on no object, or the object it pressed moves the
+    /// window; none while the windows are apart, where the engine moves them itself.
     pub fn move_target(&self) -> Option<i32> {
+        if self.free.on {
+            return None;
+        }
         self.pointer.move_seq
     }
 
