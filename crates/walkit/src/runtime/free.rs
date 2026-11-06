@@ -394,6 +394,8 @@ impl SkinRuntime {
         }
         shift_x += more_x;
         shift_y += more_y;
+        // a move changes where the windows are, not what they draw: the placed rects shift and
+        // the next frame carries them, with no layout pass and no new shapes
         let mut changed = false;
         for (l, r0) in &drag.group {
             let (x, y) = (r0.left + dx + shift_x, r0.top + dy + shift_y);
@@ -403,6 +405,10 @@ impl SkinRuntime {
                 let d = self.objects[*l].layout_mut().expect("a layout");
                 d.view_x = x;
                 d.view_y = y;
+                if let Some(r) = self.placed.get_mut(l) {
+                    r.left = x;
+                    r.top = y;
+                }
             }
         }
         if !changed {
@@ -411,7 +417,7 @@ impl SkinRuntime {
         if let Some(d) = self.free.drag.as_mut() {
             d.moved = true;
         }
-        self.relayout();
+        self.repaint();
         for (l, _) in &drag.group {
             self.dispatch(Handle::Gui(*l), "onmove", &[]);
         }
