@@ -35,6 +35,7 @@ fn the_presentation_reads_and_sets_the_window_settings_as_one_value() {
         column_width: 150,
         stretch_last: false,
         touch_slop: 9,
+        free_windows: false,
     };
     rt.set_presentation(&p);
     assert_eq!(rt.presentation(), p);

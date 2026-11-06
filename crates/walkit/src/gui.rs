@@ -296,6 +296,8 @@ pub struct LayoutData {
     pub snap_bottom: i32,
     /// Where the window sits in the viewport while it shows this layout.
     pub view_x: i32,
+    /// Whether the window has a placed spot among windows set out apart (see `runtime::free`).
+    pub free_placed: bool,
     /// See `view_x`.
     pub view_y: i32,
     /// Which side edge of the viewport a script last moved the window against.
@@ -343,6 +345,7 @@ impl LayoutData {
             snap_right: 0,
             snap_bottom: 0,
             view_x: 0,
+            free_placed: false,
             view_y: 0,
             edge_x: None,
             edge_y: None,

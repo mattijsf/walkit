@@ -81,7 +81,15 @@ impl SkinRuntime {
                     .map(Handle::Container),
             ),
             "getscale" => Value::Num(1.0),
-            "setscale" | "beforeredock" | "redock" | "setdesktopalpha" | "center" => Value::Null,
+            "setscale" | "setdesktopalpha" | "center" => Value::Null,
+            "beforeredock" => {
+                self.before_redock(o);
+                Value::Null
+            }
+            "redock" => {
+                self.redock(o);
+                Value::Null
+            }
             "snapadjust" => {
                 self.snap_adjust(
                     o,

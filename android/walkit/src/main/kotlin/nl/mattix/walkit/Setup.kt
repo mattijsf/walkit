@@ -31,6 +31,12 @@ public data class Presentation(
     val columnWidth: Int = 0,
     val stretchLast: Boolean = true,
     val touchSlop: Int = 6,
+    /**
+     * Whether the windows are set out apart, each where it is, moved by a drag on its move areas
+     * and docked and snapped as on Winamp's desktop (see [SkinRuntime.placeWindow]); false for one
+     * stack.
+     */
+    val freeWindows: Boolean = false,
 )
 
 /**
