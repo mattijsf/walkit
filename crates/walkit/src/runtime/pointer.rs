@@ -387,9 +387,10 @@ impl SkinRuntime {
         self.gesture(true, |rt| {
             rt.aim_menu(sx, sy, seq);
             rt.pointer.move_seq = None;
-            // apart, a press raises its window
+            // apart, a press raises its window; a press on the desktop between the windows
+            // reaches no window (window_at falls back to the nearest one for the stack)
             if rt.free_windows() {
-                if let Some(w) = rt.window_at(sx, sy) {
+                if let Some(w) = rt.window_under(sx, sy) {
                     rt.raise_window(w);
                 }
             }
@@ -402,7 +403,7 @@ impl SkinRuntime {
                 rt.pointer.move_seq = Some(seq);
                 // set out apart, the window under the finger moves with it
                 if rt.free_windows() {
-                    if let Some(w) = rt.window_at(sx, sy) {
+                    if let Some(w) = rt.window_under(sx, sy) {
                         rt.free_drag_begin(w, sx, sy);
                     }
                 }

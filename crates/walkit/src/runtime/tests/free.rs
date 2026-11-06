@@ -255,3 +255,19 @@ fn a_window_that_opens_comes_on_top_and_a_press_raises_a_window() {
         "the main window drawn last, on top"
     );
 }
+
+#[test]
+fn a_press_on_the_desktop_between_the_windows_moves_nothing() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    rt.pointer_down(700, 700, 1);
+    rt.pointer_move(600, 600);
+    rt.pointer_up(600, 600);
+    assert_eq!(rect_of(&mut rt, "main"), Rect::new(0, 0, 300, 200));
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(0, 120, 300, 100));
+    // nor a press on the main window's closed drawer area, which its shape leaves open
+    rt.pointer_down(250, 180, 2);
+    rt.pointer_move(250, 280);
+    rt.pointer_up(250, 280);
+    assert_eq!(rect_of(&mut rt, "main").top, 0);
+}
