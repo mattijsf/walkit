@@ -105,6 +105,14 @@ internal object Native {
         height: Int,
     )
 
+    @JvmStatic
+    external fun rtPlaceWindow(
+        h: Long,
+        id: Int,
+        x: Int,
+        y: Int,
+    )
+
     @JvmStatic external fun rtWindowOpen(h: Long): Boolean
 
     @JvmStatic external fun rtCloseTopWindow(h: Long)
@@ -150,6 +158,7 @@ internal object Native {
         columnWidth: Int,
         stretchLast: Boolean,
         touchSlop: Int,
+        freeWindows: Boolean,
     )
 
     @JvmStatic

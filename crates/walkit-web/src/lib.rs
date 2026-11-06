@@ -561,6 +561,22 @@ pub extern "C" fn wk_rt_set_view(id: i32, w: i32, h: i32) -> i32 {
     .unwrap_or(0)
 }
 
+/// The windows set out apart in a viewport `w` x `h` (`on` 1), moved by a drag and docked as on
+/// Winamp's desktop; 0 stacks them again.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_free(id: i32, on: i32, w: i32, h: i32) -> i32 {
+    with_rt(id, |r| {
+        let mut p = r.rt.presentation();
+        p.free_windows = on != 0;
+        if on != 0 && w > 0 && h > 0 {
+            p.viewport = (w, h);
+        }
+        r.rt.set_presentation(&p);
+    })
+    .map(|_| 1)
+    .unwrap_or(0)
+}
+
 /// The player: 1 play, 2 pause, 3 stop, 4 next, 5 previous.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_player(id: i32, action: i32) -> i32 {

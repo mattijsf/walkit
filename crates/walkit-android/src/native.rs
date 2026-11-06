@@ -511,6 +511,20 @@ pub fn rt_resize_window<'l>(
     .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// Puts window `id` at `x`, `y` in the viewport, among windows set out apart.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_place_window<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    id: jint,
+    x: jint,
+    y: jint,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.place_window(WindowId(id as u32), x, y)))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// Whether a window besides the main one is open.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_window_open<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jboolean {
@@ -625,6 +639,7 @@ pub fn rt_presentation<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong
                 p.column_width,
                 p.stretch_last as i32,
                 p.touch_slop,
+                p.free_windows as i32,
             ],
         )
     })
@@ -647,6 +662,7 @@ pub fn rt_set_presentation<'l>(
     column_width: jint,
     stretch_last: jboolean,
     touch_slop: jint,
+    free_windows: jboolean,
 ) {
     env.with_env(|env| {
         let p = Presentation {
@@ -656,6 +672,7 @@ pub fn rt_set_presentation<'l>(
             column_width,
             stretch_last,
             touch_slop,
+            free_windows,
         };
         with_rt(env, h, |r| r.rt.set_presentation(&p))
     })

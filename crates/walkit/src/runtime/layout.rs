@@ -181,8 +181,17 @@ impl SkinRuntime {
         }
     }
 
-    /// Stacks the windows: the main one at its size, the others under it.
+    /// Sets the windows out: apart when the host asks for that (see `free`), else as one stack.
     fn arrange(&mut self) {
+        if self.free.on {
+            self.arrange_free();
+        } else {
+            self.arrange_stack();
+        }
+    }
+
+    /// Stacks the windows: the main one at its size, the others under it.
+    pub(crate) fn arrange_stack(&mut self) {
         self.placed.clear();
         let Some(main) = self.main_layout() else {
             return;

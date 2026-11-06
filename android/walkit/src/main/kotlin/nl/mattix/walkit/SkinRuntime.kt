@@ -212,6 +212,7 @@ public class SkinRuntime(
                 columnWidth = p[6],
                 stretchLast = p[7] != 0,
                 touchSlop = p[8],
+                freeWindows = p[9] != 0,
             )
         }
         set(value) =
@@ -226,6 +227,7 @@ public class SkinRuntime(
                 value.columnWidth,
                 value.stretchLast,
                 value.touchSlop,
+                value.freeWindows,
             )
 
     // ---- loading and themes --------------------------------------------------------------------
@@ -311,6 +313,17 @@ public class SkinRuntime(
         width: Int,
         height: Int,
     ): Unit = Native.rtResizeWindow(h(), id.raw, width, height)
+
+    /**
+     * Puts [id] at [x], [y] in the viewport, among windows set out apart
+     * ([Presentation.freeWindows]): where the host kept it between runs. Nothing changes while the
+     * windows are one stack.
+     */
+    public fun placeWindow(
+        id: WindowId,
+        x: Int,
+        y: Int,
+    ): Unit = Native.rtPlaceWindow(h(), id.raw, x, y)
 
     /**
      * Where [id] visibly ends on the right; with [layOutFirst] after laying it out at its size,

@@ -383,6 +383,12 @@ impl SkinRuntime {
             let held = rt.captured.or(rt.pointer.deferred.map(|d| d.target));
             if touched.is_none() || held.is_some_and(|h| rt.moves_window(h)) {
                 rt.pointer.move_seq = Some(seq);
+                // set out apart, the window under the finger moves with it
+                if rt.free_windows() {
+                    if let Some(w) = rt.window_at(sx, sy) {
+                        rt.free_drag_begin(w, sx, sy);
+                    }
+                }
             }
         })
     }
@@ -480,6 +486,9 @@ impl SkinRuntime {
     }
 
     fn pointer_move_at(&mut self, sx: i32, sy: i32) {
+        if self.free_dragging() {
+            self.free_drag_to(sx, sy);
+        }
         if let Some(d) = self.pointer.deferred {
             let dx = sx - d.sx;
             let dy = sy - d.sy;
@@ -506,6 +515,7 @@ impl SkinRuntime {
     }
 
     fn pointer_up_at(&mut self, sx: i32, sy: i32) {
+        self.free_drag_end();
         self.send_deferred();
         let x = sx - self.pointer.captured_origin.left;
         let y = sy - self.pointer.captured_origin.top;
