@@ -10,6 +10,10 @@ if rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; 
   PATH="$HOME/.cargo/bin:$PATH" cargo clippy -p walkit-web --target wasm32-unknown-unknown -- -D warnings
 fi
 cargo test --workspace
+# the web player's modules parse (node is what serves them)
+if command -v node >/dev/null 2>&1; then
+  for f in web/*.mjs; do node --check "$f"; done
+fi
 # the Kotlin side of the Android library, where the SDK and cargo-ndk are present: no device needed
 if [ -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ] && [ -x "$HOME/.cargo/bin/cargo-ndk" ]; then
   (cd android && PATH="$HOME/.cargo/bin:$PATH" ./gradlew -q gate)

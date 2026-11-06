@@ -615,15 +615,12 @@ impl DrawPlanner {
         let frame = self.frames;
         let mut ws = self.windows.remove(&key).unwrap_or_else(WindowState::new);
         ws.seen = frame;
-        let plan = match self.quick(&mut ws, rect, cmds, owners, now, frame) {
-            Some(p) => {
-                self.quick_plans += 1;
-                p
-            }
-            None => {
-                self.full_plans += 1;
-                self.full(&mut ws, rect, cmds, owners, now, frame)
-            }
+        let plan = if let Some(p) = self.quick(&mut ws, rect, cmds, owners, now, frame) {
+            self.quick_plans += 1;
+            p
+        } else {
+            self.full_plans += 1;
+            self.full(&mut ws, rect, cmds, owners, now, frame)
         };
         self.windows.insert(key, ws);
         plan
@@ -940,13 +937,12 @@ impl DrawPlanner {
                     open = None;
                 }
             }
-            let b = match open {
-                Some(b) => b,
-                None => {
-                    let b = self.next_build(i);
-                    open = Some(b);
-                    b
-                }
+            let b = if let Some(b) = open {
+                b
+            } else {
+                let b = self.next_build(i);
+                open = Some(b);
+                b
             };
             let build = &mut self.builds[b];
             build.last = i;
@@ -1144,12 +1140,11 @@ impl DrawPlanner {
         let result = self
             .changes(ws, &prev, cmds)
             .filter(|changes| self.steady(ws, owners, *changes, now, frame));
-        match result {
-            Some(changes) => Some(self.commit(ws, cmds, now, frame, changes)),
-            None => {
-                ws.cmds = Some(prev);
-                None
-            }
+        if let Some(changes) = result {
+            Some(self.commit(ws, cmds, now, frame, changes))
+        } else {
+            ws.cmds = Some(prev);
+            None
         }
     }
 

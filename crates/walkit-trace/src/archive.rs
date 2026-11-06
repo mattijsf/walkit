@@ -49,7 +49,8 @@ pub fn read_wal(path: &Path) -> Result<MemoryFiles, String> {
         all.insert(&name, bytes);
         names.push(name);
     }
-    let prefix = files::skin_folder(names.iter().map(|s| s.as_str())).unwrap_or_default();
+    let prefix =
+        files::skin_folder(names.iter().map(std::string::String::as_str)).unwrap_or_default();
     Ok(all.in_folder(&prefix))
 }
 

@@ -135,14 +135,13 @@ impl Writer {
     }
 
     fn string(&mut self, s: &str) {
-        let i = match self.index.get(s) {
-            Some(i) => *i,
-            None => {
-                let i = self.strings.len() as u32;
-                self.strings.push(s.to_string());
-                self.index.insert(s.to_string(), i);
-                i
-            }
+        let i = if let Some(i) = self.index.get(s) {
+            *i
+        } else {
+            let i = self.strings.len() as u32;
+            self.strings.push(s.to_string());
+            self.index.insert(s.to_string(), i);
+            i
         };
         self.u32(i);
     }
@@ -527,6 +526,16 @@ mod tests {
 
     #[test]
     fn a_frame_packs_with_its_strings_once() {
+        fn window<'a>(cmds: &'a [DrawCmd], plan: &'a WindowPlan) -> FrameWindow<'a> {
+            FrameWindow {
+                id: WindowId(7),
+                container: "main",
+                layout: "normal",
+                rect: Rect::new(10, 20, 300, 100),
+                cmds,
+                plan,
+            }
+        }
         let bitmap = BitmapDef::new("main.bg", "main.png", 0, 0, Some(10), Some(5), None);
         let cmds = vec![
             DrawCmd::WindowStart(Region::Op {
@@ -590,16 +599,6 @@ mod tests {
                 bounds: Rect::new(0, 0, 50, 20),
             }],
         };
-        fn window<'a>(cmds: &'a [DrawCmd], plan: &'a WindowPlan) -> FrameWindow<'a> {
-            FrameWindow {
-                id: WindowId(7),
-                container: "main",
-                layout: "normal",
-                rect: Rect::new(10, 20, 300, 100),
-                cmds,
-                plan,
-            }
-        }
         let mut writer = FrameWriter::new();
         let bytes = writer.encode(&[window(&cmds, &plan)]);
         assert_eq!(&bytes[..4], b"WKDL");

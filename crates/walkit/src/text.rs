@@ -178,7 +178,7 @@ impl TextData {
     fn is_time(&self) -> bool {
         matches!(
             self.display.as_deref(),
-            Some("time") | Some("timeelapsed") | Some("timeremaining")
+            Some("time" | "timeelapsed" | "timeremaining")
         )
     }
 
@@ -296,7 +296,7 @@ impl TextData {
             "offsety" => self.offset_y = to_int_lenient(value).unwrap_or(0),
             "forcelocase" | "forcelowercase" => self.force_lower = to_bool(value),
             "antialias" | "italic" | "underline" | "altfont" | "forcefixed" => {
-                self.force_fixed = to_bool(value)
+                self.force_fixed = to_bool(value);
             }
             "wrap" | "nograb" | "fontbgcolor" | "ghost" | "timeroffset" | "dblclickaction"
             | "image" => {}

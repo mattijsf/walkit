@@ -11,7 +11,7 @@ use crate::host::{OptionEntry, OptionKey, SkinOptions};
 use crate::maki::{Handle, Value};
 use crate::xml::XmlNode;
 
-/// The Config item whose attributes Winamp lists in its Options menu (CUSTOM_OPTIONSMENU_ITEMS).
+/// The Config item whose attributes Winamp lists in its Options menu (`CUSTOM_OPTIONSMENU_ITEMS`).
 pub(crate) const OPTIONS_MENU: &str = "{1828D28F-78DD-4647-8532-EBA504B8FC04}";
 /// The most attributes of one item read into the menu.
 const OPTION_ATTRIBUTES: usize = 500;

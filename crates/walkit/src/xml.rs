@@ -37,6 +37,7 @@ impl XmlNode {
     }
 
     /// A node with other attributes, the same children and text.
+    #[must_use]
     pub fn with_attrs(&self, attrs: Vec<(String, String)>) -> XmlNode {
         XmlNode {
             name: self.name.clone(),

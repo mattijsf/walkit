@@ -18,7 +18,7 @@ const MAX_FAILURES: i32 = 20;
 const MAX_MEMBERS: usize = 65_536;
 const RIGHT_BUTTON: [&str; 2] = ["onrightbuttondown", "onrightbuttonup"];
 const RIGHT_BUTTON_AND_CLICK: [&str; 3] = ["onrightbuttondown", "onrightbuttonup", "onrightclick"];
-/// The PopupMenu calls that show a menu.
+/// The `PopupMenu` calls that show a menu.
 const MENU_CALLS: [&str; 2] = ["popatmouse", "popatxy"];
 /// The System calls that read where the mouse is.
 const MOUSE_CALLS: [&str; 2] = ["getmouseposx", "getmouseposy"];
@@ -51,7 +51,9 @@ pub struct Script {
     class_members: HashMap<usize, Vec<usize>>,
     /// Binding indices by event name.
     bindings_by_event: HashMap<String, Vec<usize>>,
-    /// The `std.mi` entry of each method, read the first time a call needs it.
+    /// The `std.mi` entry of each method, read the first time a call needs it: the outer
+    /// `None` is not read yet, the inner one read and not found.
+    #[allow(clippy::option_option)]
     apis: Vec<Option<Option<ApiMethod>>>,
     /// Steps the script may still run before the next refill.
     pub budget: i64,
@@ -209,7 +211,7 @@ impl Script {
         }
         let mut out = Vec::new();
         for s in self.handler_starts(target, events) {
-            for c in self.reach(s).calls.iter() {
+            for c in &self.reach(s).calls {
                 if !out.contains(c) {
                     out.push(c.clone());
                 }

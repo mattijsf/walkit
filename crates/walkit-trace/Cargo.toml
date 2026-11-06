@@ -28,3 +28,6 @@ crc32fast = { version = "1.5.4", optional = true }
 image = { version = "0.25.10", default-features = false, features = ["png", "bmp", "gif", "jpeg"], optional = true }
 serde_json = { version = "1.0.154", optional = true }
 zip = { version = "2.6.1", default-features = false, features = ["deflate"], optional = true }
+
+[lints]
+workspace = true
