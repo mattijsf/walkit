@@ -189,6 +189,8 @@ export class Renderer {
     this.pictures = pictures;
     this.families = families;
     this.layers = new Map();
+    // the commands each layer was drawn from
+    this.drawn = new Map();
   }
 
   fontOf(cmd) {
@@ -206,8 +208,14 @@ export class Renderer {
     for (const w of frame.windows) {
       const r = w.rect;
       if (r.width <= 0 || r.height <= 0) continue;
+      // a window whose commands are the frame reader's same array as last time drew nothing
+      // new: its layer is blitted where it is now, as during a drag
+      const had = this.layers.get(w.id);
       const layer = this.layer(w.id, r.width, r.height, scale);
-      this.drawWindow(layer, w.cmds, r.width, r.height, scale);
+      if (layer !== had || this.drawn.get(w.id) !== w.cmds) {
+        this.drawWindow(layer, w.cmds, r.width, r.height, scale);
+        this.drawn.set(w.id, w.cmds);
+      }
       ctx.drawImage(layer, Math.round(r.left * scale), Math.round(r.top * scale));
     }
     ctx.restore();
