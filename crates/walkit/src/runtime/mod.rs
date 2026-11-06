@@ -942,6 +942,11 @@ impl SkinRuntime {
     /// Sizes `id` to `width` by `height` where it is, as the host sizes a window to its box.
     pub fn resize_window(&mut self, id: WindowId, width: i32, height: i32) {
         let l = self.layout_of(id);
+        // apart, a window besides the main one keeps the size the host gives it, as one the
+        // listener sized by its grip
+        if self.free.on && Some(l) != self.main_layout() {
+            self.objects[l].layout_mut().expect("a layout").user_size = Some((width, height));
+        }
         self.resize_layout_to(l, width, height);
     }
 
