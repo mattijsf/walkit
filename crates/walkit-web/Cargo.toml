@@ -21,3 +21,6 @@ trace = ["dep:walkit-trace"]
 talc = { version = "4", default-features = false, features = ["lock_api"] }
 walkit = { path = "../walkit" }
 walkit-trace = { path = "../walkit-trace", default-features = false, optional = true }
+
+[lints]
+workspace = true

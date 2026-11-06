@@ -67,6 +67,7 @@ impl MemoryFiles {
 
     /// The same files with the folder `prefix` (normalized, ending in `/`) stripped, and the
     /// files outside it dropped. Unchanged for an empty prefix.
+    #[must_use]
     pub fn in_folder(self, prefix: &str) -> Self {
         if prefix.is_empty() {
             return self;

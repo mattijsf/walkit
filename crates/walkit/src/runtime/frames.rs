@@ -44,7 +44,7 @@ impl SkinRuntime {
             }
             "width" | "height" => self.frame_mut(o).pos = to_int_lenient(value).unwrap_or(0),
             "minwidth" | "minheight" => {
-                self.frame_mut(o).min_pos = to_int_lenient(value).unwrap_or(0)
+                self.frame_mut(o).min_pos = to_int_lenient(value).unwrap_or(0);
             }
             "maxwidth" | "maxheight" => self.frame_mut(o).max_pos = to_int_lenient(value),
             "left" | "top" | "right" | "bottom" => {
@@ -63,14 +63,14 @@ impl SkinRuntime {
                     String::new()
                 } else {
                     value.to_string()
-                })
+                });
             }
             "vgrabber" | "hgrabber" => {
                 self.frame_mut(o).grabber = Some(if value.eq_ignore_ascii_case("empty") {
                     String::new()
                 } else {
                     value.to_string()
-                })
+                });
             }
             "resizable" | "resizeable" => self.frame_mut(o).resizable = to_bool(value),
             "jump" => {}
@@ -431,24 +431,21 @@ impl SkinRuntime {
         }
         let page = if key.is_empty() {
             None
+        } else if let Some(p) = known {
+            Some(p)
         } else {
-            match known {
-                Some(p) => Some(p),
-                None => {
-                    let made = self.instantiate_group(id);
-                    if let Some(p) = made {
-                        let fill: Vec<(String, String)> = FILL
-                            .iter()
-                            .map(|(k, v)| (k.to_string(), v.to_string()))
-                            .collect();
-                        self.set_params(p, &fill);
-                        if let Kind::XFade(x) = &mut self.objects[o].kind {
-                            x.pages.push((key.clone(), p));
-                        }
-                    }
-                    made
+            let made = self.instantiate_group(id);
+            if let Some(p) = made {
+                let fill: Vec<(String, String)> = FILL
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect();
+                self.set_params(p, &fill);
+                if let Kind::XFade(x) = &mut self.objects[o].kind {
+                    x.pages.push((key.clone(), p));
                 }
             }
+            made
         };
         // only the page going and the page coming are drawn
         let pages: Vec<ObjId> = match &self.objects[o].kind {

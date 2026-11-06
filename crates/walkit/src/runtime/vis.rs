@@ -657,7 +657,7 @@ fn spline(p: &[f64], t: f64) -> f64 {
     let tangent = |k: usize| -> f64 {
         let before = p[k] - p[k.saturating_sub(1)];
         let after = p[(k + 1).min(n - 1)] - p[k];
-        (1.0 + BIAS) / 2.0 * before + (1.0 - BIAS) / 2.0 * after
+        f64::midpoint(1.0, BIAS) * before + (1.0 - BIAS) / 2.0 * after
     };
     let m0 = tangent(i);
     let m1 = tangent(i + 1);

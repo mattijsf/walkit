@@ -59,7 +59,7 @@ pub struct VarDecl {
     pub global: bool,
     /// The initial value.
     pub initial: Value,
-    /// A predeclared global the runtime fills in: System, Config, PlDir and the like.
+    /// A predeclared global the runtime fills in: System, Config, `PlDir` and the like.
     pub system: bool,
     /// A string literal bound to this variable by the constants section.
     pub constant: Option<Value>,

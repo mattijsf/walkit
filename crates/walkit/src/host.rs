@@ -305,7 +305,7 @@ pub struct OptionKey {
     pub attribute: String,
 }
 
-/// What the host tells a skin before it loads. `skin_name` is what getSkinName() answers: the
+/// What the host tells a skin before it loads. `skin_name` is what `getSkinName()` answers: the
 /// skin's folder name, which scripts key what they remember by. `have_library` says whether
 /// Winamp's Media Library lives inside the skin (`@HAVE_LIBRARY@`). With `host_actions` the host
 /// answers the button actions Winamp answered outside the skin ([`SkinHost::host_action`]) and

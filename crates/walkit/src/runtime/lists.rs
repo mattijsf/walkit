@@ -177,8 +177,8 @@ impl SkinRuntime {
         if current == self.themes(o).shown_for {
             return;
         }
-        self.themes_mut(o).shown_for = current.clone();
-        self.themes_mut(o).selected = current.clone();
+        self.themes_mut(o).shown_for.clone_from(&current);
+        self.themes_mut(o).selected.clone_from(&current);
         let names = self.theme_names();
         let Some(index) = current.and_then(|c| names.iter().position(|n| *n == c)) else {
             return;
@@ -353,7 +353,7 @@ impl SkinRuntime {
         // the track runs under the arrows too, so their rounded corners show it
         if let Some(track) = self.bitmap(TRACK) {
             out.push(DrawCmd::image(
-                tinted(track, &group),
+                tinted(track, group.as_ref()),
                 Rect::new(x, rect.top, bw, bar_h),
                 alpha,
             ));
@@ -398,7 +398,7 @@ impl SkinRuntime {
         let thumb_w = self.bitmap_size(HTHUMB).map(|s| s.0).unwrap_or(0);
         if let Some(track) = self.bitmap(HTRACK) {
             out.push(DrawCmd::image(
-                tinted(track, &group),
+                tinted(track, group.as_ref()),
                 Rect::new(rect.left, y, bar_w, hh),
                 alpha,
             ));
@@ -812,6 +812,13 @@ impl SkinRuntime {
 
     /// The commands of the components in this window: left-hand ones, right-hand ones.
     fn status_commands(&self, o: ObjId) -> (Vec<&'static str>, Vec<&'static str>) {
+        fn has_playlist(rt: &SkinRuntime, o: ObjId) -> bool {
+            matches!(rt.objects[o].kind, Kind::PlaylistView(_))
+                || rt.objects[o]
+                    .children()
+                    .iter()
+                    .any(|c| has_playlist(rt, *c))
+        }
         let Kind::LayoutStatus(d) = &self.objects[o].kind else {
             return (Vec::new(), Vec::new());
         };
@@ -823,13 +830,6 @@ impl SkinRuntime {
         let Some(window) = self.layout_object(o) else {
             return (Vec::new(), Vec::new());
         };
-        fn has_playlist(rt: &SkinRuntime, o: ObjId) -> bool {
-            matches!(rt.objects[o].kind, Kind::PlaylistView(_))
-                || rt.objects[o]
-                    .children()
-                    .iter()
-                    .any(|c| has_playlist(rt, *c))
-        }
         if has_playlist(self, window) && shows {
             (STATUS_LEFT.to_vec(), STATUS_RIGHT.to_vec())
         } else {
@@ -931,12 +931,12 @@ fn tile_over(out: &mut Vec<DrawCmd>, tile: &BitmapDef, tw: i32, th: i32, area: R
 
 /// A scrollbar part tinted like the arrows: a track picture names no gammagroup, and Winamp
 /// still tints it "Scrollbar Buttons".
-fn tinted(b: BitmapDef, group: &Option<std::rc::Rc<str>>) -> BitmapDef {
+fn tinted(b: BitmapDef, group: Option<&std::rc::Rc<str>>) -> BitmapDef {
     if b.gamma_group.is_some() {
         b
     } else {
         BitmapDef {
-            gamma_group: group.clone(),
+            gamma_group: group.cloned(),
             ..b
         }
     }

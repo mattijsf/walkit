@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Pictures Winamp makes instead of reading a file. `<bitmap file="$solid" w h color alpha>` is
-//! a w x h picture of one color (DeClassified's playlist middle and frame texture). The bitmap
+//! a w x h picture of one color (`DeClassified`'s playlist middle and frame texture). The bitmap
 //! element is given a made-up file name that holds everything needed, so a host's files can
 //! answer it with the picture.
 

@@ -272,7 +272,7 @@ impl SkinRuntime {
         }
         let title = self.player.title();
         if title != self.last_title {
-            self.last_title = title.clone();
+            self.last_title.clone_from(&title);
             self.dispatch_system("ontitlechange", &[Value::string(title)]);
             self.dirty = true;
         }

@@ -61,6 +61,7 @@ impl Rect {
     }
 
     /// The part of this rectangle inside `c`; the width or height goes negative when they are apart.
+    #[must_use]
     pub fn cut_to(&self, c: &Rect) -> Rect {
         let l = self.left.max(c.left);
         let t = self.top.max(c.top);
@@ -116,6 +117,7 @@ impl BitmapDef {
     }
 
     /// The same part with another source rectangle.
+    #[must_use]
     pub fn part(&self, x: i32, y: i32, w: Option<i32>, h: Option<i32>) -> Self {
         BitmapDef {
             id: self.id.clone(),

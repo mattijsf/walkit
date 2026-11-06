@@ -109,7 +109,7 @@ pub trait Player {
     }
     /// Makes entry `index` current and plays it.
     fn play_track(&mut self, _index: i32) {
-        self.play()
+        self.play();
     }
     /// Spectrum levels 0..1, 75 bands like Winamp's vis, or empty when nothing plays.
     fn spectrum(&self) -> Vec<f32>;
@@ -357,7 +357,7 @@ impl Player for FakePlayer {
             return;
         };
         self.index = index;
-        self.title = t.title.clone();
+        self.title.clone_from(&t.title);
         self.length_ms = t.length_ms;
         self.status = Status::Stopped;
         self.play();

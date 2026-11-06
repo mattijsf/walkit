@@ -121,8 +121,7 @@ fn main() -> ExitCode {
     let skins = skins.unwrap_or_else(|| {
         scenarios_path
             .parent()
-            .map(|p| p.join("skins"))
-            .unwrap_or_else(|| PathBuf::from("skins"))
+            .map_or_else(|| PathBuf::from("skins"), |p| p.join("skins"))
     });
     let scenarios = match std::fs::read_to_string(scenarios_path)
         .map_err(|e| e.to_string())
@@ -161,7 +160,7 @@ fn main() -> ExitCode {
         let perf_start = std::time::Instant::now();
         let perf: walkit_trace::trace::Perf =
             Box::new(move || perf_start.elapsed().as_secs_f64() * 1000.0);
-        let rec = walkit_trace::record(sc, files, archive::decoder(), fonts.clone(), perf);
+        let rec = walkit_trace::record(sc, files, archive::decoder(), fonts.clone(), &perf);
         let path = out.join(format!("{}.trace", sc.name));
         if let Err(e) = std::fs::write(&path, &rec.text) {
             eprintln!("{}: {e}", path.display());
