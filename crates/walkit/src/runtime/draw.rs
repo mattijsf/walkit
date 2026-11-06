@@ -4,7 +4,7 @@
 //! its sheet and tinted, bitmap text spelled out, and text placed.
 
 use super::SkinRuntime;
-use crate::draw::{Align, BitmapTextCmd, DrawCmd, Rect, VAlign};
+use crate::draw::{Align, BitmapTextCmd, DrawCmd, Rect, Rgb, VAlign};
 use crate::gui::ObjId;
 
 impl SkinRuntime {
@@ -106,14 +106,32 @@ impl SkinRuntime {
         self.drawn_owners.clear();
         self.tracking_owners = true;
         match shape {
-            None => self.draw_object(layout, out),
+            None => {
+                if !desktop_alpha {
+                    out.push(self.window_black(layout));
+                }
+                self.draw_object(layout, out);
+            }
             Some(shape) => {
                 out.push(DrawCmd::WindowStart(shape));
+                out.push(self.window_black(layout));
                 self.draw_object(layout, out);
                 out.push(DrawCmd::WindowEnd);
             }
         }
         self.tracking_owners = false;
+    }
+
+    /// Black over the whole window, under its objects: Winamp fills a window's canvas with black
+    /// before the objects draw, so a pixel inside the window that no object draws is black (the
+    /// shape still cuts the window's outline). A `desktopalpha` window starts clear instead.
+    fn window_black(&mut self, layout: ObjId) -> DrawCmd {
+        let (w, h) = self.layout_size(layout);
+        DrawCmd::Fill {
+            rect: Rect::new(0, 0, w, h),
+            color: Rgb(0),
+            alpha: 255,
+        }
     }
 
     /// Commands `from` to `to` of the window being drawn, as `owner` drew them unless a child of
