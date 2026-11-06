@@ -8,12 +8,21 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use jni::errors::{Error, Result};
-use jni::objects::{JByteArray, JFloatArray, JIntArray, JObject, JObjectArray, JString};
+use jni::objects::{
+    JByteArray, JFloatArray, JIntArray, JObject, JObjectArray, JString, JThrowable,
+};
 use jni::refs::Global;
 use jni::{Env, JavaVM};
 
-/// The first error a callback met, kept for the native call that is running to report.
-pub type Failure = Rc<RefCell<Option<String>>>;
+/// What a callback threw: the Java exception itself, so the host sees the type it threw, or a
+/// message where the failure was not one.
+pub enum Thrown {
+    Exception(Global<JThrowable<'static>>),
+    Message(String),
+}
+
+/// The first failure a callback met, kept for the native call that is running to report.
+pub type Failure = Rc<RefCell<Option<Thrown>>>;
 
 /// A Kotlin bridge object and the VM it lives in.
 pub struct Bridge {
@@ -40,21 +49,33 @@ impl Bridge {
         let obj = self.obj.as_obj();
         let r: Result<T> = self.vm.with_local_frame(16, |env| {
             let r = f(env, obj);
-            if r.is_err() && env.exception_check() {
-                env.exception_describe();
-                env.exception_clear();
+            if r.is_err() {
+                if let Some(t) = env.exception_occurred() {
+                    env.exception_clear();
+                    self.keep(Thrown::Exception(env.new_global_ref(&t)?));
+                }
             }
             r
         });
         match r {
             Ok(v) => Some(v),
-            Err(e) => {
-                let mut failure = self.failure.borrow_mut();
-                if failure.is_none() {
-                    *failure = Some(format!("{e}"));
-                }
+            // a call that found the exception and cleared it hands it over inside the error
+            Err(Error::CaughtJavaException { exception, .. }) => {
+                self.keep(Thrown::Exception(exception));
                 None
             }
+            Err(e) => {
+                self.keep(Thrown::Message(format!("{e}")));
+                None
+            }
+        }
+    }
+
+    /// Keeps `t` as the failure to report, unless an earlier one is kept already.
+    fn keep(&self, t: Thrown) {
+        let mut failure = self.failure.borrow_mut();
+        if failure.is_none() {
+            *failure = Some(t);
         }
     }
 }

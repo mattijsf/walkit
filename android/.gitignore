@@ -1,5 +1,7 @@
 # the native library cargo ndk drops here for the AAR
 /walkit/src/main/jniLibs/
+# the engine built for this machine, which the test fixtures carry
+/walkit/src/testFixtures/resources/
 /.gradle/
 /build/
 /walkit/build/
