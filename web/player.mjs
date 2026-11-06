@@ -136,6 +136,8 @@ const state = {
   longPress: null,
   stats: { ticks: 0, tickMs: 0, frames: 0, frameMs: 0, bytes: 0, drawMs: 0, shown: 0, since: performance.now() },
 };
+// the page state, reachable from the console for checks
+globalThis.walkitPlayer = state;
 
 const canvas = $("view");
 const ctx = canvas.getContext("2d");
