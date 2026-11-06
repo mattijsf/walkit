@@ -65,6 +65,19 @@ struct Drag {
     moved: bool,
 }
 
+/// What a layout hands to the layout its container switches to (see `free_switch_begin`).
+#[derive(Debug, Clone)]
+pub(crate) struct Switched {
+    /// The old layout's docking rect.
+    rect: Rect,
+    /// The windows docked to it.
+    docked: Vec<ObjId>,
+    /// Where it was.
+    at: (i32, i32),
+    /// Its place in the order on top.
+    z_at: Option<usize>,
+}
+
 /// The snap margins of a window: left, top, right, bottom.
 #[derive(Debug, Clone, Copy, Default)]
 struct Margins {
@@ -483,11 +496,18 @@ impl SkinRuntime {
             self.do_layout();
         }
         let new = self.docking_rect(l);
+        self.follow_edges(old, new, &docked);
+    }
+
+    /// Moves the windows `docked` to the edges of `old` along to the edges of `new`: what hung
+    /// under the old bottom follows the bottom, what sat beside the right edge follows it, and so
+    /// for the top and the left.
+    fn follow_edges(&mut self, old: Rect, new: Rect, docked: &[ObjId]) {
         if new == old {
             return;
         }
         for w in docked {
-            let r = self.docking_rect(w);
+            let r = self.docking_rect(*w);
             let (dx, dy) = if r.top >= old.bottom() {
                 (0, new.bottom() - old.bottom())
             } else if r.left >= old.right() {
@@ -500,11 +520,57 @@ impl SkinRuntime {
                 (0, 0)
             };
             if dx != 0 || dy != 0 {
-                let d = self.objects[w].layout_mut().expect("a layout");
+                let d = self.objects[*w].layout_mut().expect("a layout");
                 d.view_x += dx;
                 d.view_y += dy;
             }
         }
         self.relayout();
+    }
+
+    /// Before a container switches from layout `cur`: where it is, the windows docked to it, and
+    /// its place in the order on top, for the layout that follows. Nothing while the windows are
+    /// one stack.
+    pub(crate) fn free_switch_begin(&mut self, cur: ObjId) -> Option<Switched> {
+        if !self.free.on {
+            return None;
+        }
+        let rect = self.docking_rect(cur);
+        let docked: Vec<ObjId> = self.docked_group(cur).into_iter().skip(1).collect();
+        let d = self.objects[cur].layout().expect("a layout");
+        let at = (d.view_x, d.view_y);
+        let z_at = self.z_windows().iter().position(|w| *w == cur);
+        Some(Switched {
+            rect,
+            docked,
+            at,
+            z_at,
+        })
+    }
+
+    /// After the switch to `target`: it takes the old layout's top-left corner and place on
+    /// top, and the docked windows follow its edges, as the playlist docked under Winamp
+    /// Modern's main window sits under its shade bar while it is shaded.
+    pub(crate) fn free_switch_end(&mut self, target: ObjId, carried: Option<Switched>) {
+        let Some(s) = carried else {
+            return;
+        };
+        {
+            let d = self.objects[target].layout_mut().expect("a layout");
+            d.view_x = s.at.0;
+            d.view_y = s.at.1;
+            d.free_placed = true;
+        }
+        if let Some(i) = s.z_at {
+            let mut z = self.z_windows();
+            z.retain(|w| *w != target);
+            z.insert(i.min(z.len()), target);
+            self.free.z = z;
+        }
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let new = self.docking_rect(target);
+        self.follow_edges(s.rect, new, &s.docked);
     }
 }

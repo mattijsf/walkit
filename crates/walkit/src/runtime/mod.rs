@@ -1277,8 +1277,13 @@ impl SkinRuntime {
         if let Some(cur) = current {
             self.announce_visible(cur, false);
         }
+        // apart, the new layout takes the old one's place and the windows docked to it
+        let carried = current.map(|cur| self.free_switch_begin(cur));
         self.containers[c].current = Some(target);
         self.relayout();
+        if let Some(carried) = carried {
+            self.free_switch_end(target, carried);
+        }
         self.announce_visible(target, true);
         self.focus(target);
         self.dispatch(
