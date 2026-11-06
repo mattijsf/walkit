@@ -811,9 +811,20 @@ impl SkinRuntime {
                     .as_ref()
                     .and_then(|g| g.background.clone())?;
                 let bm = self.bitmap(&bg)?;
+                // a background stretched to the group (its bitmap another size, in either axis)
+                // gives a region one pixel bigger at the top and the left, right and bottom
+                // exact; one at the group's size gives an exact region
+                let stretched = self
+                    .bitmap_size(&bg)
+                    .is_some_and(|(w, h)| w != rect.width || h != rect.height);
+                let over = if stretched {
+                    Rect::new(rect.left - 1, rect.top - 1, rect.width + 1, rect.height + 1)
+                } else {
+                    rect
+                };
                 Some(Region::Pic(RegionImage {
                     bitmap: bm,
-                    dst: rect,
+                    dst: over,
                     alpha: 255,
                     gamma: None,
                     smooth: false,
