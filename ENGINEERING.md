@@ -37,9 +37,10 @@ web runs.
   and the interpreter that runs the scripts' handlers) and `maki` (values, the `.maki` parser,
   the standard library's table, and what a loaded script keeps). `runtime/free.rs` sets the
   windows out apart when the host asks for it (`Presentation::free_windows`): each where it
-  is, moved by a drag, docking and snapping as Winamp 5.666 does, measured in Winamp 5.666 in a VM
-  (the numbers `runtime/tests/free.rs` checks); the stack is the
-  default and the only arrangement the reference traces run.
+  is, moved by a drag, docking and snapping as Winamp 5.666 does, raised by a press (the main
+  window with the windows docked to it), measured in Winamp 5.666 in a VM;
+  the stack is the default and the
+  only arrangement the reference traces run.
 - `crates/walkit-trace`: the recorder that runs a scenario through the engine on a stepped
   clock and writes the trace, as a platform-free library (the fixed host, the scenario, the
   timing of each tick and draw list), and a command that adds the files, the archives, image

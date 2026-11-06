@@ -13,6 +13,8 @@
 //! margins. The main window carries every window that touches it, and theirs, transitively; a
 //! member snapping shifts the whole group. Any other window moves alone. `beforeRedock` and
 //! `redock` keep the windows docked to a window's edge on it when the script changes that edge.
+//! A window that opens comes on top; a press raises its window, and raising the main window
+//! brings the windows docked to it along, under it in their order.
 
 use super::SkinRuntime;
 use crate::draw::Rect;
@@ -32,6 +34,8 @@ pub(crate) struct FreeState {
     drag: Option<Drag>,
     /// What `beforeRedock` noted: the window, its docking rect then, and the windows docked to it.
     redock: Vec<(ObjId, Rect, Vec<ObjId>)>,
+    /// The windows from the bottom to the top.
+    z: Vec<ObjId>,
 }
 
 impl Default for FreeState {
@@ -41,6 +45,7 @@ impl Default for FreeState {
             dock_distance: DOCK_DISTANCE,
             drag: None,
             redock: Vec::new(),
+            z: Vec::new(),
         }
     }
 }
@@ -167,6 +172,47 @@ impl SkinRuntime {
         }
     }
 
+    /// The windows from the bottom to the top, as they draw and as a touch finds them: the
+    /// stack's order when the windows are one stack, the raised order apart.
+    pub(crate) fn z_windows(&mut self) -> Vec<ObjId> {
+        let windows = self.windows();
+        if !self.free.on {
+            return windows;
+        }
+        // windows gone leave the order; new ones come on top, the main window on top at first
+        self.free.z.retain(|w| windows.contains(w));
+        if self.free.z.is_empty() {
+            self.free.z = windows.iter().rev().copied().collect();
+        } else {
+            for w in windows.iter().copied() {
+                if !self.free.z.contains(&w) {
+                    self.free.z.push(w);
+                }
+            }
+        }
+        self.free.z.clone()
+    }
+
+    /// A press on window `l` raises it to the top; the main window brings the windows docked
+    /// to it along, under it in their order.
+    pub(crate) fn raise_window(&mut self, l: ObjId) {
+        let mut z = self.z_windows();
+        if z.last() == Some(&l) {
+            return;
+        }
+        let group = if Some(l) == self.main_layout() {
+            self.docked_group(l)
+        } else {
+            vec![l]
+        };
+        let lifted: Vec<ObjId> = z.iter().copied().filter(|w| group.contains(w)).collect();
+        z.retain(|w| !group.contains(w));
+        z.extend(lifted.into_iter().filter(|w| *w != l));
+        z.push(l);
+        self.free.z = z;
+        self.repaint();
+    }
+
     /// Puts window `l` at `x`, `y` in the viewport, as the host puts back a window where the
     /// listener left it.
     pub(crate) fn free_place(&mut self, l: ObjId, x: i32, y: i32) {
@@ -188,7 +234,7 @@ impl SkinRuntime {
     }
 
     /// The part of window `l` that docks: its rect inside its snap margins.
-    fn docking_rect(&mut self, l: ObjId) -> Rect {
+    pub(crate) fn docking_rect(&mut self, l: ObjId) -> Rect {
         let r = self.window_rect_of(l);
         inset(r, self.snap_margins(l))
     }
