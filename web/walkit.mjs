@@ -242,6 +242,12 @@ export class Runtime {
     this.w.withString(name, (p, n) => this.w.x.wk_rt_select_theme(this.id, p, n));
   }
 
+  // the windows set out apart in a viewport w x h, moved by a drag and docked as on Winamp's
+  // desktop; off, they are one stack
+  setFree(on, w = 0, h = 0) {
+    this.w.x.wk_rt_set_free(this.id, on ? 1 : 0, w, h);
+  }
+
   setView(w, h) {
     this.w.x.wk_rt_set_view(this.id, w, h);
   }

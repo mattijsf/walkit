@@ -46,6 +46,9 @@ that changed since the frame before; `render.mjs` draws it on a canvas, each win
 masked by its shape. The pointer drives the skin (a long press or a right click opens its
 menu in a prompt); the buttons drive the engine's fake player, which plays a demo track. A
 view size fits the stack as the phone does, and a main window that resizes both ways fills it.
+"free windows" (or `?free` in the link) sets the windows out apart on the view as a desktop:
+each moves by a drag on its move areas and docks and snaps as Winamp 5.666 docks them (the
+rules as measured in Winamp 5.666 in a VM).
 
 ```bash
 node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \

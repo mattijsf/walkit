@@ -3,6 +3,7 @@
 //! The runtime on small skins written in place, checked against what the reference engine does
 //! on the same skins: the tests of Andamp's `:modernskin` module that the trace cannot show.
 
+mod free;
 mod options;
 mod presentation;
 mod settings;

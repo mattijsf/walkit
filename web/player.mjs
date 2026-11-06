@@ -234,15 +234,21 @@ async function openSkin(name, entries, { clock = null } = {}) {
   say(`${name}: ${entries.size} files, pictures decoded in ${decodeMs.toFixed(0)} ms, loaded in ${loadMs.toFixed(1)} ms`);
 }
 
-/** Fits the stack to the view the page asks for; a main window that resizes both ways fills it, as Android fits Bento. */
+/**
+ * Fits the stack to the view the page asks for; a main window that resizes both ways fills it, as
+ * Android fits Bento. With "free windows" on, the view is a desktop the windows sit apart on,
+ * moved by a drag and docked as Winamp docks them.
+ */
 function applyView() {
   const rt = state.rt;
   if (!rt) return;
   const w = Number($("viewW").value) || 0;
   const h = Number($("viewH").value) || 0;
+  state.free = $("free").checked;
   const main = rt.mainWindow();
-  if (main !== null && w > 0 && h > 0 && rt.windowResizable(main)) rt.resizeWindow(main, w, h);
+  if (!state.free && main !== null && w > 0 && h > 0 && rt.windowResizable(main)) rt.resizeWindow(main, w, h);
   rt.setView(w, h);
+  rt.setFree(state.free, w, h);
   state.dirty = true;
 }
 
@@ -311,7 +317,8 @@ function stackSize(frame) {
 
 function show(frame) {
   const s = scale();
-  const [w, h] = stackSize(frame);
+  // apart, the windows sit on the view as a desktop; stacked, the canvas is the stack
+  const [w, h] = state.free ? [Number($("viewW").value) || 0, Number($("viewH").value) || 0] : stackSize(frame);
   const pw = Math.max(1, Math.ceil(w * s));
   const ph = Math.max(1, Math.ceil(h * s));
   if (canvas.width !== pw || canvas.height !== ph) {
@@ -437,7 +444,7 @@ for (const [id, action] of [["play", 1], ["pause", 2], ["stop", 3], ["next", 4],
 $("zoom").addEventListener("change", () => {
   state.dirty = true;
 });
-for (const id of ["viewW", "viewH"]) $(id).addEventListener("change", applyView);
+for (const id of ["viewW", "viewH", "free"]) $(id).addEventListener("change", applyView);
 window.walkit = state;
 window.walkitCheck = checkFrame;
 $("snapshot").addEventListener("click", () => {
@@ -492,6 +499,7 @@ document.body.addEventListener("drop", async (e) => {
     // A phone shows the skin at zoom 1, unless the link says otherwise.
     const zoomWanted = params.get("zoom");
     if (zoomWanted) $("zoom").value = zoomWanted;
+    if (params.has("free")) $("free").checked = true;
     else if (window.innerWidth < 2 * Number($("viewW").value) + 64) $("zoom").value = "1";
     const wanted = params.get("skin");
     if (wanted && files.includes(wanted)) {

@@ -8,6 +8,7 @@ mod build;
 mod calls;
 mod draw;
 mod frames;
+mod free;
 pub(crate) mod layout;
 mod lists;
 mod maki;
@@ -144,6 +145,8 @@ pub struct SkinRuntime {
     /// Layouts by window id (index = id - 1).
     layouts_by_id: Vec<ObjId>,
     placed: HashMap<ObjId, Rect>,
+    /// The windows set out apart, when the host asks for that.
+    pub(crate) free: free::FreeState,
     focused: Option<ObjId>,
     shown_before: HashSet<ContainerId>,
     pub(crate) scripts: Vec<Script>,
@@ -290,6 +293,7 @@ impl SkinRuntime {
             window_ids_at: -1,
             layouts_by_id: Vec::new(),
             placed: HashMap::new(),
+            free: free::FreeState::default(),
             focused: None,
             shown_before: HashSet::new(),
             scripts: Vec::new(),
@@ -982,6 +986,7 @@ impl SkinRuntime {
             column_width: self.column_width,
             stretch_last: self.stretch_last,
             touch_slop: self.touch_slop,
+            free_windows: self.free.on,
         }
     }
 
@@ -994,6 +999,17 @@ impl SkinRuntime {
         self.set_stretch_last(p.stretch_last);
         self.touch_slop = p.touch_slop;
         self.set_view_size(p.view_size);
+        self.set_free_windows(p.free_windows);
+    }
+
+    /// Puts window `id` at `x`, `y` in the viewport, among windows set out apart: where the
+    /// host keeps it between runs. Nothing changes while the windows are one stack.
+    pub fn place_window(&mut self, id: WindowId, x: i32, y: i32) {
+        if !self.free.on {
+            return;
+        }
+        let l = self.layout_of(id);
+        self.free_place(l, x, y);
     }
 
     /// How many columns the stack is set out in once the host gives it a view size: at 2 the
@@ -1915,10 +1931,13 @@ impl SkinRuntime {
         self.tell_windows();
     }
 
-    /// The stack's size, in layout pixels.
+    /// The stack's size, in layout pixels; the viewport's among windows set out apart.
     pub fn stack_size(&mut self) -> (i32, i32) {
         if self.needs_layout {
             self.do_layout();
+        }
+        if self.free.on {
+            return (self.viewport_w, self.viewport_h);
         }
         let rects: Vec<Rect> = self
             .windows()

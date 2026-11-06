@@ -217,6 +217,9 @@ pub struct Presentation {
     pub stretch_last: bool,
     /// How far beside an object a finger may land.
     pub touch_slop: i32,
+    /// Whether the windows are set out apart, each where it is, moved and docked as on Winamp's
+    /// desktop (see `SkinRuntime::place_window`); false for one stack.
+    pub free_windows: bool,
 }
 
 impl Default for Presentation {
@@ -228,6 +231,7 @@ impl Default for Presentation {
             column_width: 0,
             stretch_last: true,
             touch_slop: 6,
+            free_windows: false,
         }
     }
 }
