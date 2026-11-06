@@ -5,7 +5,10 @@
 // The skins and the default set stay where they are on this machine; nothing is copied.
 //
 //   node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>]
-//                      [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765]
+//                      [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765] [--host 127.0.0.1]
+//
+// `--host 0.0.0.0` opens the page to the local network, so a phone on the same wifi can show
+// the player at `http://<this machine>:8765/player.html`.
 //
 // The player page (`/player.html`) posts the PNG of a frame to `/snapshot/<name>` when
 // `--snapshots` names a folder to keep them in.
@@ -19,10 +22,10 @@ import { unzip } from "./zip.mjs";
 import { pack } from "./corpus.mjs";
 
 const args = process.argv.slice(2);
-const opts = { port: "8765" };
+const opts = { port: "8765", host: "127.0.0.1" };
 for (let i = 0; i < args.length; i += 2) opts[args[i].slice(2)] = args[i + 1];
 if (!opts.wasm || !opts.scenarios || !opts.skins) {
-  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>] [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765]");
+  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>] [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765] [--host 127.0.0.1]");
   process.exit(2);
 }
 const here = dirname(fileURLToPath(import.meta.url));
@@ -89,4 +92,4 @@ const server = createServer((req, res) => {
     send(500, String(e), "text/plain");
   }
 });
-server.listen(Number(opts.port), "127.0.0.1", () => console.log(`http://127.0.0.1:${opts.port}/`));
+server.listen(Number(opts.port), opts.host, () => console.log(`http://${opts.host}:${opts.port}/`));
