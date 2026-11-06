@@ -14,9 +14,10 @@ const PLAYER_XML: &str = concat!(
     r#"<layout id="normal" w="300" h="200" snapadjustbottom="80">"#,
     r#"<group id="body" x="0" y="0" w="300" h="120" sysregion="1" rectrgn="1"/>"#,
     r#"</layout><layout id="shade" w="300" h="25"/></container>"#,
-    r#"<container id="pl" name="Playlist" default_visible="0"><layout id="normal" w="300" h="100">"#,
+    r#"<container id="pl" name="Playlist" default_visible="0">"#,
+    r#"<layout id="normal" w="300" h="100" linkwidth="shade">"#,
     r#"<layer id="pl.sizer" resize="bottomright" x="290" y="90" w="10" h="10"/>"#,
-    r#"</layout></container>"#,
+    r#"</layout><layout id="shade" w="200" h="25" linkwidth="normal"/></container>"#,
     r#"<container id="eq" name="Equalizer" default_visible="0"><layout id="normal" w="300" h="60"/></container>"#,
 );
 
@@ -303,4 +304,19 @@ fn a_layout_switch_keeps_the_place_and_the_docked_windows_follow_the_new_edges()
     );
     // the switched window keeps its place on top
     assert_eq!(z_order(&mut rt), vec!["pl", "main"]);
+}
+
+#[test]
+fn layouts_that_link_their_widths_share_it_through_a_switch() {
+    let mut rt = free();
+    assert!(rt.open_window("pl"));
+    let c = rt.container("pl").expect("the playlist container");
+    rt.switch_to(c, "shade");
+    assert_eq!(
+        rect_of(&mut rt, "pl"),
+        Rect::new(0, 120, 300, 25),
+        "the bar as wide as the window was"
+    );
+    rt.switch_to(c, "normal");
+    assert_eq!(rect_of(&mut rt, "pl"), Rect::new(0, 120, 300, 100));
 }

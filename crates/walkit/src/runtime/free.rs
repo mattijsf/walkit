@@ -68,8 +68,12 @@ struct Drag {
 /// What a layout hands to the layout its container switches to (see `free_switch_begin`).
 #[derive(Debug, Clone)]
 pub(crate) struct Switched {
+    /// The old layout.
+    from: ObjId,
     /// The old layout's docking rect.
     rect: Rect,
+    /// How wide the window was.
+    width: i32,
     /// The windows docked to it.
     docked: Vec<ObjId>,
     /// Where it was.
@@ -536,12 +540,15 @@ impl SkinRuntime {
             return None;
         }
         let rect = self.docking_rect(cur);
+        let width = self.window_rect_of(cur).width;
         let docked: Vec<ObjId> = self.docked_group(cur).into_iter().skip(1).collect();
         let d = self.objects[cur].layout().expect("a layout");
         let at = (d.view_x, d.view_y);
         let z_at = self.z_windows().iter().position(|w| *w == cur);
         Some(Switched {
+            from: cur,
             rect,
+            width,
             docked,
             at,
             z_at,
@@ -560,6 +567,32 @@ impl SkinRuntime {
             d.view_x = s.at.0;
             d.view_y = s.at.1;
             d.free_placed = true;
+        }
+        // layouts that link their widths share one: the shade bar is as wide as the window
+        // was, and a bar the listener resized gives the window its width back
+        let linked = {
+            let t = self.objects[target].layout().expect("a layout");
+            let o = self.objects[s.from].layout().expect("a layout");
+            let tid = self.objects[target].base.id.to_lowercase();
+            let oid = self.objects[s.from].base.id.to_lowercase();
+            t.link_width.as_deref() == Some(oid.as_str())
+                || o.link_width.as_deref() == Some(tid.as_str())
+        };
+        if linked && Some(target) != self.main_layout() {
+            let h = self.objects[target]
+                .layout()
+                .and_then(|d| d.user_size)
+                .map(|u| u.1)
+                .or_else(|| {
+                    self.objects[target]
+                        .base
+                        .attr("h")
+                        .and_then(crate::gui::to_int_lenient)
+                });
+            if let Some(h) = h {
+                let d = self.objects[target].layout_mut().expect("a layout");
+                d.user_size = Some((s.width, h));
+            }
         }
         if let Some(i) = s.z_at {
             let mut z = self.z_windows();
