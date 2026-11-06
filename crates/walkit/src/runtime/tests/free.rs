@@ -209,3 +209,49 @@ fn as_one_stack_nothing_moves_by_a_drag() {
     drag_to(&mut rt, "pl", 0, 400);
     assert_eq!(rect_of(&mut rt, "pl"), Rect::new(0, 120, 300, 100));
 }
+
+fn z_order(rt: &mut SkinRuntime) -> Vec<&'static str> {
+    rt.ensure_layout();
+    let names = [("main", "main"), ("pl", "pl"), ("eq", "eq")];
+    rt.z_windows()
+        .into_iter()
+        .map(|l| {
+            names
+                .iter()
+                .find(|(id, _)| rt.container(id).and_then(|c| rt.containers[c].current) == Some(l))
+                .map(|(_, n)| *n)
+                .unwrap_or("?")
+        })
+        .collect()
+}
+
+#[test]
+fn a_window_that_opens_comes_on_top_and_a_press_raises_a_window() {
+    let mut rt = free();
+    assert_eq!(z_order(&mut rt), vec!["main"]);
+    assert!(rt.open_window("pl"));
+    assert_eq!(z_order(&mut rt), vec!["main", "pl"], "opened: on top");
+    assert!(rt.open_window("eq"));
+    assert_eq!(z_order(&mut rt), vec!["main", "pl", "eq"]);
+    // a press on the main window raises it with the chain docked to it, in its order
+    rt.pointer_down(250, 50, 1);
+    rt.pointer_up(250, 50);
+    assert_eq!(z_order(&mut rt), vec!["pl", "eq", "main"]);
+    // a press on a docked window raises that window alone
+    drag_to(&mut rt, "pl", 0, 400);
+    rt.pointer_down(150, 405, 2);
+    rt.pointer_up(150, 405);
+    assert_eq!(z_order(&mut rt), vec!["eq", "main", "pl"]);
+    // the main window's group is what touches it: nothing now, the equalizer hung under the playlist
+    rt.pointer_down(250, 50, 3);
+    rt.pointer_up(250, 50);
+    assert_eq!(z_order(&mut rt), vec!["eq", "pl", "main"]);
+    // drawing follows the order
+    let drawn = rt.draw_windows();
+    assert_eq!(drawn.len(), 3);
+    assert_eq!(
+        drawn[2].0,
+        rect_of(&mut rt, "main"),
+        "the main window drawn last, on top"
+    );
+}

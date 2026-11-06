@@ -1979,7 +1979,7 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        self.windows()
+        self.z_windows()
             .into_iter()
             .map(|l| (self.window_rect_of(l), self.draw_layout(l)))
             .collect()
@@ -1991,7 +1991,7 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        self.windows()
+        self.z_windows()
             .into_iter()
             .map(|l| {
                 let rect = self.window_rect_of(l);

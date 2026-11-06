@@ -98,7 +98,18 @@ impl SkinRuntime {
         if let Some(a) = self.pointer.aimed {
             return Some(a);
         }
-        let windows = self.windows();
+        let windows = self.z_windows();
+        // apart, a window takes a touch only where it docks: Winamp Modern's main window is
+        // shaped around its closed drawer, and a touch there reaches the window under it
+        if self.free_windows() {
+            if let Some(w) = windows
+                .iter()
+                .rev()
+                .find(|l| self.docking_rect(**l).contains(x, y))
+            {
+                return Some(*w);
+            }
+        }
         let distance2 = |r: Rect| -> i64 {
             let dx = (r.left - x).max(0).max(x - (r.right() - 1)) as i64;
             let dy = (r.top - y).max(0).max(y - (r.bottom() - 1)) as i64;
@@ -376,6 +387,12 @@ impl SkinRuntime {
         self.gesture(true, |rt| {
             rt.aim_menu(sx, sy, seq);
             rt.pointer.move_seq = None;
+            // apart, a press raises its window
+            if rt.free_windows() {
+                if let Some(w) = rt.window_at(sx, sy) {
+                    rt.raise_window(w);
+                }
+            }
             let touched = rt.pointer_down_at(sx, sy);
             // a press on no object moves the window; a press that opened a menu has been let go of, and
             // moves nothing; a press held back from an object with a skin menu moves the window as a
