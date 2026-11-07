@@ -118,8 +118,11 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
                 (Shade, 254, 3, 9, 9),
                 (Close, 264, 3, 9, 9),
                 (Clutter, 10, 22, 8, 43),
-                (Time, 36, 26, 63, 13),
-                (Vis, 24, 43, 76, 16),
+                // the time's press box as probed in the VM: x 36..=97, y 26..=39
+                (Time, 36, 26, 62, 14),
+                // the vis area answers presses from 3 rows above its picture to 3 below
+                // (Winamp 5.666, probed by clicks in the VM: y 40..=61, x 24..=99)
+                (Vis, 24, 40, 76, 22),
                 (Volume, 107, 57, 68, 13),
                 (Balance, 177, 57, 38, 13),
                 (EqToggle, 219, 58, 23, 12),
