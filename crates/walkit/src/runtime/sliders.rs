@@ -131,6 +131,34 @@ impl SkinRuntime {
         self.slider_hot_spot(o, value)
     }
 
+    /// Whether `s` is an EQ band slider (not the preamp).
+    fn is_eq_band(s: &crate::gui::SliderData) -> bool {
+        s.action.as_deref() == Some("eq_band")
+            && !s
+                .param
+                .as_deref()
+                .is_some_and(|p| p.eq_ignore_ascii_case("preamp"))
+    }
+
+    /// The other EQ band of the same window under the finger at `sx`, `sy` of the stack while
+    /// the band `o` is dragged: Winamp hands the drag to it, as a band dragged over another
+    /// band of its window lets that one take over. The preamp neither
+    /// hands its drag on nor takes one.
+    pub(crate) fn eq_band_reached(&mut self, o: ObjId, sx: i32, sy: i32) -> Option<ObjId> {
+        match &self.objects[o].kind {
+            Kind::Slider(s) if s.dragging && Self::is_eq_band(s) => {}
+            _ => return None,
+        }
+        let h = self.hit_test_stack(sx, sy)?;
+        if h == o || self.layout_object(h) != self.layout_object(o) {
+            return None;
+        }
+        match &self.objects[h].kind {
+            Kind::Slider(s) if Self::is_eq_band(s) && !s.locked => Some(h),
+            _ => None,
+        }
+    }
+
     /// Where a dragged balance or EQ slider settles: Winamp's balance, band and preamp sliders
     /// snap to their middle when the finger brings them within a reach of it:
     /// 7.5 % of the track's pixels, cut to whole pixels, in steps of the range.
