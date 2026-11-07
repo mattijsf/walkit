@@ -227,16 +227,14 @@ impl SkinRuntime {
                 self.objects[l].base.w = Some(column.width);
                 let natural = self.natural_height(l);
                 let left = view.1 - y;
-                let stretches = self.stretch_last
-                    && i == last
-                    && left > natural
-                    && self.resizes_vertically(l)
-                    && self.shows_list(l);
-                self.objects[l].base.h = if stretches {
-                    Some(left)
+                let stretched = if self.stretch_last && i == last && left > natural {
+                    self.classic_stretch(l, left).or_else(|| {
+                        (self.resizes_vertically(l) && self.shows_list(l)).then_some(left)
+                    })
                 } else {
-                    self.skin_height(l)
+                    None
                 };
+                self.objects[l].base.h = stretched.or_else(|| self.skin_height(l));
                 let (w, h) = self.layout_size(l);
                 self.placed.insert(l, Rect::new(column.x, y, w, h));
                 y += h;
@@ -323,6 +321,20 @@ impl SkinRuntime {
             .base
             .attr("h")
             .and_then(crate::gui::to_int_lenient)
+    }
+
+    /// The height a classic playlist `l` takes when it stretches into `left`: up from 116 in
+    /// whole size steps (Winamp's 29), so it keeps a size its grip could give; `None` for any
+    /// other window.
+    fn classic_stretch(&self, l: ObjId, left: i32) -> Option<i32> {
+        let playlist = self.objects[l].children().iter().any(|c| {
+            matches!(
+                self.objects[*c].kind,
+                Kind::ClassicWindow(crate::classic::ClassicWindow::Playlist)
+            )
+        });
+        let step = crate::classic::touch::CLASSIC_SIZE_STEP.1;
+        playlist.then(|| 116 + (left - 116).max(0) / step * step)
     }
 
     /// Whether `l` shows a list, which shows more rows when the window is taller.
