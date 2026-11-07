@@ -33,6 +33,10 @@ impl SkinRuntime {
             return true;
         }
         let status = self.player.status();
+        // a classic window's vis, time and position bar move every frame while a song plays
+        if status == Status::Playing && !self.classic_shown().is_empty() {
+            return true;
+        }
         for v in self.vis_objects.clone() {
             if self.vis_moving(v, status) && self.shows(v) {
                 return true;
@@ -138,10 +142,37 @@ impl SkinRuntime {
                 self.dirty = true;
             }
         }
+        // a classic window paints its time, vis and position bar straight from the player and the
+        // clock: playing or paused it changes with every tick that a host asks for
+        if matches!(status, Status::Playing | Status::Paused) || self.classic_title_scrolls_now() {
+            for o in self.classic_shown() {
+                self.moved(o);
+            }
+        }
         if self.needs_layout {
             self.do_layout();
         }
         self.dirty
+    }
+
+    /// The classic window objects on screen now.
+    pub(crate) fn classic_shown(&mut self) -> Vec<ObjId> {
+        let all: Vec<ObjId> = (0..self.objects.len())
+            .filter(|o| matches!(self.objects[*o].kind, Kind::ClassicWindow(_)))
+            .collect();
+        all.into_iter().filter(|o| self.shows(*o)).collect()
+    }
+
+    /// Whether a shown classic main window's title is scrolling.
+    fn classic_title_scrolls_now(&mut self) -> bool {
+        use crate::classic::ClassicWindow;
+        let main = self.classic_shown().into_iter().any(|o| {
+            matches!(
+                self.objects[o].kind,
+                Kind::ClassicWindow(ClassicWindow::Main)
+            )
+        });
+        main && self.classic_title_scrolls()
     }
 
     fn moved(&mut self, o: ObjId) {
@@ -358,6 +389,12 @@ impl SkinRuntime {
         if !shown.is_empty() && self.player.status() == Status::Paused {
             let blink = (now / PAUSE_BLINK_MS + 1) * PAUSE_BLINK_MS;
             due = Some(due.map_or(blink, |d: i64| d.min(blink)));
+        }
+        // playing, the vis moves every frame and the time and position bar follow the song:
+        // a host that sleeps until something is due must wake each frame
+        if !shown.is_empty() && self.player.status() == Status::Playing {
+            let frame = now + crate::classic::vis::FRAME_MS;
+            due = Some(due.map_or(frame, |d: i64| d.min(frame)));
         }
         due
     }
