@@ -1203,3 +1203,44 @@ fn the_sliders_take_presses_on_their_probed_rows() {
     tap(&mut rt, 18, 76, 10);
     assert_eq!(rt.player.position_ms(), 0, "x 18 seeks to the start");
 }
+
+#[test]
+fn the_shade_bars_take_presses_on_their_probed_boxes() {
+    let mut rt = classic();
+    let c = rt.container("main").expect("the main container");
+    rt.switch_to(c, "shade");
+    assert!(rt.open_window("equalizer"));
+    let eq = rt.container("equalizer").expect("the equalizer");
+    rt.switch_to(eq, "shade");
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    // the main bar's transport: play from its top row, stop from its last column
+    tap(&mut rt, 177, 2, 1);
+    assert_eq!(rt.player.status(), Status::Playing);
+    tap(&mut rt, 203, 11, 2);
+    assert_eq!(rt.player.status(), Status::Stopped);
+    tap(&mut rt, 180, 12, 3);
+    assert_eq!(
+        rt.player.status(),
+        Status::Stopped,
+        "y 12 lies below the buttons"
+    );
+    tap(&mut rt, 181, 7, 4);
+    // the mini position bar from x 230; 229 is dead
+    tap(&mut rt, 229, 7, 5);
+    assert_eq!(rt.player.position_ms(), 0);
+    tap(&mut rt, 236, 12, 6);
+    assert!(rt.player.position_ms() > 0, "x 236, y 12 seeks");
+    // the equalizer's bar at y 14: volume to x 162, balance from 163, rows 3..=11
+    rt.player.set_volume(128);
+    tap(&mut rt, 162, 14 + 3, 7);
+    assert_eq!(rt.player.volume(), 255);
+    tap(&mut rt, 163, 14 + 11, 8);
+    assert_eq!(rt.player.volume(), 255, "x 163 belongs to the balance");
+    assert_eq!(rt.player.pan(), -127);
+    tap(&mut rt, 100, 14 + 2, 9);
+    assert_eq!(rt.player.volume(), 255, "y 2 lies above the sliders");
+}

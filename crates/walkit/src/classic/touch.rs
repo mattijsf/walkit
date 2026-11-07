@@ -157,12 +157,21 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             (y < 14).then_some(TitleBar)
         }
         ClassicWindow::MainShade => {
-            let boxes: [(Control, i32, i32, i32, i32); 6] = [
+            // the bar's transport buttons sit nine columns apart from x 168 (probed in the VM:
+            // play x 177..=185, stop x 195..=203, rows 2..=11); its mini position bar answers
+            // x 230..=242, y 3..=12
+            let boxes: [(Control, i32, i32, i32, i32); 12] = [
                 (Menu, 6, 3, 9, 10),
                 (Minimize, 244, 3, 10, 10),
                 (Shade, 254, 3, 10, 10),
                 (Close, 264, 3, 10, 10),
-                (ShadePosition, 226, 4, 17, 7),
+                (Previous, 168, 2, 9, 10),
+                (Play, 177, 2, 9, 10),
+                (Pause, 186, 2, 9, 10),
+                (Stop, 195, 2, 9, 10),
+                (Next, 204, 2, 9, 10),
+                (Eject, 213, 2, 9, 10),
+                (ShadePosition, 230, 3, 13, 10),
                 (Time, 126, 4, 32, 6),
             ];
             for (c, bx, by, bw, bh) in boxes {
@@ -212,10 +221,12 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, 264, 3, 10, 10) {
                 return Some(Close);
             }
-            if hit(x, y, 61, 4, 97, 7) {
+            // the bar's sliders answer two rows more than their pictures and a column or two
+            // beyond them (probed in the VM: volume x 61..=162, balance x 163..=206, y 3..=11)
+            if hit(x, y, 61, 3, 102, 9) {
                 return Some(ShadeVolume);
             }
-            if hit(x, y, 164, 4, 42, 7) {
+            if hit(x, y, 163, 3, 44, 9) {
                 return Some(ShadeBalance);
             }
             Some(TitleBar)
