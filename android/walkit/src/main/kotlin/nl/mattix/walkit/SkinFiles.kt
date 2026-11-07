@@ -53,8 +53,8 @@ public class ZipSkinFiles(
                 if (total > MAX_TOTAL) break
                 all[SkinFiles.normalize(e.name)] = bytes
             }
-            // some archives hold the skin in one folder: strip it when skin.xml sits there
-            val prefix = WalArchive.skinFolder(all.keys)
+            // some archives hold the skin in one folder: strip it
+            val prefix = WalArchive.folderOf(all.keys)
             if (prefix.isNullOrEmpty()) {
                 all
             } else {
@@ -130,7 +130,7 @@ public class ZipSkinFiles(
                         .take(MAX_ENTRIES)) {
                         all[SkinFiles.normalize(e.name)] = e.name
                     }
-                    val prefix = WalArchive.skinFolder(all.keys)
+                    val prefix = WalArchive.folderOf(all.keys)
                     index =
                         if (prefix.isNullOrEmpty()) {
                             all
@@ -233,6 +233,18 @@ public object WalArchive {
         val normalized = names.map { SkinFiles.normalize(it) }
         if ("skin.xml" in normalized) return ""
         return normalized.firstOrNull { it.endsWith("/skin.xml") }?.removeSuffix("skin.xml")
+    }
+
+    /**
+     * The folder a skin of either kind sits in, as [skinFolder] gives it for a modern skin; for a
+     * classic skin, the folder that holds main.bmp ("" at the root). Null when there is neither.
+     * The engine strips the same folder (`files::skin_folder`).
+     */
+    public fun folderOf(names: Iterable<String>): String? {
+        skinFolder(names)?.let { return it }
+        val normalized = names.map { SkinFiles.normalize(it) }
+        if ("main.bmp" in normalized) return ""
+        return normalized.firstOrNull { it.endsWith("/main.bmp") }?.removeSuffix("main.bmp")
     }
 
     /** Whether a zip with these entry names is a modern skin. */
