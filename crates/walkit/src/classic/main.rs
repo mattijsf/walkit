@@ -113,8 +113,31 @@ impl SkinRuntime {
             0,
             0,
         );
-        // the clutter bar's letters; the title bar's buttons are the strip's until pressed
-        p.blit("titlebar.bmp", 304, 0, 8, 43, 10, 22);
+        // the clutter bar: a held letter shows the column from y 44 with that
+        // letter pressed; A and D light while always on top and double size are on, unless held
+        let letters = [
+            Control::ClutterO,
+            Control::ClutterA,
+            Control::ClutterI,
+            Control::ClutterD,
+            Control::ClutterV,
+        ];
+        let held = letters.iter().position(|c| pressed(*c));
+        match held {
+            Some(k) => p.blit("titlebar.bmp", 304 + 8 * k as i32, 44, 8, 43, 10, 22),
+            None => p.blit("titlebar.bmp", 304, 0, 8, 43, 10, 22),
+        }
+        if held != Some(1) {
+            let on = self.host.window_open("ontop") == Some(true);
+            let (sx, sy) = if on { (313, 55) } else { (305, 11) };
+            p.blit("titlebar.bmp", sx, sy, 7, 8, 11, 33);
+        }
+        if held != Some(3) {
+            let on = self.host.window_open("doublesize") == Some(true);
+            let (sx, sy) = if on { (329, 71) } else { (305, 27) };
+            p.blit("titlebar.bmp", sx, sy, 7, 6, 11, 49);
+        }
+        // the title bar's buttons are the strip's until pressed
         if pressed(Control::Menu) {
             p.blit("titlebar.bmp", 0, 9, 9, 9, 6, 3);
         }
