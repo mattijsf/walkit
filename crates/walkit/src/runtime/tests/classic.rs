@@ -1768,6 +1768,20 @@ fn under_touch_a_tap_on_a_playlist_button_leaves_its_menu_open_for_a_second_tap(
         "closed"
     );
     assert_eq!(actions.borrow().len(), 1, "and nothing picked");
+    // a press on a picture that slides off before the release closes the menu, picking nothing
+    tap(&mut rt, 80, 116 + 95, 6);
+    assert!(
+        playlist_blits(&mut rt).contains(&(150, 111, 3, 54, 69, 50)),
+        "SEL open"
+    );
+    rt.pointer_down(80, 116 + 72, 7);
+    rt.pointer_move(200, 116 + 72);
+    rt.pointer_up(200, 116 + 72);
+    assert!(
+        !playlist_blits(&mut rt).contains(&(150, 111, 3, 54, 69, 50)),
+        "SEL closed"
+    );
+    assert_eq!(actions.borrow().len(), 1, "nothing picked");
     // holding and sliding to a picture still picks it on release, as with a mouse
     rt.pointer_down(50, 116 + 95, 5);
     rt.pointer_move(50, 116 + 58);
