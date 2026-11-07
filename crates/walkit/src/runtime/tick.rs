@@ -79,6 +79,9 @@ impl SkinRuntime {
                 due = due.min(self.vis_next_step_at(v, now));
             }
         }
+        if let Some(d) = self.classic_next_due_at(now) {
+            due = due.min(d);
+        }
         if status == Status::Playing {
             for g in self.progress_grids.clone() {
                 if self.shows(g) {
@@ -330,5 +333,32 @@ impl SkinRuntime {
             self.last_track_index = index;
             self.dirty = true;
         }
+    }
+}
+
+impl SkinRuntime {
+    /// When a classic skin's main window next changes by itself: the title's next scroll step
+    /// while its normal layout shows a long title, the time's next blink while paused.
+    fn classic_next_due_at(&mut self, now: i64) -> Option<i64> {
+        use crate::classic::main::{PAUSE_BLINK_MS, TITLE_STEP_MS};
+        use crate::classic::ClassicWindow;
+        let main = self.main_layout()?;
+        let shown: Vec<ClassicWindow> = self.objects[main]
+            .children()
+            .iter()
+            .filter_map(|o| match self.objects[*o].kind {
+                Kind::ClassicWindow(w) => Some(w),
+                _ => None,
+            })
+            .collect();
+        let mut due = None;
+        if shown.contains(&ClassicWindow::Main) && self.classic_title_scrolls() {
+            due = Some((now / TITLE_STEP_MS + 1) * TITLE_STEP_MS);
+        }
+        if !shown.is_empty() && self.player.status() == Status::Paused {
+            let blink = (now / PAUSE_BLINK_MS + 1) * PAUSE_BLINK_MS;
+            due = Some(due.map_or(blink, |d: i64| d.min(blink)));
+        }
+        due
     }
 }
