@@ -17,6 +17,10 @@ pub struct PleditStyle {
     pub selected_bg: Rgb,
     /// The font's face name.
     pub font: String,
+    /// The video window's status text (`mbFG`).
+    pub mb_fg: Rgb,
+    /// The video window's status background (`mbBG`).
+    pub mb_bg: Rgb,
     /// Whether `gen.bmp`'s digits, '-' and ':' show in window titles (`[Misc]` `UseGenNums`).
     pub use_gen_nums: bool,
 }
@@ -30,6 +34,8 @@ impl Default for PleditStyle {
             normal_bg: Rgb(0x000000),
             selected_bg: Rgb(0x0000c6),
             font: "Arial".to_string(),
+            mb_fg: Rgb(0x00ff00),
+            mb_bg: Rgb(0x000000),
             use_gen_nums: false,
         }
     }
@@ -62,6 +68,8 @@ pub fn parse(text: &str) -> PleditStyle {
             "normalbg" => s.normal_bg = color(value).unwrap_or(s.normal_bg),
             "selectedbg" => s.selected_bg = color(value).unwrap_or(s.selected_bg),
             "font" => s.font = value.to_string(),
+            "mbfg" => s.mb_fg = color(value).unwrap_or(s.mb_fg),
+            "mbbg" => s.mb_bg = color(value).unwrap_or(s.mb_bg),
             _ => {}
         }
     }
