@@ -12,6 +12,7 @@ use crate::files::SkinFiles;
 
 pub(crate) mod eq;
 pub mod font;
+pub(crate) mod gen;
 pub(crate) mod main;
 mod pl;
 pub mod pledit;
@@ -35,6 +36,9 @@ pub enum ClassicWindow {
     Playlist,
     /// The playlist editor's shade bar, as wide as the editor, 14 high.
     PlaylistShade,
+    /// A window framed with `gen.bmp` (the media library, a plug-in's window), 275 x 116 at
+    /// least; what it holds is the host's.
+    Gen,
 }
 
 impl ClassicWindow {
@@ -47,6 +51,7 @@ impl ClassicWindow {
             "equalizershade" => Some(ClassicWindow::EqualizerShade),
             "playlist" => Some(ClassicWindow::Playlist),
             "playlistshade" => Some(ClassicWindow::PlaylistShade),
+            "gen" => Some(ClassicWindow::Gen),
             _ => None,
         }
     }
@@ -54,7 +59,10 @@ impl ClassicWindow {
     /// The window's size in skin pixels.
     pub fn size(self) -> (i32, i32) {
         match self {
-            ClassicWindow::Main | ClassicWindow::Equalizer | ClassicWindow::Playlist => (275, 116),
+            ClassicWindow::Main
+            | ClassicWindow::Equalizer
+            | ClassicWindow::Playlist
+            | ClassicWindow::Gen => (275, 116),
             ClassicWindow::MainShade
             | ClassicWindow::EqualizerShade
             | ClassicWindow::PlaylistShade => (275, 14),
@@ -68,7 +76,7 @@ impl ClassicWindow {
             ClassicWindow::MainShade => "windowshade",
             ClassicWindow::Equalizer => "equalizer",
             ClassicWindow::EqualizerShade => "equalizerws",
-            ClassicWindow::Playlist | ClassicWindow::PlaylistShade => "",
+            ClassicWindow::Playlist | ClassicWindow::PlaylistShade | ClassicWindow::Gen => "",
         }
     }
 }
@@ -111,6 +119,11 @@ fn generated_xml() -> String {
             r#"<layout id="shade" w="{w}" h="14" minimum_w="{w}" linkwidth="normal">"#,
             r#"<classicwindow id="classic.plshade" window="playlistshade" x="0" y="0" w="0" h="14" relatw="1" sysregion="1"/>"#,
             r#"<layer id="classic.plshade.sizer" resize="right" x="-28" relatx="1" y="0" w="8" h="14"/>"#,
+            r#"</layout></container>"#,
+            r#"<container id="library" name="Winamp Library" default_visible="0" default_x="{w}" default_y="0">"#,
+            r#"<layout id="normal" w="{w}" h="{h}" minimum_w="{w}" minimum_h="{h}">"#,
+            r#"<classicwindow id="classic.library" window="gen" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
+            r#"<layer id="classic.gen.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
             r#"</layout></container>"#,
             r#"</WinampAbstractionLayer>"#
         ),

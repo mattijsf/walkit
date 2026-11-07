@@ -426,6 +426,20 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             }
             Some(TitleBar)
         }
+        ClassicWindow::Gen => {
+            // close: x w-10..=w-1, y 3..=12, acting on release inside
+            if hit(x, y, width - 10, 3, 10, 10) {
+                return Some(Close);
+            }
+            if y < crate::classic::gen::TITLE_H {
+                return Some(TitleBar);
+            }
+            // what the window holds is the host's; the frame around it moves the window
+            let client = x >= crate::classic::gen::LEFT
+                && x < width - crate::classic::gen::RIGHT
+                && y < height - crate::classic::gen::BOTTOM;
+            (!client).then_some(Background)
+        }
     }
 }
 
@@ -450,11 +464,13 @@ impl SkinRuntime {
             .is_some_and(|p| matches!(p.control, Control::TitleBar | Control::Background))
     }
 
-    /// Whether the classic playlist's size grip takes a press at `px`, `py` of its window: the
-    /// corner's triangle where the distances to the right and bottom edges add up to 30 or less,
-    /// as Winamp has it; the rest of the 20 by 20 square moves the window.
+    /// Whether a classic window's corner grip (the playlist's, a gen window's) takes a press at
+    /// `px`, `py` of its window: the corner's triangle where the distances to the right and
+    /// bottom edges add up to 30 or less, as Winamp
+    /// has it; the rest of the 20 by 20 square goes to the window.
     pub(crate) fn classic_grip_takes(&self, o: ObjId, px: i32, py: i32) -> bool {
-        if self.objects[o].base.id != "classic.pl.sizer" {
+        let id = self.objects[o].base.id.as_str();
+        if id != "classic.pl.sizer" && id != "classic.gen.sizer" {
             return true;
         }
         let r = self.objects[o].base.rect;

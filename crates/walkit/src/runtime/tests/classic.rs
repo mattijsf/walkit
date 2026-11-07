@@ -1853,3 +1853,102 @@ fn the_eq_texts_match_the_reference_vm_gestures() {
     assert_eq!(rt.classic_status.as_deref(), Some("EQ: Preamp: +0.0 dB"));
     rt.pointer_up(27, 116 + 69);
 }
+
+/// A blit: source left, top, width, height, then dest left, top.
+type Blit = (i32, i32, i32, i32, i32, i32);
+
+/// The blits of the library window, opened and sized to `w` x `h` by its grip.
+fn library_at(w: i32, h: i32) -> (SkinRuntime, Vec<Blit>) {
+    let mut rt = classic();
+    assert!(rt.open_window("library"));
+    rt.ensure_layout();
+    let at = rt.window_rect(rt.window_of("library").expect("the library"));
+    let (cx, cy) = (at.right() - 5, at.bottom() - 5);
+    rt.pointer_down(cx, cy, 1);
+    rt.pointer_move(at.left + w - 5, at.top + h - 5);
+    rt.pointer_up(at.left + w - 5, at.top + h - 5);
+    rt.ensure_layout();
+    let at = rt.window_rect(rt.window_of("library").expect("the library"));
+    assert_eq!((at.width, at.height), (w, h));
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| *r == at)
+        .expect("the library drawn");
+    let local = blits(cmds, "gen.bmp");
+    (rt, local)
+}
+
+#[test]
+fn the_library_title_lays_out_as_the_embed_window_does() {
+    // no font here: "Winamp Library" is 14 gaps of 5, 70 wide, on a plate of 75; at 775 wide
+    // 24 fills, 12 on each side
+    let (_, b) = library_at(775, 319);
+    let title: Vec<_> = b.iter().filter(|b| b.5 == 0 && b.3 == 20).collect();
+    let xs: Vec<i32> = title.iter().map(|b| b.4).collect();
+    let mut want = vec![0];
+    want.extend((0..12).map(|i| 25 + i * 25));
+    want.extend([325, 350, 375, 400, 425]);
+    want.extend((0..12).map(|i| 450 + i * 25));
+    want.push(750);
+    assert_eq!(xs, want);
+    assert_eq!(title[0].0, 0, "the left corner");
+    assert_eq!(title[13].0, 26, "the plate's left end");
+    assert_eq!(title[14].0, 52, "the plate");
+    assert_eq!(title[17].0, 78, "the plate's right end");
+    assert_eq!(title.last().unwrap().0, 130, "the right corner");
+    assert!(
+        !b.iter().any(|b| b.2 == 9 && b.3 == 9),
+        "close shows from the right corner until held"
+    );
+}
+
+#[test]
+fn the_library_frame_tiles_its_sides_and_bottom() {
+    let (_, b) = library_at(775, 319);
+    // (319 - 58) / 29 = 9 side tiles from y 20, no rest
+    let left: Vec<_> = b
+        .iter()
+        .filter(|b| b.0 == 127 && b.1 == 42)
+        .map(|b| b.5)
+        .collect();
+    assert_eq!(left, (0..9).map(|i| 20 + i * 29).collect::<Vec<_>>());
+    assert!(b.contains(&(158, 42, 11, 24, 0, 281)), "bottom left corner");
+    assert!(
+        b.contains(&(170, 42, 8, 24, 767, 281)),
+        "bottom right corner"
+    );
+    assert!(b.contains(&(0, 42, 125, 14, 0, 305)), "bottom bar left");
+    assert!(b.contains(&(0, 57, 125, 14, 650, 305)), "bottom bar right");
+    assert_eq!(
+        b.iter().filter(|b| b.0 == 127 && b.1 == 72).count(),
+        21,
+        "(775-250)/25 fills"
+    );
+    assert!(b.contains(&(118, 72, 7, 7, 762, 307)), "the grip");
+}
+
+#[test]
+fn the_library_sizes_in_steps_and_holds_the_hosts_area() {
+    let (mut rt, _) = library_at(300, 145);
+    let client = rt.classic_client_rect("library").expect("a gen window");
+    assert_eq!(
+        client,
+        Rect::new(11, 20, 300 - 19, 145 - 34),
+        "in the window"
+    );
+    assert_eq!(rt.classic_client_rect("main"), None);
+}
+
+#[test]
+fn the_library_closes_on_a_release_over_its_close_button() {
+    let mut rt = classic();
+    assert!(rt.open_window("library"));
+    rt.ensure_layout();
+    let at = rt.window_rect(rt.window_of("library").expect("the library"));
+    rt.pointer_down(at.right() - 5, at.top + 7, 1);
+    rt.pointer_up(at.right() - 5, at.top + 7);
+    rt.ensure_layout();
+    let c = rt.container("library").expect("the container");
+    assert!(!rt.is_open(c), "closed");
+}
