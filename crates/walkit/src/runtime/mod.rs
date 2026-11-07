@@ -117,6 +117,8 @@ pub struct SkinRuntime {
     pub(crate) classic_regions: HashMap<String, Vec<Vec<(i32, i32)>>>,
     /// A classic skin's playlist look (`pledit.txt`).
     pub(crate) classic_pledit: crate::classic::pledit::PleditStyle,
+    /// `gen.bmp`'s font, once read.
+    pub(crate) classic_gen_font: Option<Rc<crate::classic::gen::GenFont>>,
     /// A classic skin's vis palette (`viscolor.txt`).
     pub(crate) classic_palette: crate::classic::viscolor::Palette,
     /// The classic analyzer's state.
@@ -304,6 +306,7 @@ impl SkinRuntime {
             files,
             classic_regions: HashMap::new(),
             classic_pledit: crate::classic::pledit::PleditStyle::default(),
+            classic_gen_font: None,
             classic_palette: crate::classic::viscolor::BASE,
             classic_vis: crate::classic::vis::ClassicVis::default(),
             classic_vis_mode: crate::classic::vis::VisMode::default(),
