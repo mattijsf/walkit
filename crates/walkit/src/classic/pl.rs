@@ -240,6 +240,26 @@ impl SkinRuntime {
             x += 75;
         }
         p.blit("pledit.bmp", 126, 72, 150, 38, x, y);
+        // a bottom button held: its menu of pictures stacked over it, the one under the finger
+        // from the pressed column, the bar beside them
+        if let Some(press) = self.classic_press_on(o) {
+            if let Control::PlButton(b) = press.control {
+                let left = b.menu_left(w);
+                let items = b.items();
+                let top = h - 12 - 18 * items;
+                p.blit("pledit.bmp", b.bar_source(), 111, 3, 18 * items, left, top);
+                for i in 0..items {
+                    let sy = match i {
+                        3 => 168,
+                        2 => 111,
+                        1 => 130,
+                        _ => 149,
+                    };
+                    let sx = b.picture_source() + if press.hover == Some(i) { 23 } else { 0 };
+                    p.blit("pledit.bmp", sx, sy, 22, 18, left + 3, h - 30 - 18 * i);
+                }
+            }
+        }
         // the bottom bar's two lines in text.bmp cells: the
         // selected songs' time over the list's, 18 cells from (w-143, h-28); and the song's
         // time at (w-86, h-15), blank while nothing plays
