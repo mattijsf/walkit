@@ -54,11 +54,11 @@ impl SkinHost for JsHost {
     }
 
     fn log(&mut self, message: &str) {
-        imports::log(message)
+        imports::log(message);
     }
 
     fn invalidate(&mut self) {
-        imports::invalidate()
+        imports::invalidate();
     }
 
     fn window_open(&mut self, kind: &str) -> Option<bool> {
@@ -71,10 +71,10 @@ impl SkinHost for JsHost {
 
     fn windows_changed(&mut self, windows: &[WindowId]) {
         let ids: Vec<String> = windows.iter().map(|w| w.0.to_string()).collect();
-        imports::windows_changed(&ids.join(","))
+        imports::windows_changed(&ids.join(","));
     }
 
     fn host_action(&mut self, action: &str, param: Option<&str>) {
-        imports::host_action(action, param.unwrap_or(""))
+        imports::host_action(action, param.unwrap_or(""));
     }
 }

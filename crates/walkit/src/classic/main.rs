@@ -2,6 +2,8 @@
 //! The classic main window, pixel for pixel as Winamp 5.666 paints it.
 
 use crate::classic::font;
+use crate::classic::touch::Control;
+use crate::classic::vis::{self, VisMode};
 use crate::classic::{region, ClassicWindow};
 use crate::draw::{Align, BitmapDef, DrawCmd, Rect, Region, Rgb, TextCmd, VAlign};
 use crate::gui::{Kind, ObjId};
@@ -24,8 +26,11 @@ impl SkinRuntime {
         let at = self.objects[o].base.rect;
         match w {
             ClassicWindow::Main => self.draw_classic_main(o, at, out),
+            ClassicWindow::MainShade => self.draw_classic_main_shade(o, at, out),
             ClassicWindow::Equalizer => self.draw_classic_eq(o, at, out),
+            ClassicWindow::EqualizerShade => self.draw_classic_eq_shade(o, at, out),
             ClassicWindow::Playlist => self.draw_classic_pl(o, at, out),
+            ClassicWindow::PlaylistShade => self.draw_classic_pl_shade(o, at, out),
         }
     }
 
@@ -59,12 +64,33 @@ impl SkinRuntime {
     }
 
     fn draw_classic_main(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
+        let status = self.player.status();
+        // the vis picture first: the analyzer reads the player and steps the clock; off, the
+        // area shows the palette's background while something plays
+        let vis = match (status, self.classic_vis_mode) {
+            (Status::Playing, VisMode::Analyzer) => {
+                let levels = self.player.spectrum();
+                let now = self.now();
+                Some(self.classic_vis.frame(now, &levels))
+            }
+            (Status::Playing, VisMode::Scope) => Some(vis::scope(&self.player.waveform())),
+            (Status::Playing, VisMode::Off) => Some([vis::OFF; vis::WIDTH * vis::HEIGHT]),
+            _ => None,
+        };
+        let palette = self.classic_palette;
         let mut p = Painter { at, out };
         // the background, then the title bar over it
         p.blit("main.bmp", 0, 0, 275, 116, 0, 0);
+        if let Some(px) = &vis {
+            p.vis(px, vis::WIDTH, &palette, 24, 43);
+        }
         let active = self
             .layout_object(o)
             .is_some_and(|l| self.has_focus(Some(l)));
+        let press = self
+            .classic_press_on(o)
+            .map(|p| (p.control, p.inside, p.position));
+        let pressed = |c: Control| press.is_some_and(|(pc, inside, _)| pc == c && inside);
         p.blit(
             "titlebar.bmp",
             27,
@@ -76,7 +102,18 @@ impl SkinRuntime {
         );
         // the clutter bar's letters; the title bar's buttons are the strip's own until pressed
         p.blit("titlebar.bmp", 304, 0, 8, 43, 10, 22);
-        let status = self.player.status();
+        if pressed(Control::Menu) {
+            p.blit("titlebar.bmp", 0, 9, 9, 9, 6, 3);
+        }
+        if pressed(Control::Minimize) {
+            p.blit("titlebar.bmp", 9, 9, 9, 9, 244, 3);
+        }
+        if pressed(Control::Shade) {
+            p.blit("titlebar.bmp", 9, 18, 9, 9, 254, 3);
+        }
+        if pressed(Control::Close) {
+            p.blit("titlebar.bmp", 18, 9, 9, 9, 264, 3);
+        }
         // the play state light and its work indicator
         let state_x = match status {
             Status::Playing => 0,
@@ -121,9 +158,10 @@ impl SkinRuntime {
         // the volume and balance sliders: a background frame by the value, the thumb over it
         let volume = self.player.volume().clamp(0, 255);
         p.blit("volume.bmp", 0, (volume * 27 / 255) * 15, 68, 13, 107, 57);
+        let thumb_x = if pressed(Control::Volume) { 0 } else { 15 };
         p.blit(
             "volume.bmp",
-            15,
+            thumb_x,
             422,
             14,
             11,
@@ -146,62 +184,133 @@ impl SkinRuntime {
             57,
         );
         let thumb = (balance * 12 / 127 + 12).clamp(0, 24);
-        p.blit(balance_sheet, 15, 422, 14, 11, 177 + thumb, 58);
+        let thumb_x = if pressed(Control::Balance) { 0 } else { 15 };
+        p.blit(balance_sheet, thumb_x, 422, 14, 11, 177 + thumb, 58);
         // the equalizer and playlist toggles, shuffle and repeat
         let eq_on = self.classic_window_open("equalizer");
         let pl_on = self.classic_window_open("pledit");
-        p.blit(
-            "shufrep.bmp",
-            0,
-            61 + if eq_on { 12 } else { 0 },
-            23,
-            12,
-            219,
-            58,
-        );
-        p.blit(
-            "shufrep.bmp",
-            23,
-            61 + if pl_on { 12 } else { 0 },
-            23,
-            12,
-            242,
-            58,
-        );
+        let eq_px = if pressed(Control::EqToggle) { 46 } else { 0 };
+        let pl_px = if pressed(Control::PlToggle) { 46 } else { 0 };
+        let eq_y = 61 + if eq_on { 12 } else { 0 };
+        let pl_y = 61 + if pl_on { 12 } else { 0 };
+        p.blit("shufrep.bmp", eq_px, eq_y, 23, 12, 219, 58);
+        p.blit("shufrep.bmp", 23 + pl_px, pl_y, 23, 12, 242, 58);
         let shuffle = self.player.shuffle();
         let repeat = self.player.repeat();
-        p.blit(
-            "shufrep.bmp",
-            28,
-            if shuffle { 15 } else { 0 },
-            47,
-            15,
-            164,
-            89,
-        );
-        p.blit(
-            "shufrep.bmp",
-            0,
-            if repeat { 15 } else { 0 },
-            28,
-            15,
-            210,
-            89,
-        );
+        let shuffle_y =
+            if pressed(Control::Shuffle) { 30 } else { 0 } + if shuffle { 15 } else { 0 };
+        let repeat_y = if pressed(Control::Repeat) { 30 } else { 0 } + if repeat { 15 } else { 0 };
+        p.blit("shufrep.bmp", 28, shuffle_y, 47, 15, 164, 89);
+        p.blit("shufrep.bmp", 0, repeat_y, 28, 15, 210, 89);
         // the position bar while something plays, the control buttons and eject
         if status != Status::Stopped {
             let length = self.player.length_ms();
-            let pos = if length > 0 {
-                (self.player.position_ms() as i64 * 255 / length as i64).clamp(0, 255) as i32
-            } else {
-                0
+            let dragging = press.filter(|(c, _, _)| *c == Control::Position);
+            let pos = match dragging {
+                Some((_, _, p)) => p,
+                None if length > 0 => {
+                    (self.player.position_ms() as i64 * 255 / length as i64).clamp(0, 255) as i32
+                }
+                None => 0,
             };
             let x = (pos * 219 / 256).clamp(0, 219);
             p.blit("posbar.bmp", 0, 0, 248, 10, 16, 72);
-            p.blit("posbar.bmp", 248, 0, 29, 10, 16 + x, 72);
+            let thumb_x = if dragging.is_some() { 278 } else { 248 };
+            p.blit("posbar.bmp", thumb_x, 0, 29, 10, 16 + x, 72);
         }
         p.blit("cbuttons.bmp", 0, 0, 114, 18, 16, 88);
-        p.blit("cbuttons.bmp", 114, 0, 22, 16, 136, 89);
+        let spans = [
+            (Control::Previous, 0, 23),
+            (Control::Play, 23, 23),
+            (Control::Pause, 46, 23),
+            (Control::Stop, 69, 23),
+            (Control::Next, 92, 22),
+        ];
+        for (c, sx, w) in spans {
+            if pressed(c) {
+                p.blit("cbuttons.bmp", sx, 18, w, 18, 16 + sx, 88);
+            }
+        }
+        let eject_y = if pressed(Control::Eject) { 16 } else { 0 };
+        p.blit("cbuttons.bmp", 114, eject_y, 22, 16, 136, 89);
+    }
+
+    /// The main window's shade bar (`titlebar.bmp` y 29 or 42, its digits and position bar
+    /// in shade mode): the strip, the time in small `text.bmp` digits at y 4, and the mini
+    /// position bar while something plays.
+    fn draw_classic_main_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
+        let status = self.player.status();
+        let active = self
+            .layout_object(o)
+            .is_some_and(|l| self.has_focus(Some(l)));
+        // the strip's mini vis at (79, 5), 38 x 5, while something plays
+        let vis = match (status, self.classic_vis_mode) {
+            (Status::Playing, VisMode::Analyzer) => {
+                let levels = self.player.spectrum();
+                let now = self.now();
+                Some(self.classic_vis.frame_shade(now, &levels))
+            }
+            (Status::Playing, VisMode::Scope) => Some(vis::scope_shade(&self.player.waveform())),
+            (Status::Playing, VisMode::Off) => {
+                Some([vis::OFF; vis::SHADE_WIDTH * vis::SHADE_HEIGHT])
+            }
+            _ => None,
+        };
+        let palette = self.classic_palette;
+        let mut p = Painter { at, out };
+        p.blit(
+            "titlebar.bmp",
+            27,
+            if active { 29 } else { 42 },
+            275,
+            14,
+            0,
+            0,
+        );
+        if let Some(px) = &vis {
+            p.vis(px, vis::SHADE_WIDTH, &palette, 79, 5);
+        }
+        let blank = |p: &mut Painter, x: i32, w: i32| p.blit("text.bmp", 142, 0, w, 6, x, 4);
+        let digit =
+            |p: &mut Painter, n: i32, x: i32| p.blit("text.bmp", (n % 10) * 5, 6, 5, 6, x, 4);
+        if status == Status::Stopped {
+            blank(&mut p, 126, 3);
+            blank(&mut p, 130, 3);
+            for x in [134, 139, 147, 152] {
+                blank(&mut p, x, 5);
+            }
+            return;
+        }
+        let seconds = (self.player.position_ms() / 1000).max(0);
+        let (minutes, seconds) = (seconds / 60, seconds % 60);
+        if minutes / 100 == 0 {
+            blank(&mut p, 130, 3);
+            blank(&mut p, 126, 3);
+        } else {
+            blank(&mut p, 126, 3);
+            digit(&mut p, minutes / 100, 129);
+        }
+        digit(&mut p, minutes / 10, 134);
+        digit(&mut p, minutes, 139);
+        digit(&mut p, seconds / 10, 147);
+        digit(&mut p, seconds, 152);
+        // the mini position bar: the track, a thumb 3 wide stepping through three looks
+        let length = self.player.length_ms();
+        let pos = if length > 0 {
+            (self.player.position_ms() as i64 * 255 / length as i64).clamp(0, 255) as i32
+        } else {
+            0
+        };
+        let thumb = ((pos * 12) >> 8).clamp(0, 12) + 1;
+        let step = if thumb < 6 {
+            0
+        } else if thumb > 8 {
+            2
+        } else {
+            1
+        };
+        p.blit("titlebar.bmp", 0, 36, 17, 7, 226, 4);
+        p.blit("titlebar.bmp", 17 + step * 3, 36, 3, 7, 226 + thumb, 4);
     }
 
     /// The time in `numbers.bmp` (else `nums_ex.bmp`): minutes at 48 and 60, seconds at 78 and
@@ -223,10 +332,26 @@ impl SkinRuntime {
             }
             return;
         }
-        let seconds = (self.player.position_ms() / 1000).max(0);
+        // the time elapsed, or after a press on it the time left with a minus before it
+        let position = self.player.position_ms();
+        let length = self.player.length_ms();
+        let remaining = self.classic_remaining && length > 0;
+        let ms = if remaining {
+            (length - position).max(0)
+        } else {
+            position.max(0)
+        };
+        let seconds = ms / 1000;
         let minutes = seconds / 60;
         let seconds = seconds % 60;
         blank(p, 36);
+        if remaining {
+            if ex {
+                p.blit(sheet, 99, 0, 9, 13, 36, 26);
+            } else {
+                p.blit(sheet, 20, 6, 5, 1, 38, 32);
+            }
+        }
         if minutes / 100 != 0 {
             p.blit(sheet, ((minutes / 100) % 10) * 9, 0, 9, 13, 36, 26);
         }
@@ -402,6 +527,7 @@ impl Painter<'_> {
     }
 
     /// `w` x `h` of `file` from `sx`, `sy` to `dx`, `dy` of the window.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn blit(&mut self, file: &str, sx: i32, sy: i32, w: i32, h: i32, dx: i32, dy: i32) {
         if w <= 0 || h <= 0 {
             return;

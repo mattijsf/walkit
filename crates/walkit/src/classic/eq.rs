@@ -2,6 +2,7 @@
 //! The classic equalizer window, pixel for pixel as Winamp 5.666 paints it.
 
 use crate::classic::main::Painter;
+use crate::classic::touch::Control;
 use crate::draw::{DrawCmd, Rect};
 use crate::gui::ObjId;
 use crate::runtime::SkinRuntime;
@@ -23,25 +24,32 @@ impl SkinRuntime {
             0,
             0,
         );
-        // on and auto, the presets button
+        // on and auto, the presets button, each from its pressed look while pressed
+        let press = self.classic_press_on(o).map(|p| (p.control, p.inside));
+        let pressed = |c: Control| press.is_some_and(|(pc, inside)| pc == c && inside);
         let on = self.player.eq_enabled();
-        p.blit(
-            "eqmain.bmp",
-            10 + if on { 59 } else { 0 },
-            119,
-            25,
-            12,
-            14,
-            18,
-        );
-        p.blit("eqmain.bmp", 35, 119, 33, 12, 39, 18);
-        p.blit("eqmain.bmp", 224, 164, 44, 12, 217, 18);
+        let on_px = if pressed(Control::EqOn) { 118 } else { 0 };
+        let auto_px = if pressed(Control::EqAuto) { 118 } else { 0 };
+        let on_sx = 10 + on_px + if on { 59 } else { 0 };
+        p.blit("eqmain.bmp", on_sx, 119, 25, 12, 14, 18);
+        let auto_sx = 35 + auto_px + if self.classic_eq_auto { 59 } else { 0 };
+        p.blit("eqmain.bmp", auto_sx, 119, 33, 12, 39, 18);
+        let presets_y = if pressed(Control::EqPresets) {
+            176
+        } else {
+            164
+        };
+        p.blit("eqmain.bmp", 224, presets_y, 44, 12, 217, 18);
+        if pressed(Control::Close) {
+            p.blit("eqmain.bmp", 0, 125, 9, 9, 264, 3);
+        }
         // the preamp and the ten bands: a slider frame by the value, the thumb on it
         let preamp = self.player.eq_preamp();
         let bands = self.player.eq_bands();
-        self.draw_classic_eq_slider(&mut p, 21, preamp);
+        Self::draw_classic_eq_slider(&mut p, 21, preamp, pressed(Control::EqSlider(0)));
         for (i, v) in bands.iter().take(10).enumerate() {
-            self.draw_classic_eq_slider(&mut p, (i as i32 + 1) * 18 + 60, *v);
+            let held = pressed(Control::EqSlider(i + 1));
+            Self::draw_classic_eq_slider(&mut p, (i as i32 + 1) * 18 + 60, *v, held);
         }
         draw_classic_eq_graph(
             &mut p,
@@ -50,9 +58,40 @@ impl SkinRuntime {
         );
     }
 
+    /// The equalizer's shade bar (drawn from `eq_ex.bmp`): the strip, with the
+    /// volume mark 3x7 at 61 + v*94/255 from (1 + (v*3>>8)*3, 30) and the balance mark at
+    /// 164 + (b+128)*39/255 from (11 + ((b+128)*3>>8)*3, 30).
+    pub(crate) fn draw_classic_eq_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
+        let active = self
+            .layout_object(o)
+            .is_some_and(|l| self.has_focus(Some(l)));
+        let volume = self.player.volume().clamp(0, 255);
+        let balance = self.player.pan().clamp(-127, 127) + 128;
+        let mut p = Painter { at, out };
+        p.blit("eq_ex.bmp", 0, if active { 0 } else { 15 }, 275, 14, 0, 0);
+        p.blit(
+            "eq_ex.bmp",
+            1 + ((volume * 3) >> 8) * 3,
+            30,
+            3,
+            7,
+            61 + volume * 94 / 255,
+            4,
+        );
+        p.blit(
+            "eq_ex.bmp",
+            11 + ((balance * 3) >> 8) * 3,
+            30,
+            3,
+            7,
+            164 + balance * 39 / 255,
+            4,
+        );
+    }
+
     /// A band slider at `x`: the value `v` (0..255 as the player keeps a band, 128 flat, 255
     /// the top) picked as one of 28 frames of the slider's background, the thumb at its height.
-    fn draw_classic_eq_slider(&self, p: &mut Painter, x: i32, v: i32) {
+    fn draw_classic_eq_slider(p: &mut Painter, x: i32, v: i32, held: bool) {
         let value = band_step(v);
         let frame = 27 - value * 28 / 64;
         if frame < 14 {
@@ -61,7 +100,15 @@ impl SkinRuntime {
             p.blit("eqmain.bmp", frame * 15 - 197, 229, 14, 63, x, 38);
         }
         let y = (value - 63) * 52 / 64 + 89;
-        p.blit("eqmain.bmp", 0, 164, 11, 11, x + 1, y);
+        p.blit(
+            "eqmain.bmp",
+            0,
+            if held { 176 } else { 164 },
+            11,
+            11,
+            x + 1,
+            y,
+        );
     }
 }
 
@@ -112,8 +159,8 @@ fn spline(points: &[f64], u: f64) -> f64 {
     let fb = (1.0 - tension) * (1.0 - continuity) * (1.0 - bias);
     let fc = (1.0 - tension) * (1.0 - continuity) * (1.0 + bias);
     let fd = (1.0 - tension) * (1.0 + continuity) * (1.0 - bias);
-    let d1 = 0.5 * (fa * (p1 - p0) + fb * (p2 - p1));
-    let d2 = 0.5 * (fc * (p2 - p1) + fd * (p3 - p2));
+    let d1 = f64::midpoint(fa * (p1 - p0), fb * (p2 - p1));
+    let d2 = f64::midpoint(fc * (p2 - p1), fd * (p3 - p2));
     let (t2, t3) = (t * t, t * t * t);
     let h1 = 2.0 * t3 - 3.0 * t2 + 1.0;
     let h2 = -2.0 * t3 + 3.0 * t2;
