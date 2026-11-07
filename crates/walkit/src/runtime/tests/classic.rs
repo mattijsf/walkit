@@ -1014,3 +1014,74 @@ fn the_vis_styles_color_bars_and_lines_as_winamp_options_do() {
     assert_eq!(lit.first(), Some(&6), "the sine's crest");
     assert_eq!(lit.last(), Some(&9), "down to the middle value 8's row");
 }
+
+#[test]
+fn shuffle_and_repeat_take_presses_on_their_probed_boxes() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 164, 96, 1);
+    assert!(!rt.player.shuffle(), "x 164 lies outside shuffle");
+    tap(&mut rt, 165, 96, 2);
+    assert!(rt.player.shuffle());
+    tap(&mut rt, 185, 89, 3);
+    assert!(rt.player.shuffle(), "y 89 lies outside shuffle");
+    tap(&mut rt, 209, 102, 4);
+    assert!(!rt.player.shuffle());
+    tap(&mut rt, 239, 103, 5);
+    assert!(rt.player.repeat(), "repeat reaches x 239, y 103");
+    tap(&mut rt, 240, 96, 6);
+    assert!(rt.player.repeat(), "x 240 lies outside repeat");
+}
+
+#[test]
+fn the_control_buttons_and_toggles_take_presses_on_their_probed_boxes() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    // play from its box's corners, nothing from a row above or below
+    tap(&mut rt, 38, 87, 1);
+    assert_eq!(rt.player.status(), Status::Playing);
+    tap(&mut rt, 83, 106, 2);
+    assert_eq!(
+        rt.player.status(),
+        Status::Stopped,
+        "x 83 is stop's first column"
+    );
+    tap(&mut rt, 60, 86, 3);
+    assert_eq!(
+        rt.player.status(),
+        Status::Stopped,
+        "y 86 lies above the buttons"
+    );
+    tap(&mut rt, 60, 106, 4);
+    assert_eq!(rt.player.status(), Status::Playing);
+    tap(&mut rt, 82, 107, 5);
+    assert_eq!(
+        rt.player.status(),
+        Status::Playing,
+        "y 107 lies below the buttons"
+    );
+    tap(&mut rt, 82, 97, 6);
+    assert_eq!(
+        rt.player.status(),
+        Status::Paused,
+        "x 82 is pause's last column"
+    );
+    // the toggles: EQ to x 242, PL from 243, both to y 70
+    tap(&mut rt, 242, 70, 7);
+    let eq = rt.container("equalizer").expect("the equalizer");
+    let pl = rt.container("pledit").expect("the playlist");
+    assert!(rt.is_open(eq));
+    assert!(!rt.is_open(pl));
+    tap(&mut rt, 243, 58, 8);
+    assert!(rt.is_open(pl));
+    tap(&mut rt, 253, 71, 9);
+    assert!(rt.is_open(pl), "y 71 lies below the toggles");
+}
