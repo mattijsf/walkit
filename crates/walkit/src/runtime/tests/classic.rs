@@ -1244,3 +1244,36 @@ fn the_shade_bars_take_presses_on_their_probed_boxes() {
     tap(&mut rt, 100, 14 + 2, 9);
     assert_eq!(rt.player.volume(), 255, "y 2 lies above the sliders");
 }
+
+#[test]
+fn the_playlist_rows_take_presses_up_to_the_scrollbar() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = vec![
+        Track {
+            title: "One".into(),
+            length_ms: 60_000,
+        },
+        Track {
+            title: "Two".into(),
+            length_ms: 60_000,
+        },
+    ];
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 11, 116 + 26, 1);
+    assert_eq!(rt.classic_selected_row, None, "x 11 lies left of the rows");
+    tap(&mut rt, 250, 116 + 20, 2);
+    assert_eq!(rt.classic_selected_row, Some(0));
+    tap(&mut rt, 257, 116 + 40, 3);
+    assert_eq!(rt.classic_selected_row, Some(1));
+    tap(&mut rt, 259, 116 + 26, 4);
+    assert_eq!(rt.classic_selected_row, Some(1), "x 259 lies past the rows");
+    tap(&mut rt, 60, 116 + 19, 5);
+    assert_eq!(rt.classic_selected_row, Some(1), "y 19 lies above the rows");
+}

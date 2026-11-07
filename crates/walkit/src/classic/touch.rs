@@ -245,7 +245,9 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, width - 15, 20, 8, height - 58) {
                 return Some(PlScroll);
             }
-            if hit(x, y, 12, 20, width - 32, height - 58) {
+            // the rows answer presses up to two columns short of the scrollbar (probed in
+            // the VM at width 275: x 12..=257, with 250 the last column tried and 259 dead)
+            if hit(x, y, 12, 20, width - 29, height - 58) {
                 return Some(PlRow((y - 20) / 14));
             }
             if y >= height - 38 {
