@@ -110,6 +110,7 @@ fn generated_xml() -> String {
             r#"</layout>"#,
             r#"<layout id="shade" w="{w}" h="14" minimum_w="{w}" linkwidth="normal">"#,
             r#"<classicwindow id="classic.plshade" window="playlistshade" x="0" y="0" w="0" h="14" relatw="1" sysregion="1"/>"#,
+            r#"<layer id="classic.plshade.sizer" resize="right" x="-28" relatx="1" y="0" w="8" h="14"/>"#,
             r#"</layout></container>"#,
             r#"</WinampAbstractionLayer>"#
         ),
