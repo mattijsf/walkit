@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use super::QuietHost;
 use crate::draw::FontDef;
-use crate::draw::{Align, DrawCmd, Rect, Region};
+use crate::draw::{Align, DrawCmd, Rect, Region, Rgb};
 use crate::files::MemoryFiles;
 use crate::host::{Clock, SkinHost, SkinSetup};
 use crate::player::{FakePlayer, Player, Status, Track};
@@ -1951,4 +1951,79 @@ fn the_library_closes_on_a_release_over_its_close_button() {
     rt.ensure_layout();
     let c = rt.container("library").expect("the container");
     assert!(!rt.is_open(c), "closed");
+}
+
+/// The video window's blits and its rect, opened at its default 275 x 232.
+fn video_blits(rt: &mut SkinRuntime) -> (Rect, Vec<Blit>) {
+    rt.ensure_layout();
+    let at = rt.window_rect(rt.window_of("video").expect("the video window"));
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows.iter().find(|(r, _)| *r == at).expect("drawn");
+    (at, blits(cmds, "video.bmp"))
+}
+
+#[test]
+fn the_video_window_frames_with_video_bmp() {
+    let mut rt = classic();
+    assert!(rt.open_window("video"));
+    let (at, b) = video_blits(&mut rt);
+    assert_eq!((at.width, at.height), (275, 232));
+    // (275 - 150) / 25 = 5 fills: 12 and two on the left, 13 and two on the right
+    let title: Vec<_> = b
+        .iter()
+        .filter(|b| b.5 == 0)
+        .map(|b| (b.0, b.2, b.4))
+        .collect();
+    let row = title[0].0;
+    assert_eq!(row, 0);
+    assert_eq!(
+        title,
+        vec![
+            (0, 25, 0),
+            (127, 12, 25),
+            (127, 25, 37),
+            (127, 25, 62),
+            (26, 100, 87),
+            (127, 13, 187),
+            (127, 25, 200),
+            (127, 25, 225),
+            (153, 25, 250),
+        ]
+    );
+    // (232 - 58) / 29 = 6 side tiles; the bottom bar 38 tall at 194
+    assert_eq!(b.iter().filter(|b| b.0 == 127 && b.1 == 42).count(), 6);
+    assert!(b.contains(&(0, 42, 125, 38, 0, 194)));
+    assert!(b.contains(&(127, 81, 25, 38, 125, 194)));
+    assert!(b.contains(&(0, 81, 125, 38, 150, 194)));
+}
+
+#[test]
+fn the_video_buttons_slide_and_answer_on_release() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("video"));
+    rt.ensure_layout();
+    let at = rt.window_rect(rt.window_of("video").expect("the video window"));
+    let y = at.top + 232 - 20;
+    // pressed on full screen, slid to 2x: 2x shows held (x 39, from 39 + 149)
+    rt.pointer_down(at.left + 12, y, 1);
+    rt.pointer_move(at.left + 42, y);
+    let (_, b) = video_blits(&mut rt);
+    assert!(b.contains(&(188, 42, 15, 18, 39, 232 - 29)), "{b:?}");
+    rt.pointer_up(at.left + 42, y);
+    assert_eq!(actions.borrow().last().map(String::as_str), Some("VID_2X"));
+    let c = rt.container("video").expect("the container");
+    // close on release over x w-10..w-1, y 3..12
+    rt.pointer_down(at.left + 270, at.top + 5, 1);
+    rt.pointer_up(at.left + 270, at.top + 5);
+    assert!(!rt.is_open(c));
+}
+
+#[test]
+fn the_video_status_line_takes_its_colors_from_pledit() {
+    let mut rt = classic();
+    assert!(rt.open_window("video"));
+    rt.ensure_layout();
+    let (r, fg, bg) = rt.classic_status_line("video").expect("a video window");
+    assert_eq!(r, Rect::new(92, 232 - 27, 275 - 25 - 92, 14));
+    assert_eq!((fg, bg), (Rgb(0x00ff00), Rgb(0)));
 }
