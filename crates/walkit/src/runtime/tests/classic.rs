@@ -1160,3 +1160,46 @@ fn the_title_buttons_take_presses_on_their_probed_boxes() {
     tap(&mut rt, 273, 116 + 12, 7);
     assert!(!rt.is_open(eq), "x 273, y 12 closes the equalizer");
 }
+
+#[test]
+fn the_sliders_take_presses_on_their_probed_rows() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    rt.player.set_volume(128);
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 120, 57, 1);
+    assert_eq!(rt.player.volume(), 128, "y 57 lies above the volume");
+    tap(&mut rt, 120, 58, 2);
+    assert_eq!(rt.player.volume(), 30);
+    tap(&mut rt, 175, 66, 3);
+    assert_eq!(
+        rt.player.volume(),
+        255,
+        "x 175, y 66 is the volume's far corner"
+    );
+    tap(&mut rt, 140, 67, 4);
+    assert_eq!(rt.player.volume(), 255, "y 67 lies below the volume");
+    tap(&mut rt, 177, 66, 5);
+    assert_eq!(rt.player.pan(), -127);
+    tap(&mut rt, 216, 63, 6);
+    assert_eq!(rt.player.pan(), -127, "x 216 lies past the balance");
+    rt.player.play();
+    tap(&mut rt, 140, 72, 7);
+    assert_eq!(
+        rt.player.position_ms(),
+        0,
+        "y 72 lies above the position bar"
+    );
+    tap(&mut rt, 140, 73, 8);
+    assert!(rt.player.position_ms() > 0, "y 73 seeks");
+    tap(&mut rt, 17, 76, 9);
+    assert!(
+        rt.player.position_ms() > 0,
+        "x 17 lies before the position bar"
+    );
+    tap(&mut rt, 18, 76, 10);
+    assert_eq!(rt.player.position_ms(), 0, "x 18 seeks to the start");
+}
