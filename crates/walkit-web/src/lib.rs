@@ -209,7 +209,7 @@ pub extern "C" fn wk_files_add(
 }
 
 /// Strips the folder the skin sits in from the files `id` (some archives hold the whole skin
-/// in one folder): the one with `skin.xml`. Nothing changes when `skin.xml` is at the root.
+/// in one folder), as [`walkit::files::skin_folder`] finds it. Nothing changes at the root.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_files_strip_folder(id: i32) -> i32 {
     with_state(|s| {
