@@ -12,7 +12,7 @@ use crate::files::SkinFiles;
 
 mod eq;
 pub mod font;
-mod main;
+pub(crate) mod main;
 mod pl;
 pub mod pledit;
 pub mod region;

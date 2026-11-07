@@ -16,6 +16,13 @@ const TITLE_RIGHT: i32 = 265;
 const TITLE_TOP: i32 = 27;
 /// A title this wide or wider scrolls, with `  ***  ` between its turns.
 const SCROLL_FROM: i32 = 147;
+/// The title scrolls a cell every 200 ms (the VM showed 5 px steps every
+/// 205 ms on average).
+pub(crate) const TITLE_STEP_MS: i64 = 200;
+const TITLE_STEP_PX: i32 = 5;
+/// Paused, the time digits go dark and light again in turns of this long (the VM showed
+/// 1367 ms dark, 1337 ms lit).
+pub(crate) const PAUSE_BLINK_MS: i64 = 1350;
 
 impl SkinRuntime {
     /// Draws classic window object `o`.
@@ -273,7 +280,7 @@ impl SkinRuntime {
         let blank = |p: &mut Painter, x: i32, w: i32| p.blit("text.bmp", 142, 0, w, 6, x, 4);
         let digit =
             |p: &mut Painter, n: i32, x: i32| p.blit("text.bmp", (n % 10) * 5, 6, 5, 6, x, 4);
-        if status == Status::Stopped {
+        if status == Status::Stopped || self.classic_time_dark() {
             blank(&mut p, 126, 3);
             blank(&mut p, 130, 3);
             for x in [134, 139, 147, 152] {
@@ -322,7 +329,7 @@ impl SkinRuntime {
             ("nums_ex.bmp", true)
         };
         let blank = |p: &mut Painter, x: i32| p.blit(sheet, 90, 0, 9, 13, x, 26);
-        if status == Status::Stopped {
+        if status == Status::Stopped || self.classic_time_dark() {
             blank(p, 36);
             if !ex {
                 p.blit(sheet, 9, 6, 5, 1, 40, 32);
@@ -371,7 +378,7 @@ impl SkinRuntime {
         } else {
             let gap = "  ***  ";
             let turn = width + gap.chars().count() as i32 * 5;
-            let scroll = self.classic_scroll.rem_euclid(turn);
+            let scroll = self.classic_title_scroll().rem_euclid(turn);
             (format!("{text}{gap}{text}"), scroll)
         };
         let mut x = TITLE_LEFT;
@@ -399,6 +406,21 @@ impl SkinRuntime {
 
     /// The title row's text: the playlist number, the title and the length, as Winamp writes it
     /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
+    /// How far the title has scrolled: a cell per step of the clock.
+    fn classic_title_scroll(&self) -> i32 {
+        ((self.now() / TITLE_STEP_MS) % i64::from(i32::MAX)) as i32 * TITLE_STEP_PX
+    }
+
+    /// Whether the main window's title is long enough to scroll.
+    pub(crate) fn classic_title_scrolls(&mut self) -> bool {
+        self.classic_title_text().chars().count() as i32 * 5 >= SCROLL_FROM
+    }
+
+    /// Whether the time digits are dark now: paused, they blink.
+    pub(crate) fn classic_time_dark(&self) -> bool {
+        self.player.status() == Status::Paused && (self.now() / PAUSE_BLINK_MS) % 2 == 1
+    }
+
     fn classic_title_text(&mut self) -> String {
         let title = self.player.title();
         if title.is_empty() {
