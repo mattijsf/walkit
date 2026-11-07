@@ -125,17 +125,23 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
                 (Vis, 24, 40, 76, 22),
                 (Volume, 107, 57, 68, 13),
                 (Balance, 177, 57, 38, 13),
-                (EqToggle, 219, 58, 23, 12),
-                (PlToggle, 242, 58, 23, 12),
+                // the toggles and the control buttons answer presses on boxes probed in the
+                // VM, a column or row beside their blits: EQ x 219..=242, PL x 243..=265, both
+                // y 58..=70; previous x 15..=37, play 38..=60, pause 61..=82, stop 83..=106,
+                // next 107..=130, all y 87..=106
+                (EqToggle, 219, 58, 24, 13),
+                (PlToggle, 243, 58, 23, 13),
                 (Position, 16, 72, 248, 10),
-                (Previous, 16, 88, 23, 18),
-                (Play, 39, 88, 23, 18),
-                (Pause, 62, 88, 23, 18),
-                (Stop, 85, 88, 23, 18),
-                (Next, 108, 88, 22, 18),
+                (Previous, 15, 87, 23, 20),
+                (Play, 38, 87, 23, 20),
+                (Pause, 61, 87, 22, 20),
+                (Stop, 83, 87, 24, 20),
+                (Next, 107, 87, 24, 20),
                 (Eject, 136, 89, 22, 16),
-                (Shuffle, 164, 89, 47, 15),
-                (Repeat, 210, 89, 28, 15),
+                // shuffle and repeat answer presses on boxes of their own, probed in the VM:
+                // shuffle x 165..=209, y 90..=102; repeat x 210..=239, y 89..=103
+                (Shuffle, 165, 90, 45, 13),
+                (Repeat, 210, 89, 30, 15),
             ];
             for (c, bx, by, bw, bh) in boxes {
                 if hit(x, y, bx, by, bw, bh) {
