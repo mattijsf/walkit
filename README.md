@@ -9,6 +9,12 @@ the player; the engine never touches a screen, a file or a sound.
 It is written in Rust, with no unsafe code, and builds for Android, the web (wasm) and the
 desktop. It is the engine behind [Andamp](https://andamp.nl)'s modern skins.
 
+It also draws a classic skin (a `.wsz` file: the bitmaps of Winamp 2): the main window, the
+equalizer and the playlist editor, their shade bars, the analyzer and oscilloscope, and their
+buttons, sliders and lists, each painted as Winamp 5.666 paints it and checked pixel
+for pixel against it. A classic skin loads like a modern one; the engine wraps its bitmaps in
+a generated layout and the host draws the same draw list.
+
 ## Status
 
 Early. The engine is ported from Andamp's Kotlin engine and checked by a trace of everything

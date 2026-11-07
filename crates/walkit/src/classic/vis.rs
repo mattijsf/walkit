@@ -63,6 +63,55 @@ impl VisMode {
     }
 }
 
+/// How the analyzer colors its bars (Winamp's "safire" bits 0 and 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AnalyzerStyle {
+    /// Each row a color down from 17 at the bottom.
+    #[default]
+    Normal,
+    /// The bar's top in color 3, each row below one more: a tall bar burns brighter.
+    Fire,
+    /// The whole bar in one color by its height, 17 less the height.
+    Line,
+}
+
+/// How the oscilloscope draws its samples (Winamp's "safire" bits 2 and 3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScopeStyle {
+    /// A pixel per sample.
+    Dots,
+    /// Each column a run from the sample before's row.
+    #[default]
+    Lines,
+    /// Each column a run from the middle row.
+    Solid,
+}
+
+/// Winamp's visualization options as the classic vis area shows them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VisStyle {
+    /// The analyzer's coloring.
+    pub analyzer: AnalyzerStyle,
+    /// Thin bars: a band per column with no gap, instead of bars three wide over four bands.
+    pub thin_bars: bool,
+    /// Peak marks over the bars.
+    pub peaks: bool,
+    /// The oscilloscope's drawing.
+    pub scope: ScopeStyle,
+}
+
+impl Default for VisStyle {
+    /// Winamp's defaults: normal thick bars with peaks, the oscilloscope in lines.
+    fn default() -> Self {
+        VisStyle {
+            analyzer: AnalyzerStyle::Normal,
+            thin_bars: false,
+            peaks: true,
+            scope: ScopeStyle::Lines,
+        }
+    }
+}
+
 /// The dot grid alone.
 fn grid() -> [u8; WIDTH * HEIGHT] {
     let mut px = [0u8; WIDTH * HEIGHT];
@@ -78,7 +127,7 @@ fn grid() -> [u8; WIDTH * HEIGHT] {
 /// columns, each the sample at its share of the window scaled to 0..15 (16 per unit, 8 the
 /// middle), drawn as a run from the previous column's row to this column's row, in the color of
 /// its distance from the middle; digital silence draws no line, as Winamp shows none.
-pub fn scope(wave: &[f32]) -> [u8; WIDTH * HEIGHT] {
+pub fn scope(wave: &[f32], style: ScopeStyle) -> [u8; WIDTH * HEIGHT] {
     let mut px = grid();
     if wave.is_empty() || wave.iter().all(|s| *s == 0.0) {
         return px;
@@ -90,9 +139,15 @@ pub fn scope(wave: &[f32]) -> [u8; WIDTH * HEIGHT] {
         let s = (v + 8).clamp(0, 15);
         let color = ((s / 2) - 4).unsigned_abs() as u8 + 18;
         let from = prev.unwrap_or(s);
-        // Winamp runs from the sample's row to the one before's, leaving that one out when
-        // the line goes down the picture
-        let (lo, hi) = if s < from { (s, from - 1) } else { (from, s) };
+        // lines: Winamp runs from the sample's row to the one before's, leaving that one
+        // out when the line goes down the picture; solid: to the middle rows 7 and 8
+        let (lo, hi) = match style {
+            ScopeStyle::Dots => (s, s),
+            ScopeStyle::Lines if s < from => (s, from - 1),
+            ScopeStyle::Lines => (from, s),
+            ScopeStyle::Solid if s < 8 => (s, 7),
+            ScopeStyle::Solid => (8, s),
+        };
         for value in lo..=hi {
             let y = 17 - value;
             if (0..HEIGHT as i32).contains(&y) {
@@ -107,7 +162,7 @@ pub fn scope(wave: &[f32]) -> [u8; WIDTH * HEIGHT] {
 /// The shade bar's oscilloscope: the first 38 samples of the window, each scaled to 0..4 with 2
 /// the middle (rows 0..4, 4 the bottom), in color 18, each column a run from the previous
 /// column's row to this column's row, both ends included.
-pub fn scope_shade(wave: &[f32]) -> [u8; SHADE_WIDTH * SHADE_HEIGHT] {
+pub fn scope_shade(wave: &[f32], style: ScopeStyle) -> [u8; SHADE_WIDTH * SHADE_HEIGHT] {
     let mut px = [OFF; SHADE_WIDTH * SHADE_HEIGHT];
     if wave.is_empty() || wave.iter().all(|s| *s == 0.0) {
         return px;
@@ -118,7 +173,12 @@ pub fn scope_shade(wave: &[f32]) -> [u8; SHADE_WIDTH * SHADE_HEIGHT] {
         let v = ((sample * 32767.0) as i32) >> 11;
         let s = (((v + 8) * 5) >> 4).clamp(0, 4);
         let from = prev.unwrap_or(s);
-        for value in s.min(from)..=s.max(from) {
+        let (lo, hi) = match style {
+            ScopeStyle::Dots => (s, s),
+            ScopeStyle::Lines => (s.min(from), s.max(from)),
+            ScopeStyle::Solid => (s.min(2), s.max(2)),
+        };
+        for value in lo..=hi {
             px[(4 - value) as usize * SHADE_WIDTH + col] = 18;
         }
         prev = Some(s);
@@ -202,7 +262,12 @@ impl ClassicVis {
     /// The shade bar's analyzer: 37 columns, thick bars of three with the fourth empty over
     /// bands two per column, each up to five rows from the bottom in colors 17, 14, 11, 8 and
     /// 5, the peak in color 23 (as Winamp paints the strip; confirmed on the VM).
-    pub fn frame_shade(&mut self, now: i64, levels: &[f32]) -> [u8; SHADE_WIDTH * SHADE_HEIGHT] {
+    pub fn frame_shade(
+        &mut self,
+        now: i64,
+        levels: &[f32],
+        style: &VisStyle,
+    ) -> [u8; SHADE_WIDTH * SHADE_HEIGHT] {
         let frames = self.step(now);
         let mut px = [OFF; SHADE_WIDTH * SHADE_HEIGHT];
         let level = |b: usize| -> i32 {
@@ -214,17 +279,31 @@ impl ClassicVis {
         // the bands between groups, column c falling as band 2c does; the main window's
         // analyzer falls with it, as the two do in the VM
         for col in 0..SHADE_BANDS {
-            let g = (col & !3) * 2;
-            let v = ((level(g) + level(g + 1) + level(g + 2) + level(g + 3)) >> 2).min(15);
+            let v = if style.thin_bars {
+                ((level(col * 2) + level(col * 2 + 1)) / 2).min(15)
+            } else {
+                let g = (col & !3) * 2;
+                ((level(g) + level(g + 1) + level(g + 2) + level(g + 3)) >> 2).min(15)
+            };
             let band = col * 2;
             self.fall(band, v, frames);
             let shown = ((self.sa[band] >> 4).clamp(0, 15) * 5 / 15).min(5);
-            if col % 4 != 3 {
+            if style.thin_bars || col % 4 != 3 {
+                let height = (self.sa[band] >> 4).clamp(0, 15);
+                let base = match style.analyzer {
+                    AnalyzerStyle::Normal => 17,
+                    AnalyzerStyle::Fire => height + 2,
+                    AnalyzerStyle::Line => 17 - height,
+                };
                 for i in 0..shown {
-                    px[(4 - i) as usize * SHADE_WIDTH + col] = (17 - 3 * i) as u8;
+                    let color = match style.analyzer {
+                        AnalyzerStyle::Line => base,
+                        _ => base - 3 * i,
+                    };
+                    px[(4 - i) as usize * SHADE_WIDTH + col] = color.clamp(0, 23) as u8;
                 }
                 let p = (self.peak[band] * 5 / 15) >> 8;
-                if (0..5).contains(&p) {
+                if style.peaks && (0..5).contains(&p) {
                     px[(4 - p) as usize * SHADE_WIDTH + col] = 23;
                 }
             }
@@ -235,7 +314,7 @@ impl ClassicVis {
 
     /// Steps the frames due at `now` with `levels` (0..1 per band) and paints the picture as
     /// palette indices, row 0 at the top.
-    pub fn frame(&mut self, now: i64, levels: &[f32]) -> [u8; WIDTH * HEIGHT] {
+    pub fn frame(&mut self, now: i64, levels: &[f32], style: &VisStyle) -> [u8; WIDTH * HEIGHT] {
         let frames = self.step(now);
         let mut px = grid();
         let level = |b: usize| -> i32 {
@@ -244,22 +323,35 @@ impl ClassicVis {
                 .map_or(0, |v| (v.clamp(0.0, 1.0) * 15.0).round() as i32)
         };
         for col in 0..BANDS {
-            // thick bars: a group of four columns takes their mean, the fourth stays empty
-            let g = col & !3;
-            let mut v = (level(g) + level(g + 1) + level(g + 2) + level(g + 3)) >> 2;
-            v = v.min(15);
+            // thick bars: a group of four columns takes their mean, the fourth stays empty;
+            // thin bars: a band per column
+            let v = if style.thin_bars {
+                level(col).min(15)
+            } else {
+                let g = col & !3;
+                ((level(g) + level(g + 1) + level(g + 2) + level(g + 3)) >> 2).min(15)
+            };
             self.fall(col, v, frames);
             let shown = (self.sa[col] >> 4).clamp(0, 15);
             let x = col;
-            if col % 4 != 3 {
+            if style.thin_bars || col % 4 != 3 {
+                let base = match style.analyzer {
+                    AnalyzerStyle::Normal => 17,
+                    AnalyzerStyle::Fire => shown + 2,
+                    AnalyzerStyle::Line => 17 - shown,
+                };
                 for i in 0..shown {
                     let y = HEIGHT as i32 - 1 + BASE_BELOW - i;
+                    let color = match style.analyzer {
+                        AnalyzerStyle::Line => base,
+                        _ => base - i,
+                    };
                     if (0..HEIGHT as i32).contains(&y) {
-                        px[y as usize * WIDTH + x] = (17 - i) as u8;
+                        px[y as usize * WIDTH + x] = color.clamp(0, 23) as u8;
                     }
                 }
                 let p = self.peak[col] >> 8;
-                if (0..16).contains(&p) {
+                if style.peaks && (0..16).contains(&p) {
                     let y = HEIGHT as i32 - 1 + BASE_BELOW - p;
                     if (0..HEIGHT as i32).contains(&y) {
                         px[y as usize * WIDTH + x] = 23;
@@ -301,12 +393,12 @@ impl Painter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClassicVis, HEIGHT, WIDTH};
+    use super::{ClassicVis, VisStyle, HEIGHT, WIDTH};
 
     #[test]
     fn silence_shows_the_dot_grid_alone() {
         let mut v = ClassicVis::default();
-        let px = v.frame(0, &[0.0; 75]);
+        let px = v.frame(0, &[0.0; 75], &VisStyle::default());
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
                 let want = u8::from(y % 2 == 1 && x % 2 == 0);
@@ -320,7 +412,7 @@ mod tests {
         let mut v = ClassicVis::default();
         let mut levels = [0.0f32; 75];
         levels[..4].copy_from_slice(&[1.0; 4]);
-        let px = v.frame(0, &levels);
+        let px = v.frame(0, &levels, &VisStyle::default());
         // level 15: thirteen rows show, the bottom row color 15, up to row 3 color 3
         for (i, y) in (3..16).rev().enumerate() {
             for x in 0..3 {
@@ -334,9 +426,9 @@ mod tests {
         }
         // the peak at 15 sits two rows under the picture: not shown; after frames it falls into view
         for _ in 0..40 {
-            v.frame(v.last_frame_at + 25, &[0.0; 75]);
+            v.frame(v.last_frame_at + 25, &[0.0; 75], &VisStyle::default());
         }
-        let px = v.frame(v.last_frame_at + 25, &[0.0; 75]);
+        let px = v.frame(v.last_frame_at + 25, &[0.0; 75], &VisStyle::default());
         assert!(px.contains(&23), "a peak mark on its way down");
     }
 }
