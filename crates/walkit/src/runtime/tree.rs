@@ -277,13 +277,14 @@ impl SkinRuntime {
         self.tell_windows();
     }
 
-    /// The stack's size, in layout pixels; the viewport's among windows set out apart.
+    /// The stack's size, in layout pixels; among windows set out apart, the view's (the
+    /// viewport's until the host gives a view size).
     pub fn stack_size(&mut self) -> (i32, i32) {
         if self.needs_layout {
             self.do_layout();
         }
         if self.free.on {
-            return (self.viewport_w, self.viewport_h);
+            return self.viewport();
         }
         let rects: Vec<Rect> = self
             .windows()
