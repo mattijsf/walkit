@@ -1129,6 +1129,31 @@ fn the_vis_styles_color_bars_and_lines_as_winamp_options_do() {
 }
 
 #[test]
+fn shuffle_and_repeat_show_off_pressed_on_and_on_pressed_from_the_top_of_their_sheet() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    let rows = |rt: &mut SkinRuntime| -> Vec<i32> {
+        let cmds = rt.draw_main();
+        blits(&cmds, "shufrep.bmp")
+            .into_iter()
+            .filter(|b| b.5 == 89)
+            .map(|b| b.1)
+            .collect()
+    };
+    assert_eq!(rows(&mut rt), vec![0, 0], "both off");
+    rt.pointer_down(225, 96, 1);
+    assert_eq!(rows(&mut rt), vec![0, 15], "repeat held, off");
+    rt.pointer_up(225, 96);
+    assert_eq!(rows(&mut rt), vec![0, 30], "repeat on");
+    rt.pointer_down(225, 96, 2);
+    assert_eq!(rows(&mut rt), vec![0, 45], "repeat held, on");
+    rt.pointer_up(225, 96);
+    rt.pointer_down(185, 96, 3);
+    rt.pointer_up(185, 96);
+    assert_eq!(rows(&mut rt), vec![30, 0], "shuffle on, repeat off");
+}
+
+#[test]
 fn shuffle_and_repeat_take_presses_on_their_probed_boxes() {
     let mut rt = classic();
     rt.ensure_layout();
