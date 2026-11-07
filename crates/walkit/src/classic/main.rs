@@ -38,6 +38,7 @@ impl SkinRuntime {
             ClassicWindow::EqualizerShade => self.draw_classic_eq_shade(o, at, out),
             ClassicWindow::Playlist => self.draw_classic_pl(o, at, out),
             ClassicWindow::PlaylistShade => self.draw_classic_pl_shade(o, at, out),
+            ClassicWindow::Gen => self.draw_classic_gen(o, at, out),
         }
     }
 

@@ -17,6 +17,8 @@ pub struct PleditStyle {
     pub selected_bg: Rgb,
     /// The font's face name.
     pub font: String,
+    /// Whether `gen.bmp`'s digits, '-' and ':' show in window titles (`[Misc]` `UseGenNums`).
+    pub use_gen_nums: bool,
 }
 
 impl Default for PleditStyle {
@@ -28,6 +30,7 @@ impl Default for PleditStyle {
             normal_bg: Rgb(0x000000),
             selected_bg: Rgb(0x0000c6),
             font: "Arial".to_string(),
+            use_gen_nums: false,
         }
     }
 }
@@ -35,20 +38,24 @@ impl Default for PleditStyle {
 /// `text`, a `pledit.txt`, over the defaults.
 pub fn parse(text: &str) -> PleditStyle {
     let mut s = PleditStyle::default();
-    let mut in_text = false;
+    let mut section = String::new();
     for line in text.lines() {
         let line = line.trim();
         if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            in_text = name.trim().eq_ignore_ascii_case("text");
-            continue;
-        }
-        if !in_text {
+            section = name.trim().to_lowercase();
             continue;
         }
         let Some((key, value)) = line.split_once('=') else {
             continue;
         };
         let value = value.trim();
+        if section == "misc" && key.trim().eq_ignore_ascii_case("usegennums") {
+            s.use_gen_nums = value.parse::<i32>().is_ok_and(|v| v != 0);
+            continue;
+        }
+        if section != "text" {
+            continue;
+        }
         match key.trim().to_lowercase().as_str() {
             "normal" => s.normal = color(value).unwrap_or(s.normal),
             "current" => s.current = color(value).unwrap_or(s.current),
@@ -83,5 +90,15 @@ mod tests {
         assert_eq!(s.selected_bg, Rgb(0x202020));
         assert_eq!(s.font, "Tahoma");
         assert_eq!(parse(""), PleditStyle::default());
+    }
+
+    #[test]
+    fn use_gen_nums_is_read_from_misc() {
+        assert!(!parse("[Text]\nNormal=#00ff00\n").use_gen_nums);
+        assert!(parse("[Misc]\nUseGenNums=1\n").use_gen_nums);
+        assert!(
+            !parse("[Text]\nUseGenNums=1\n").use_gen_nums,
+            "only under [Misc]"
+        );
     }
 }
