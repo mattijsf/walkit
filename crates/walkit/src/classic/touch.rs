@@ -726,11 +726,9 @@ impl SkinRuntime {
         let seeks = matches!(press.control, Control::Position | Control::ShadePosition);
         let picks = matches!(press.control, Control::PlButton(_)) && press.hover.is_some();
         // under touch a tap on a bottom button leaves its menu open; a slide to a picture still
-        // picks it on release, and a release off the pictures of an open menu leaves it open
+        // picks it on release, and a press on a picture of the open menu closes it, picked or not
         if let (true, Control::PlButton(b)) = (self.touch, press.control) {
-            let tapped = !press.on_open_menu && near;
-            let missed = press.on_open_menu && !picks;
-            if tapped || missed {
+            if !press.on_open_menu && near {
                 self.classic_open_menu = Some((o, b));
                 self.classic_press = None;
                 self.classic_release(press);
