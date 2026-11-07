@@ -128,6 +128,16 @@ pub struct SkinRuntime {
     pub(crate) classic_pl_scroll: i32,
     /// What a classic skin's vis area shows.
     pub(crate) classic_vis_mode: crate::classic::vis::VisMode,
+    /// The vis mode before the last quick run of taps on the vis, and when that run began.
+    pub(crate) classic_vis_before: crate::classic::vis::VisMode,
+    pub(crate) classic_vis_tapped_at: i64,
+    /// What the title row shows in place of the song while a slider is dragged.
+    pub(crate) classic_status: Option<String>,
+    /// The title's scroll in pixels when it last stopped or started, the clock time from which
+    /// it moves on (later than now while held), and the title it belongs to.
+    pub(crate) classic_title_base: i32,
+    pub(crate) classic_title_epoch: i64,
+    pub(crate) classic_title_key: String,
     /// How a classic skin's vis area draws: Winamp's visualization options.
     pub(crate) classic_vis_style: crate::classic::vis::VisStyle,
     /// A press on a classic window that has not ended.
@@ -297,6 +307,12 @@ impl SkinRuntime {
             classic_palette: crate::classic::viscolor::BASE,
             classic_vis: crate::classic::vis::ClassicVis::default(),
             classic_vis_mode: crate::classic::vis::VisMode::default(),
+            classic_vis_before: crate::classic::vis::VisMode::default(),
+            classic_vis_tapped_at: i64::MIN / 2,
+            classic_status: None,
+            classic_title_base: 0,
+            classic_title_epoch: 0,
+            classic_title_key: String::new(),
             classic_vis_style: crate::classic::vis::VisStyle::default(),
             classic_pl_scroll: 0,
             classic_eq_auto: false,

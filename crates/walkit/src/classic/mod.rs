@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::files::SkinFiles;
 
-mod eq;
+pub(crate) mod eq;
 pub mod font;
 pub(crate) mod main;
 mod pl;

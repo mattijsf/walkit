@@ -217,14 +217,14 @@ impl SkinRuntime {
         if status != Status::Stopped {
             let length = self.player.length_ms();
             let dragging = press.filter(|(c, _, _)| *c == Control::Position);
-            let pos = match dragging {
+            // the thumb at the bar's 0..=218: the song's place, or where the finger holds it
+            let x = match dragging {
                 Some((_, _, p)) => p,
                 None if length > 0 => {
-                    (self.player.position_ms() as i64 * 255 / length as i64).clamp(0, 255) as i32
+                    (self.player.position_ms() as i64 * 218 / length as i64).clamp(0, 218) as i32
                 }
                 None => 0,
             };
-            let x = (pos * 219 / 256).clamp(0, 219);
             p.blit("posbar.bmp", 0, 0, 248, 10, 16, 72);
             let thumb_x = if dragging.is_some() { 278 } else { 248 };
             p.blit("posbar.bmp", thumb_x, 0, 29, 10, 16 + x, 72);
@@ -296,7 +296,16 @@ impl SkinRuntime {
             }
             return;
         }
-        let seconds = (self.player.position_ms() / 1000).max(0);
+        let dragged = self
+            .classic_press_on(o)
+            .filter(|p| p.control == Control::ShadePosition);
+        let ms = match dragged {
+            Some(press) => {
+                (i64::from(self.player.length_ms()) * i64::from(press.position) / 218) as i32
+            }
+            None => self.player.position_ms(),
+        };
+        let seconds = (ms / 1000).max(0);
         let (minutes, seconds) = (seconds / 60, seconds % 60);
         if minutes / 100 == 0 {
             blank(&mut p, 130, 3);
@@ -331,19 +340,22 @@ impl SkinRuntime {
     /// The time in `numbers.bmp` (else `nums_ex.bmp`): minutes at 48 and 60, seconds at 78 and
     /// 90, 9 x 13 digits at y 26; the slot at 36 holds a blank, a hundreds digit or the minus sign.
     fn draw_classic_time(&mut self, p: &mut Painter, status: Status) {
-        let (sheet, ex) = if self.files.exists("numbers.bmp") {
-            ("numbers.bmp", false)
-        } else {
+        // nums_ex.bmp first, numbers.bmp when a skin has none
+        let (sheet, ex) = if self.files.exists("nums_ex.bmp") {
             ("nums_ex.bmp", true)
+        } else {
+            ("numbers.bmp", false)
         };
         let blank = |p: &mut Painter, x: i32| p.blit(sheet, 90, 0, 9, 13, x, 26);
         if status == Status::Stopped || self.classic_time_dark() {
-            blank(p, 36);
-            if !ex {
+            // stopped, a nums_ex skin shows blank cells and a dash; a numbers.bmp skin leaves
+            // main.bmp's time area (Winamp 5.666 shows the base skin this way)
+            if ex {
+                blank(p, 36);
                 p.blit(sheet, 9, 6, 5, 1, 40, 32);
-            }
-            for x in [48, 60, 78, 90] {
-                blank(p, x);
+                for x in [48, 60, 78, 90] {
+                    blank(p, x);
+                }
             }
             return;
         }
@@ -379,9 +391,20 @@ impl SkinRuntime {
     /// The song title in the `text.bmp` font along the title row: "1. Title (3:35)" with the
     /// playlist number, the rest of the row blank columns; a title that does not fit scrolls.
     fn draw_classic_title(&mut self, p: &mut Painter) {
-        let text = self.classic_title_text();
+        let song = self.classic_title_text();
+        // a new song starts its title from the beginning
+        if song != self.classic_title_key {
+            self.classic_title_key.clone_from(&song);
+            self.classic_title_base = 0;
+            self.classic_title_epoch = self.now();
+        }
+        // a slider's value stands in for the song while it is dragged, from its first cell
+        let (text, scrolls) = match &self.classic_status {
+            Some(status) => (status.clone(), false),
+            None => (song, true),
+        };
         let width = text.chars().count() as i32 * 5;
-        let (text, offset) = if width < SCROLL_FROM {
+        let (text, offset) = if width < SCROLL_FROM || !scrolls {
             (text, 0)
         } else {
             let gap = "  ***  ";
@@ -414,9 +437,41 @@ impl SkinRuntime {
 
     /// The title row's text: the playlist number, the title and the length, as Winamp writes it
     /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
-    /// How far the title has scrolled: a cell per step of the clock.
-    fn classic_title_scroll(&self) -> i32 {
-        ((self.now() / TITLE_STEP_MS) % i64::from(i32::MAX)) as i32 * TITLE_STEP_PX
+    /// How far the title has scrolled: where it stood, then a cell per step of the clock since
+    /// it last moved on.
+    pub(crate) fn classic_title_scroll(&self) -> i32 {
+        let now = self.now();
+        if now < self.classic_title_epoch {
+            return self.classic_title_base;
+        }
+        let steps = ((now - self.classic_title_epoch) / TITLE_STEP_MS) % i64::from(i32::MAX / 8);
+        self.classic_title_base + steps as i32 * TITLE_STEP_PX
+    }
+
+    /// Holds the title's scroll where it stands.
+    pub(crate) fn classic_title_hold(&mut self) {
+        self.classic_title_base = self.classic_title_scroll();
+        self.classic_title_epoch = i64::MAX / 2;
+    }
+
+    /// Lets the title scroll on again `delay` ms from now: right away after a slider's text, two
+    /// seconds after a drag of the title (ten steps of waiting).
+    pub(crate) fn classic_title_resume(&mut self, delay: i64) {
+        if self.classic_title_epoch > self.now() + delay {
+            self.classic_title_epoch = self.now() + delay;
+        }
+    }
+
+    /// When the title's next scroll step falls, from `now`.
+    pub(crate) fn classic_title_next_step(&self, now: i64) -> Option<i64> {
+        if self.classic_status.is_some() || self.classic_title_epoch >= i64::MAX / 4 {
+            return None;
+        }
+        if now < self.classic_title_epoch {
+            return Some(self.classic_title_epoch);
+        }
+        let done = (now - self.classic_title_epoch) / TITLE_STEP_MS;
+        Some(self.classic_title_epoch + (done + 1) * TITLE_STEP_MS)
     }
 
     /// Whether the main window's title is long enough to scroll.
@@ -515,19 +570,22 @@ impl Painter<'_> {
 
     /// `text` in the platform's font at `size`, in the box `dx`, `dy`, `w` x `h`, `align`ed.
     #[allow(clippy::too_many_arguments)]
+    /// `text` in the system font `face` (the playlist's `pledit.txt` font, a system font named
+    /// by its face; none for the host's font) in the box (x, y, width, height) of the window.
     pub(super) fn text(
         &mut self,
         text: &str,
-        dx: i32,
-        dy: i32,
-        w: i32,
-        h: i32,
+        face: Option<&String>,
+        (dx, dy, w, h): (i32, i32, i32, i32),
         color: Rgb,
         align: Align,
     ) {
+        let font = face
+            .filter(|f| !f.is_empty())
+            .map(|f| crate::draw::FontDef::new(&f.to_lowercase(), ""));
         self.out.push(DrawCmd::Text(Box::new(TextCmd {
             text: text.to_string(),
-            font: None,
+            font,
             size: super::pl::ROW_FONT,
             color,
             rect: Rect::new(self.at.left + dx, self.at.top + dy, w, h),

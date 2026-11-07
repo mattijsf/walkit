@@ -25,10 +25,13 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
-/// The playlist font's size, as Winamp's "playlist font size" default has it.
+/// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it.
 pub(super) const ROW_FONT: i32 = 12;
-/// A row's height in that font.
-pub(crate) const ROW_HEIGHT: i32 = 14;
+/// A row's height: the font's `tmHeight`, 15 for Arial at 12 in the reference
+/// VM, where 3 rows fill a playlist 116 tall.
+pub(crate) const ROW_HEIGHT: i32 = 15;
+/// Where the first row starts (row `i` at 22 + row height x `i`).
+pub(crate) const ROW_TOP: i32 = 22;
 
 impl SkinRuntime {
     /// The playlist's shade bar (14 high): the left piece, tiles, a stretched
@@ -121,7 +124,7 @@ impl SkinRuntime {
         // the list's background, under the frame, and the rows on it: "n. Title" with the
         // length at the right, the current song in the current color
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
-        let rows = (h - 58) / ROW_HEIGHT;
+        let rows = Self::classic_pl_rows(h);
         let selected = self.classic_selected_row;
         let scroll = self.classic_pl_scroll(h).max(0) as usize;
         for (i, t) in tracks
@@ -130,7 +133,7 @@ impl SkinRuntime {
             .skip(scroll)
             .take(rows.max(0) as usize)
         {
-            let y = 20 + (i - scroll) as i32 * ROW_HEIGHT;
+            let y = ROW_TOP + (i - scroll) as i32 * ROW_HEIGHT;
             if selected == Some(i as i32) {
                 p.fill(12, y, w - 32, ROW_HEIGHT, style.selected_bg);
             }
@@ -140,16 +143,21 @@ impl SkinRuntime {
                 style.normal
             };
             let time = time_text(t.length_ms / 1000);
+            let font = Some(&style.font);
             p.text(
                 &format!("{}. {}", i + 1, t.title),
-                12,
-                y,
-                w - 32,
-                ROW_HEIGHT,
+                font,
+                (12, y, w - 32, ROW_HEIGHT),
                 color,
                 Align::Left,
             );
-            p.text(&time, 12, y, w - 32, ROW_HEIGHT, color, Align::Right);
+            p.text(
+                &time,
+                font,
+                (12, y, w - 32, ROW_HEIGHT),
+                color,
+                Align::Right,
+            );
         }
         // the title bar: the left corner, tiles either side of the title, the right corner
         let y1 = if active { 0 } else { 21 };
@@ -281,15 +289,25 @@ impl SkinRuntime {
                 p.blit("text.bmp", 142, 0, 5, 6, x, y);
             }
         } else {
-            let seconds = (self.player.position_ms() / 1000).max(0);
+            // the time played, or the time left with a minus before it (the minus drawn as
+            // 3 columns of text.bmp's "-" where the blank goes)
+            let length = self.player.length_ms();
+            let remaining = self.classic_remaining && length > 0;
+            let ms = if remaining {
+                (length - self.player.position_ms()).max(0)
+            } else {
+                self.player.position_ms().max(0)
+            };
+            let seconds = ms / 1000;
             let (minutes, seconds) = (seconds / 60, seconds % 60);
             let digit =
                 |p: &mut Painter, n: i32, x: i32| p.blit("text.bmp", (n % 10) * 5, 6, 5, 6, x, y);
+            let (sx, sy) = if remaining { (75, 6) } else { (142, 0) };
             if minutes / 100 == 0 {
                 p.blit("text.bmp", 142, 0, 4, 6, w - 86, y);
-                p.blit("text.bmp", 142, 0, 3, 6, w - 82, y);
+                p.blit("text.bmp", sx, sy, 3, 6, w - 82, y);
             } else {
-                p.blit("text.bmp", 142, 0, 3, 6, w - 86, y);
+                p.blit("text.bmp", sx, sy, 3, 6, w - 86, y);
                 digit(&mut p, minutes / 100, w - 82);
             }
             digit(&mut p, minutes / 10, w - 77);
