@@ -204,7 +204,7 @@ pub struct EngineStats {
 /// docks every window under it; `column_width` how wide that right column is, 0 for as wide as
 /// what shows of the main window; `stretch_last` whether the last docked list window takes the
 /// height left under the others; `touch_slop` how far beside an object a finger may land and
-/// still mean it.
+/// still mean it; `touch` whether a finger drives the skin rather than a mouse.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Presentation {
     /// The space the host has for the stack.
@@ -222,6 +222,10 @@ pub struct Presentation {
     /// Whether the windows are set out apart, each where it is, moved and docked as on Winamp's
     /// desktop (see `SkinRuntime::place_window`); false for one stack.
     pub free_windows: bool,
+    /// Whether a finger drives the skin rather than a mouse: a tap on a classic playlist's bottom
+    /// button leaves its menu open for a second tap, where a mouse holds the button and lets go
+    /// over a picture.
+    pub touch: bool,
 }
 
 impl Default for Presentation {
@@ -234,6 +238,7 @@ impl Default for Presentation {
             stretch_last: true,
             touch_slop: 6,
             free_windows: false,
+            touch: false,
         }
     }
 }

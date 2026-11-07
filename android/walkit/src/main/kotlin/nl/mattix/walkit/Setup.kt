@@ -22,7 +22,8 @@ public data class SkinSetup(
  * - [columns]: 2 sets the windows that show a list out right of the main window, anything else docks every window under it;
  * - [columnWidth]: how wide that right column is, 0 for as wide as what shows of the main window;
  * - [stretchLast]: whether the last docked list window takes the height left under the others;
- * - [touchSlop]: how far beside an object a finger may land and still mean it.
+ * - [touchSlop]: how far beside an object a finger may land and still mean it;
+ * - [touch]: whether a finger drives the skin rather than a mouse.
  */
 public data class Presentation(
     val viewSize: Pair<Int, Int>? = null,
@@ -37,6 +38,12 @@ public data class Presentation(
      * stack.
      */
     val freeWindows: Boolean = false,
+    /**
+     * Whether a finger drives the skin rather than a mouse: a tap on a classic playlist's bottom
+     * button leaves its menu open for a second tap, where a mouse holds the button and lets go
+     * over a picture.
+     */
+    val touch: Boolean = false,
 )
 
 /**
