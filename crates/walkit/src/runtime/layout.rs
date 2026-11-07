@@ -808,6 +808,10 @@ impl SkinRuntime {
         }
         match &self.objects[o].kind {
             Kind::Layer(_) | Kind::AnimatedLayer(..) => self.layer_own_region(o),
+            Kind::ClassicWindow(w) => {
+                let w = *w;
+                self.classic_region(o, w).or(Some(Region::Box(rect)))
+            }
             _ if self.objects[o].group.is_some() => {
                 // its rectangle with rectrgn, else its background's opaque pixels stretched over it, else nothing
                 if self.objects[o].base.rect_rgn {

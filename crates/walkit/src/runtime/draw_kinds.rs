@@ -30,6 +30,7 @@ impl SkinRuntime {
             | Kind::Bucket(_)
             | Kind::XFade(_) => {}
             Kind::Vis(_) => self.draw_vis(o, out),
+            Kind::ClassicWindow(_) => self.draw_classic(o, out),
             Kind::EqVis(_) => self.draw_eqvis(o, out),
             Kind::Gradient(_) => self.draw_gradient(o, out),
             Kind::ColorThemeList(_) => self.draw_theme_list(o, out),

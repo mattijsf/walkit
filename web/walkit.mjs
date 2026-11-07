@@ -238,6 +238,21 @@ export class Runtime {
     return this.w.withString(name, (p, n) => this.w.x.wk_rt_open_window(this.id, p, n)) !== 0;
   }
 
+  /** Stages a song on the page's fake player: `title`, `lengthMs` long. */
+  setTrack(title, lengthMs) {
+    this.w.withString(title, (p, n) => this.w.x.wk_rt_set_track(this.id, p, n, lengthMs));
+  }
+
+  /** Stages the song's format on the page's fake player: kbps, kHz, channels. */
+  setFormat(kbps, khz, channels) {
+    this.w.x.wk_rt_set_format(this.id, kbps, khz, channels);
+  }
+
+  /** Sets the page's fake player's volume (0..255) and balance (-127..127). */
+  setLevels(volume, pan) {
+    this.w.x.wk_rt_set_levels(this.id, volume, pan);
+  }
+
   selectTheme(name) {
     this.w.withString(name, (p, n) => this.w.x.wk_rt_select_theme(this.id, p, n));
   }

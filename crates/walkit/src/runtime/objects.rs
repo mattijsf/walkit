@@ -425,6 +425,16 @@ impl SkinRuntime {
             Kind::Bucket(_) => self.bucket_set_param(o, k, value),
             Kind::XFade(_) => false,
             Kind::Vis(_) => self.vis_set_param(o, k, value),
+            Kind::ClassicWindow(_) => {
+                if k == "window" {
+                    if let Some(w) = crate::classic::ClassicWindow::parse(value) {
+                        self.objects[o].kind = Kind::ClassicWindow(w);
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
             Kind::EqVis(_) => self.eqvis_set_param(o, k, value),
             Kind::ColorThemeList(_) => self.themes_set_param(o, k, value),
             Kind::Gradient(_) => self.gradient_set_param(o, k, value),

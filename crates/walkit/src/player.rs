@@ -36,6 +36,18 @@ pub trait Player {
     fn length_ms(&self) -> i32;
     /// The song's title.
     fn title(&self) -> String;
+
+    /// Makes `title`, `length_ms` long, the current song, where the player allows a host to
+    /// stage one (a check page's fake player); nothing elsewhere.
+    fn set_track(&mut self, title: &str, length_ms: i32) {
+        let _ = (title, length_ms);
+    }
+
+    /// Stages the song's format where the player allows it (a check page's fake player):
+    /// `kbps`, `khz` and `channels`; nothing elsewhere.
+    fn set_format(&mut self, kbps: i32, khz: i32, channels: i32) {
+        let _ = (kbps, khz, channels);
+    }
     /// The bitrate.
     fn bitrate_kbps(&self) -> i32;
     /// The sample rate.
@@ -187,6 +199,21 @@ impl FakePlayer {
 }
 
 impl Player for FakePlayer {
+    fn set_format(&mut self, kbps: i32, khz: i32, channels: i32) {
+        self.bitrate_kbps = kbps;
+        self.sample_rate_khz = khz;
+        self.channels = channels;
+    }
+
+    fn set_track(&mut self, title: &str, length_ms: i32) {
+        self.title = title.to_string();
+        self.length_ms = length_ms;
+        if let Some(t) = self.playlist.get_mut(self.index.max(0) as usize) {
+            t.title = title.to_string();
+            t.length_ms = length_ms;
+        }
+    }
+
     fn status(&self) -> Status {
         self.status
     }
