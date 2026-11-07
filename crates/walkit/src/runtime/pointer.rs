@@ -48,6 +48,8 @@ struct Resize {
     x: i32,
     y: i32,
     size: (i32, i32),
+    /// The steps the size takes, for a classic skin's grip.
+    steps: Option<(i32, i32)>,
 }
 
 /// A press its object has not heard yet: the object, and the point of the stack the finger went down on.
@@ -243,10 +245,20 @@ impl SkinRuntime {
         }
         let (vw, vh) = self.viewport();
         let d = self.objects[l].layout().expect("a layout");
-        let size = (
+        let mut size = (
             within(w, d.min_w, d.max_w, vw),
             within(h, d.min_h, d.max_h, vh),
         );
+        if let Some((sw, sh)) = r.steps {
+            let horizontal = r.edges.contains("left") || r.edges.contains("right");
+            let vertical = r.edges.contains("top") || r.edges.contains("bottom");
+            if horizontal {
+                size.0 = stepped(size.0, sw, |v| within(v, d.min_w, d.max_w, vw));
+            }
+            if vertical {
+                size.1 = stepped(size.1, sh, |v| within(v, d.min_h, d.max_h, vh));
+            }
+        }
         if Some(l) != self.main_layout() {
             self.objects[l].layout_mut().expect("a layout").user_size = Some(size);
         }
@@ -494,12 +506,18 @@ impl SkinRuntime {
                     .unwrap_or("")
                     .to_lowercase();
                 let size = self.layout_size(window);
+                let steps = self.objects[target]
+                    .base
+                    .id
+                    .starts_with("classic.")
+                    .then_some(crate::classic::touch::CLASSIC_SIZE_STEP);
                 self.pointer.resizing = Some(Resize {
                     window,
                     edges,
                     x,
                     y,
                     size,
+                    steps,
                 });
             }
         }
@@ -1106,6 +1124,16 @@ impl SkinRuntime {
 }
 
 /// `v` kept to at least `min` and at most `max` (none when 0) and `view`, the view's side winning over a minimum.
+/// `v` rounded up to a whole number of `step`s, or down when the next step does not fit.
+fn stepped(v: i32, step: i32, fit: impl Fn(i32) -> i32) -> i32 {
+    let up = crate::classic::touch::classic_step_up(v, step);
+    if fit(up) == up {
+        up
+    } else {
+        (v / step * step).max(step)
+    }
+}
+
 fn within(v: i32, min: i32, max: i32, view: i32) -> i32 {
     let top = if max > 0 { max.min(view) } else { view };
     v.min(top).max(min.min(top)).max(1)

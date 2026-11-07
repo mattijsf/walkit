@@ -450,6 +450,18 @@ impl SkinRuntime {
             .is_some_and(|p| matches!(p.control, Control::TitleBar | Control::Background))
     }
 
+    /// Whether the classic playlist's size grip takes a press at `px`, `py` of its window: the
+    /// corner's triangle where the distances to the right and bottom edges add up to 30 or less,
+    /// as Winamp has it; the rest of the 20 by 20 square moves the window.
+    pub(crate) fn classic_grip_takes(&self, o: ObjId, px: i32, py: i32) -> bool {
+        if self.objects[o].base.id != "classic.pl.sizer" {
+            return true;
+        }
+        let r = self.objects[o].base.rect;
+        let (right, bottom) = (r.right() - px, r.bottom() - py);
+        right < 20 && bottom < 20 && right + bottom <= 30
+    }
+
     /// Whether `c` is one of the main window's control buttons, which hand a press along.
     fn is_cbutton(c: Control) -> bool {
         matches!(
@@ -979,4 +991,13 @@ impl SkinRuntime {
         };
         self.switch_to(c, to);
     }
+}
+
+/// The steps a classic window's size takes, wide and tall: 25 by 29 pixels from 275 by 116,
+/// rounded up as Winamp rounds them.
+pub(crate) const CLASSIC_SIZE_STEP: (i32, i32) = (25, 29);
+
+/// `v` rounded up to a whole number of `step`s.
+pub(crate) fn classic_step_up(v: i32, step: i32) -> i32 {
+    (v + step - 1).div_euclid(step) * step
 }
