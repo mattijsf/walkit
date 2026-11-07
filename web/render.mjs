@@ -13,14 +13,18 @@ export function normalize(path) {
 }
 
 /**
- * The folder of an archive that holds `skin.xml` (`""` when it sits at the root, as the
- * engine's `skin_folder` finds it), or null when there is none.
+ * The folder of an archive that holds the skin, as the engine's `skin_folder` finds it: the one
+ * with `skin.xml`, else the one with a classic skin's `main.bmp` (`""` at the root); null when
+ * there is neither.
  */
 export function skinFolder(names) {
   const normalized = [...names].map(normalize);
-  if (normalized.includes("skin.xml")) return "";
-  const n = normalized.find((x) => x.endsWith("/skin.xml"));
-  return n === undefined ? null : n.slice(0, -"skin.xml".length);
+  for (const file of ["skin.xml", "main.bmp"]) {
+    if (normalized.includes(file)) return "";
+    const n = normalized.find((x) => x.endsWith(`/${file}`));
+    if (n !== undefined) return n.slice(0, -file.length);
+  }
+  return null;
 }
 
 /** `entries` with the skin's folder stripped from their paths, as the engine reads them. */
