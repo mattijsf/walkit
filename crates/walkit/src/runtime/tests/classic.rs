@@ -1363,6 +1363,70 @@ fn the_shade_bars_take_presses_on_their_probed_boxes() {
 }
 
 #[test]
+fn the_equalizer_bar_sliders_follow_winamp() {
+    // values read back from Winamp 5.666 in the VM while dragging the base skin's bar
+    let mut rt = classic();
+    let c = rt.container("main").expect("the main container");
+    rt.switch_to(c, "shade");
+    assert!(rt.open_window("equalizer"));
+    let eq = rt.container("equalizer").expect("the equalizer");
+    rt.switch_to(eq, "shade");
+    rt.ensure_layout();
+    rt.pointer_down(70, 14 + 7, 1);
+    assert_eq!(rt.player.volume(), 23);
+    for (x, v) in [(140, 209), (155, 249), (157, 255), (162, 255)] {
+        rt.pointer_move(x, 14 + 7);
+        assert_eq!(rt.player.volume(), v, "volume at x {x}");
+    }
+    rt.pointer_up(162, 14 + 7);
+    rt.pointer_down(183, 14 + 7, 2);
+    assert_eq!(rt.player.pan(), -12);
+    // 8 either side of the middle snaps to it
+    for (x, b) in [(184, 0), (186, 0), (187, 12), (206, 127), (183, -12)] {
+        rt.pointer_move(x, 14 + 7);
+        assert_eq!(rt.player.pan(), b, "balance at x {x}");
+    }
+    rt.pointer_up(183, 14 + 7);
+    assert_eq!(rt.player.pan(), -12, "the bar's release keeps the balance");
+}
+
+#[test]
+fn a_drag_across_the_bands_sets_each_band_it_reaches() {
+    // as Winamp 5.666 in the VM: band 1 taken beside its thumb, then a sideways drag
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let step = |rt: &SkinRuntime, i: usize| crate::classic::eq::band_step(rt.player.eq_bands()[i]);
+    let preamp = rt.player.eq_preamp();
+    rt.pointer_down(84, 116 + 80, 1);
+    assert_eq!(step(&rt, 0), 44);
+    rt.pointer_move(84, 116 + 60);
+    assert_eq!(step(&rt, 0), 19);
+    // past band 1's column it lets go, with the value of where the finger left it
+    rt.pointer_move(102, 116 + 60);
+    assert_eq!(step(&rt, 0), 19);
+    rt.pointer_move(102, 116 + 85);
+    assert_eq!(
+        (step(&rt, 0), step(&rt, 1)),
+        (19, 50),
+        "band 2 takes the drag"
+    );
+    rt.pointer_move(120, 116 + 90);
+    assert_eq!(step(&rt, 1), 56, "band 2 set from where the finger left it");
+    rt.pointer_move(120, 116 + 95);
+    assert_eq!(step(&rt, 2), 62, "band 3 takes the drag");
+    rt.pointer_up(120, 116 + 95);
+    assert_eq!(step(&rt, 3), 31, "band 4 never reached");
+    assert_eq!(rt.player.eq_preamp(), preamp);
+    // a band keeps the drag within 3 columns left and 15 right of the band's column
+    rt.pointer_down(84, 116 + 80, 2);
+    rt.pointer_move(93, 116 + 60);
+    rt.pointer_move(93, 116 + 71);
+    assert_eq!(step(&rt, 0), 33, "x 93 still drags band 1");
+    rt.pointer_up(93, 116 + 71);
+}
+
+#[test]
 fn the_playlist_rows_take_presses_up_to_the_scrollbar() {
     let clock: Clock = Rc::new(|| 0);
     let mut player = FakePlayer::new(clock.clone());

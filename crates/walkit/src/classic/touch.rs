@@ -92,6 +92,9 @@ pub enum Control {
     EqPresets,
     /// A band slider: 0 the preamp, 1..=10 the bands.
     EqSlider(usize),
+    /// A drag across the bands between two of them: a band left sideways lets go, and the
+    /// next one the finger reaches takes the drag. Only a press holds it.
+    EqSweep,
     /// One of the "+12", "0" and "-12" labels between the preamp and the bands, with the value
     /// a release on it gives all ten bands (0..255 as the player keeps them).
     EqLevel(i32),
@@ -634,7 +637,29 @@ impl SkinRuntime {
         if matches!(press.control, Control::PlRow(_)) && (py - press.from.1).abs() >= DRAG_SLOP {
             press.dragged = true;
         }
+        // a drag between the bands goes on with the slider the finger reaches
+        if press.control == Control::EqSweep {
+            if let Some(c @ Control::EqSlider(_)) = under {
+                press.control = c;
+                press.inside = true;
+            }
+        }
         self.classic_follow(&mut press, px, py);
+        // a band dragged sideways off its column lets go (not the preamp)
+        if let Control::EqSlider(n) = press.control {
+            let x = n as i32 * 18 + 60;
+            if n > 0
+                && (px < x - 3 || px > x + 15)
+                && (78..=258).contains(&px)
+                && (39..=98).contains(&py)
+            {
+                press.control = Control::EqSweep;
+                press.inside = false;
+                if self.classic_status.take().is_some() {
+                    self.classic_title_resume(0);
+                }
+            }
+        }
         self.classic_press = Some(press);
         self.repaint();
     }
@@ -786,12 +811,17 @@ impl SkinRuntime {
                 self.classic_say_seek(press.position);
             }
             Control::ShadeVolume => {
-                let v = ((px - 62) * 255 / 94).clamp(0, 255);
+                // 96 columns from x 61, no grab
+                let v = (px - 61).clamp(0, 96) * 255 / 96;
                 self.player.set_volume(v);
                 self.classic_say_volume();
             }
             Control::ShadeBalance => {
-                let b = ((px - 165) * 255 / 39 - 128).clamp(-127, 127);
+                // 42 columns from x 164, no grab; 8 either side of the middle
+                // snaps to it while dragged (unless Shift, which a touch never holds), and the
+                // release keeps what the drag gave
+                let b = ((px - 164).clamp(0, 42) * 255 / 42 - 127).min(127);
+                let b = if (-8..=8).contains(&b) { 0 } else { b };
                 self.player.set_pan(b);
                 self.classic_say_balance();
             }
