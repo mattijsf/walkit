@@ -1002,6 +1002,8 @@ pub enum Kind {
     Slider(SliderData),
     /// The play status light.
     Status(StatusData),
+    /// A classic skin's window, drawn as Winamp draws it.
+    ClassicWindow(crate::classic::ClassicWindow),
     /// A stretchable background.
     Grid(GridData),
     /// A progress grid.
@@ -1089,6 +1091,7 @@ impl Obj {
             Kind::Frame(_) | Kind::XFade(_) => "Group",
             Kind::Bucket(_) => "ComponentBucket",
             Kind::Vis(_) => "Vis",
+            Kind::ClassicWindow(_) => "ClassicWindow",
             Kind::EqVis(_) => "EqVis",
             Kind::LayoutStatus(_) => "LayoutStatus",
         }

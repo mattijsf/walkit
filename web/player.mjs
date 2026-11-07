@@ -225,7 +225,7 @@ async function openSkin(name, entries, { clock = null } = {}) {
     await picturesOf(f, e);
   }
   const stack = state.w.stack(skinId, state.defaultsId, siblings);
-  const skinName = name.replace(/\.wal$/i, "");
+  const skinName = name.replace(/\.(wal|wsz)$/i, "");
   const t1 = performance.now();
   state.rt = state.w.runtime(stack, skinName, true, clock === null ? performance.now() : clock);
   state.rt.load();
@@ -284,7 +284,7 @@ async function checkFrame() {
   c.width = w;
   c.height = h;
   new Renderer(state.pictures, families).draw(c.getContext("2d"), frame, 1);
-  const base = name.replace(/\.wal$/i, "");
+  const base = name.replace(/\.(wal|wsz)$/i, "");
   await new Promise((done) =>
     c.toBlob(async (blob) => {
       const r = await fetch(`/snapshot/${encodeURIComponent(`${base}-check`)}`, { method: "POST", body: blob });
@@ -458,7 +458,7 @@ $("snapshot").addEventListener("click", () => {
   c.width = w;
   c.height = h;
   new Renderer(state.pictures, families).draw(c.getContext("2d"), state.frame, 1);
-  const name = ($("skins").value || "skin").replace(/\.wal$/i, "");
+  const name = ($("skins").value || "skin").replace(/\.(wal|wsz)$/i, "");
   c.toBlob(async (blob) => {
     const r = await fetch(`/snapshot/${encodeURIComponent(name)}`, { method: "POST", body: blob });
     if (r.ok) {

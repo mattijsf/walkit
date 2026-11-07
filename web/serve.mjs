@@ -70,7 +70,7 @@ const server = createServer((req, res) => {
     if (url.pathname === "/" || url.pathname === "/index.html") return send(200, readFileSync(join(here, "index.html")), "text/html");
     if (url.pathname === "/walkit.wasm") return send(200, readFileSync(opts.wasm), "application/wasm");
     if (url.pathname === "/scenarios.json") return send(200, readFileSync(opts.scenarios), "application/json");
-    if (url.pathname === "/wal-files.json") return send(200, JSON.stringify(readdirSync(opts.skins).filter((f) => f.endsWith(".wal"))), "application/json");
+    if (url.pathname === "/wal-files.json") return send(200, JSON.stringify(readdirSync(opts.skins).filter((f) => f.endsWith(".wal") || f.endsWith(".wsz"))), "application/json");
     if (url.pathname.startsWith("/pack/skin/")) {
       const file = decodeURIComponent(url.pathname.slice("/pack/skin/".length));
       const path = join(opts.skins, file);

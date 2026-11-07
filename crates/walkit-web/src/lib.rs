@@ -268,13 +268,8 @@ pub extern "C" fn wk_record(stack: i32, fonts: i32, spec: *const u8, spec_len: u
     });
     let Some(files) = files else { return 0 };
     let fonts: Option<Rc<dyn SkinFiles>> = fonts.map(|f| f as Rc<dyn SkinFiles>);
-    let rec = walkit_trace::record(
-        &sc,
-        files,
-        Box::new(host::decode),
-        fonts,
-        Box::new(imports::perf_now),
-    );
+    let perf: walkit_trace::trace::Perf = Box::new(imports::perf_now);
+    let rec = walkit_trace::record(&sc, files, Box::new(host::decode), fonts, &perf);
     let stats = stats_json(&sc.name, &rec.stats);
     with_state(|s| {
         s.result = rec.text.into_bytes();
@@ -540,6 +535,43 @@ pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
 pub extern "C" fn wk_rt_open_window(id: i32, name: *const u8, name_len: usize) -> i32 {
     let name = text(name, name_len);
     with_rt(id, |r| r.rt.open_window(&name) as i32).unwrap_or(0)
+}
+
+/// Stages a song on the page's fake player: `title`, `length_ms` long.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_track(
+    id: i32,
+    title: *const u8,
+    title_len: usize,
+    length_ms: i32,
+) -> i32 {
+    let title = text(title, title_len);
+    with_rt(id, |r| {
+        r.rt.player().set_track(&title, length_ms);
+        1
+    })
+    .unwrap_or(0)
+}
+
+/// Stages the song's format on the page's fake player: `kbps`, `khz`, `channels`.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_format(id: i32, kbps: i32, khz: i32, channels: i32) -> i32 {
+    with_rt(id, |r| {
+        r.rt.player().set_format(kbps, khz, channels);
+        1
+    })
+    .unwrap_or(0)
+}
+
+/// Sets the page's fake player's volume (0..255) and balance (-127..127).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_levels(id: i32, volume: i32, pan: i32) -> i32 {
+    with_rt(id, |r| {
+        r.rt.player().set_volume(volume);
+        r.rt.player().set_pan(pan);
+        1
+    })
+    .unwrap_or(0)
 }
 
 /// Wears the color theme named, matched ignoring case.
