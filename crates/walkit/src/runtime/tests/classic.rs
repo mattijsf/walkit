@@ -2027,3 +2027,24 @@ fn the_video_status_line_takes_its_colors_from_pledit() {
     assert_eq!(r, Rect::new(92, 232 - 27, 275 - 25 - 92, 14));
     assert_eq!((fg, bg), (Rgb(0x00ff00), Rgb(0)));
 }
+
+#[test]
+fn the_stack_names_winamps_cursor_under_the_pointer() {
+    use crate::classic::cursor::CURSOR_FILES;
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let name = |rt: &mut SkinRuntime, x, y| rt.classic_cursor_at(x, y).map(|s| CURSOR_FILES[s].0);
+    assert_eq!(name(&mut rt, 100, 5), Some("titlebar.cur"));
+    assert_eq!(name(&mut rt, 120, 62), Some("volbal.cur"));
+    assert_eq!(
+        name(&mut rt, 270, 116 + 110),
+        Some("psize.cur"),
+        "the playlist's corner"
+    );
+    assert_eq!(name(&mut rt, 100, 116 + 50), Some("pnormal.cur"));
+    assert_eq!(name(&mut rt, 400, 400), None, "off the windows");
+    // the test skin's files are not cursors: the host shows its own
+    let slot = rt.classic_cursor_at(100, 5).expect("a slot");
+    assert!(rt.classic_cursor(slot).is_none());
+}
