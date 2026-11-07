@@ -34,17 +34,21 @@ pub fn normalize(path: &str) -> String {
 }
 
 /// The folder a skin sits in inside an archive, as a normalized prefix ending in `/`, or `""`
-/// when `skin.xml` sits at the root. `None` when the names hold no `skin.xml`, so the archive
-/// is not a modern skin. The first `skin.xml` found decides which folder.
+/// when it sits at the root. A modern skin's folder holds `skin.xml`; an archive without one
+/// is a classic skin when a folder holds `main.bmp` (some classic skins are zipped inside a
+/// folder). The first such file found decides which folder; `None` when there is neither.
 pub fn skin_folder<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<String> {
     let normalized: Vec<String> = names.into_iter().map(normalize).collect();
-    if normalized.iter().any(|n| n == "skin.xml") {
-        return Some(String::new());
-    }
-    normalized
-        .iter()
-        .find(|n| n.ends_with("/skin.xml"))
-        .map(|n| n[..n.len() - "skin.xml".len()].to_string())
+    ["skin.xml", "main.bmp"].into_iter().find_map(|file| {
+        if normalized.iter().any(|n| n == file) {
+            return Some(String::new());
+        }
+        let tail = format!("/{file}");
+        normalized
+            .iter()
+            .find(|n| n.ends_with(&tail))
+            .map(|n| n[..n.len() - file.len()].to_string())
+    })
 }
 
 /// A skin held in memory: its files by normalized path. A host fills it from an archive it
@@ -211,6 +215,25 @@ mod tests {
         );
         assert_eq!(skin_folder(["skin.xml"]).as_deref(), Some(""));
         assert_eq!(skin_folder(["a.png"]), None);
+        // a classic skin zipped inside a folder
+        assert_eq!(
+            skin_folder([
+                "Win-98_Ruby/",
+                "Win-98_Ruby/Main.bmp",
+                "Win-98_Ruby/pledit.txt"
+            ])
+            .as_deref(),
+            Some("win-98_ruby/")
+        );
+        assert_eq!(
+            skin_folder(["main.bmp", "extra/main.bmp"]).as_deref(),
+            Some("")
+        );
+        // skin.xml decides over main.bmp
+        assert_eq!(
+            skin_folder(["old/main.bmp", "new/skin.xml"]).as_deref(),
+            Some("new/")
+        );
     }
 
     #[test]
