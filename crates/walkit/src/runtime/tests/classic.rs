@@ -968,7 +968,11 @@ fn the_title_scrolls_a_cell_every_step_and_the_time_blinks_while_paused() {
     now.set(PAUSE_BLINK_MS);
     assert!(!rt.classic_title_scrolls());
     assert_eq!(digits(&mut rt), 4);
-    assert_eq!(rt.next_due_at(), None);
+    assert_eq!(
+        rt.next_due_at(),
+        Some(PAUSE_BLINK_MS + 25),
+        "playing: the next frame"
+    );
 }
 
 #[test]
@@ -1291,4 +1295,25 @@ fn the_playlist_rows_take_presses_up_to_the_scrollbar() {
     assert_eq!(rt.classic_selected_row, Some(1), "x 259 lies past the rows");
     tap(&mut rt, 60, 116 + 19, 5);
     assert_eq!(rt.classic_selected_row, Some(1), "y 19 lies above the rows");
+}
+
+#[test]
+fn a_playing_classic_window_is_due_again_every_frame() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    assert_ne!(rt.next_due_at(), Some(25), "stopped, no frame is due");
+    rt.player.play();
+    assert_eq!(
+        rt.next_due_at(),
+        Some(25),
+        "the vis, time and position bar move while playing"
+    );
+    assert!(
+        rt.frames_wanted(),
+        "a host that paces by the screen keeps ticking"
+    );
+    assert!(rt.tick(), "and each tick changes the window");
+    rt.player.stop();
+    assert_ne!(rt.next_due_at(), Some(25));
+    assert!(!rt.frames_wanted());
 }

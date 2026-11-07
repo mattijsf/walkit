@@ -30,8 +30,8 @@ pub const OFF: u8 = 0;
 const BANDS: usize = 75;
 /// Winamp's bar base: this many rows under the picture's bottom row.
 const BASE_BELOW: i32 = 2;
-/// A frame of the analyzer, in ms.
-const FRAME_MS: i64 = 25;
+/// A frame of the analyzer, in ms; also how often a playing classic window is redrawn.
+pub(crate) const FRAME_MS: i64 = 25;
 const MAX_FRAMES: i64 = 200;
 /// Falloff per frame, by the analyzer falloff setting (`safalloff` 2).
 const FALLOFF: i32 = 12;
