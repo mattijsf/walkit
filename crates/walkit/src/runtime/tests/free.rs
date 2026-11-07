@@ -334,6 +334,24 @@ fn layouts_that_link_their_widths_share_it_through_a_switch() {
 }
 
 #[test]
+fn apart_in_a_view_smaller_than_the_viewport_the_view_edges_snap() {
+    let mut rt = runtime(PLAYER_XML);
+    rt.load();
+    // the host's view is the screen the windows are drawn on; the viewport keeps its default
+    rt.set_presentation(&Presentation {
+        viewport: (1080, 1920),
+        view_size: Some((360, 729)),
+        free_windows: true,
+        ..Presentation::default()
+    });
+    assert_eq!(rt.stack_size(), (360, 729), "the view is the stack");
+    // 5 px from the view's right edge and its docking bottom (the body, 120 high) 4 from the
+    // view's bottom lands against both
+    drag_to(&mut rt, "main", 360 - 300 - 5, 729 - 120 - 4);
+    assert_eq!(rect_of(&mut rt, "main"), Rect::new(60, 729 - 120, 300, 200));
+}
+
+#[test]
 fn a_resized_edge_snaps_to_the_viewport() {
     let mut rt = free();
     assert!(rt.open_window("pl"));
