@@ -176,20 +176,22 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if y < 14 {
                 return Some(TitleBar);
             }
-            if hit(x, y, 14, 18, 25, 12) {
+            // ON and AUTO answer a row more than their pictures; a slider's box stops a column
+            // short of its picture's right edge (probed in the VM)
+            if hit(x, y, 14, 18, 25, 13) {
                 return Some(EqOn);
             }
-            if hit(x, y, 39, 18, 33, 12) {
+            if hit(x, y, 39, 18, 34, 13) {
                 return Some(EqAuto);
             }
             if hit(x, y, 217, 18, 44, 12) {
                 return Some(EqPresets);
             }
-            if hit(x, y, 21, 38, 14, 63) {
+            if hit(x, y, 21, 38, 13, 63) {
                 return Some(EqSlider(0));
             }
             for n in 1..=10 {
-                if hit(x, y, n * 18 + 60, 38, 14, 63) {
+                if hit(x, y, n * 18 + 60, 38, 13, 63) {
                     return Some(EqSlider(n as usize));
                 }
             }
@@ -397,9 +399,10 @@ impl SkinRuntime {
                 }
             }
             Control::EqSlider(n) => {
-                // the thumb's top follows the finger, 5 above it, over its 51 pixels of travel;
-                // the band's step is 0..63 with 0 at the top
-                let top = (py - 5).clamp(38, 89);
+                // the thumb's top follows the finger, 6 above it (the VM put the thumb's top at
+                // 54 for a click at 60), over its 51 pixels of travel; the band's step is 0..63
+                // with 0 at the top
+                let top = (py - 6).clamp(38, 89);
                 let step = ((top - 38) * 63 + 25) / 51;
                 let v = (63 - step) * 255 / 63;
                 if n == 0 {

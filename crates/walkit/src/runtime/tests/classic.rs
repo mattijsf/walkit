@@ -580,9 +580,9 @@ fn the_volume_and_a_band_follow_the_finger() {
     // the first band at x 78 under the main window; the thumb's top at the finger less 5
     rt.pointer_down(85, 116 + 43, 2);
     assert_eq!(rt.player.eq_bands()[0], 255, "the top is full boost");
-    rt.pointer_move(85, 116 + 94);
+    rt.pointer_move(85, 116 + 95);
     assert_eq!(rt.player.eq_bands()[0], 0, "the bottom is full cut");
-    rt.pointer_up(85, 116 + 94);
+    rt.pointer_up(85, 116 + 95);
     assert_eq!(rt.player.eq_bands()[0], 0, "the release keeps the value");
 }
 
@@ -1084,4 +1084,29 @@ fn the_control_buttons_and_toggles_take_presses_on_their_probed_boxes() {
     assert!(rt.is_open(pl));
     tap(&mut rt, 253, 71, 9);
     assert!(rt.is_open(pl), "y 71 lies below the toggles");
+}
+
+#[test]
+fn the_equalizer_controls_take_presses_on_their_probed_boxes() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 14, 116 + 30, 1);
+    assert!(rt.player.eq_enabled(), "ON reaches y 30");
+    tap(&mut rt, 39, 116 + 18, 2);
+    assert!(rt.classic_eq_auto, "AUTO starts at x 39");
+    tap(&mut rt, 72, 116 + 30, 3);
+    assert!(!rt.classic_eq_auto, "AUTO reaches x 72, y 30");
+    tap(&mut rt, 26, 116 + 31, 4);
+    assert!(rt.player.eq_enabled(), "y 31 lies below ON");
+    // the first band's box ends at x 90; 91 is dead
+    let flat = rt.player.eq_bands()[0];
+    tap(&mut rt, 91, 116 + 50, 5);
+    assert_eq!(rt.player.eq_bands()[0], flat);
+    tap(&mut rt, 90, 116 + 50, 6);
+    assert_ne!(rt.player.eq_bands()[0], flat);
 }
