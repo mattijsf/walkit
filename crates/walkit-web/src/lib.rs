@@ -76,7 +76,16 @@ struct State {
 }
 
 thread_local! {
-    static STATE: RefCell<State> = RefCell::new(State::default());
+    static STATE: RefCell<State> = RefCell::new(with_panic_log(State::default()));
+}
+
+/// `state`, once the module's panics go to the page's log with their message and place: on
+/// the wasm target a panic only shows as "unreachable" otherwise.
+fn with_panic_log(state: State) -> State {
+    std::panic::set_hook(Box::new(|info| {
+        imports::log(&format!("walkit panic: {info}"));
+    }));
+    state
 }
 
 fn with_state<T>(f: impl FnOnce(&mut State) -> T) -> T {
