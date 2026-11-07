@@ -121,7 +121,10 @@ fn stopped_the_main_window_shows_blank_time_and_no_rates() {
     let bar = blits(&cmds, "titlebar.bmp");
     assert_eq!(bar[0], (27, 0, 275, 14, 0, 0), "the active title bar");
     assert!(bar.contains(&(304, 0, 8, 43, 10, 22)), "the clutter bar");
-    assert_eq!(bar.len(), 2, "the strip's buttons until one is pressed");
+    // the clutter bar's A and D unlit, as Winamp draws them over it
+    assert!(bar.contains(&(305, 11, 7, 8, 11, 33)));
+    assert!(bar.contains(&(305, 27, 7, 6, 11, 49)));
+    assert_eq!(bar.len(), 4, "the strip's buttons until one is pressed");
     assert!(
         blits(&cmds, "numbers.bmp").is_empty(),
         "a numbers.bmp skin leaves main.bmp's time area stopped, as Winamp's base skin"
@@ -1126,6 +1129,79 @@ fn the_vis_styles_color_bars_and_lines_as_winamp_options_do() {
     let lit: Vec<usize> = (0..HEIGHT).filter(|y| top[*y] >= 18).collect();
     assert_eq!(lit.first(), Some(&6), "the sine's crest");
     assert_eq!(lit.last(), Some(&9), "down to the middle value 8's row");
+}
+
+/// A host whose always on top switch is on, for the clutter bar's A.
+struct OnTopHost;
+
+impl SkinHost for OnTopHost {
+    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
+        None
+    }
+
+    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, _bold: bool) -> i32 {
+        text.chars().count() as i32 * size * 6 / 10
+    }
+
+    fn log(&mut self, _message: &str) {}
+
+    fn invalidate(&mut self) {}
+
+    fn window_open(&mut self, kind: &str) -> Option<bool> {
+        (kind == "ontop").then_some(true)
+    }
+}
+
+#[test]
+fn the_clutter_bar_shows_a_held_letter_and_lights_a_while_always_on_top() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(OnTopHost),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    rt.ensure_layout();
+    let bar = |rt: &mut SkinRuntime| -> Vec<(i32, i32, i32, i32, i32, i32)> {
+        let cmds = rt.draw_main();
+        blits(&cmds, "titlebar.bmp")
+            .into_iter()
+            .filter(|b| b.4 == 10 || b.4 == 11)
+            .collect()
+    };
+    assert_eq!(
+        bar(&mut rt),
+        vec![
+            (304, 0, 8, 43, 10, 22),
+            (313, 55, 7, 8, 11, 33),
+            (305, 27, 7, 6, 11, 49)
+        ],
+        "at rest: A lit, D not"
+    );
+    rt.pointer_down(15, 44, 1);
+    assert_eq!(
+        bar(&mut rt),
+        vec![
+            (320, 44, 8, 43, 10, 22),
+            (313, 55, 7, 8, 11, 33),
+            (305, 27, 7, 6, 11, 49)
+        ],
+        "I held"
+    );
+    rt.pointer_up(15, 44);
+    rt.pointer_down(15, 36, 2);
+    assert_eq!(
+        bar(&mut rt),
+        vec![(312, 44, 8, 43, 10, 22), (305, 27, 7, 6, 11, 49)],
+        "A held: its column, no lit A over it"
+    );
+    rt.pointer_up(15, 36);
 }
 
 #[test]
