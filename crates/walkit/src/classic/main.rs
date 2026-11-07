@@ -78,9 +78,13 @@ impl SkinRuntime {
             (Status::Playing, VisMode::Analyzer) => {
                 let levels = self.player.spectrum();
                 let now = self.now();
-                Some(self.classic_vis.frame(now, &levels))
+                let style = self.classic_vis_style;
+                Some(self.classic_vis.frame(now, &levels, &style))
             }
-            (Status::Playing, VisMode::Scope) => Some(vis::scope(&self.player.waveform())),
+            (Status::Playing, VisMode::Scope) => Some(vis::scope(
+                &self.player.waveform(),
+                self.classic_vis_style.scope,
+            )),
             (Status::Playing, VisMode::Off) => Some([vis::OFF; vis::WIDTH * vis::HEIGHT]),
             _ => None,
         };
@@ -255,9 +259,13 @@ impl SkinRuntime {
             (Status::Playing, VisMode::Analyzer) => {
                 let levels = self.player.spectrum();
                 let now = self.now();
-                Some(self.classic_vis.frame_shade(now, &levels))
+                let style = self.classic_vis_style;
+                Some(self.classic_vis.frame_shade(now, &levels, &style))
             }
-            (Status::Playing, VisMode::Scope) => Some(vis::scope_shade(&self.player.waveform())),
+            (Status::Playing, VisMode::Scope) => Some(vis::scope_shade(
+                &self.player.waveform(),
+                self.classic_vis_style.scope,
+            )),
             (Status::Playing, VisMode::Off) => {
                 Some([vis::OFF; vis::SHADE_WIDTH * vis::SHADE_HEIGHT])
             }

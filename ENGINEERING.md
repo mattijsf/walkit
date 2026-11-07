@@ -50,6 +50,15 @@ web runs.
   windows docked to it), measured in Winamp 5.666 in a VM;
   the stack is the default and the
   only arrangement the reference traces run.
+- `crates/walkit/src/classic`: the classic skin renderer. `mod.rs` detects a `.wsz` by its
+  bitmaps and generates the `skin.xml` that puts one `classicwindow` object in each window's
+  normal and shade layout; `main.rs`, `eq.rs` and `pl.rs` paint the three windows and their
+  shade bars from the sheets (`main.bmp`, `titlebar.bmp`, `cbuttons.bmp`, `eqmain.bmp`,
+  `pledit.bmp` and the rest) pixel for pixel as Winamp 5.666 draws them; `vis.rs` the analyzer
+  and oscilloscope over the `viscolor.txt` palette; `font.rs`, `region.txt`, `pledit.txt` and
+  `viscolor.txt` parsers beside them; `touch.rs` the presses, drags and double taps on the
+  controls, each control's box being the rect the painter blits it to. Every rule was
+  measured against the real player in a VM; the Andamp notes hold the list.
 - `crates/walkit-trace`: the recorder that runs a scenario through the engine on a stepped
   clock and writes the trace, as a platform-free library (the fixed host, the scenario, the
   timing of each tick and draw list), and a binary that adds the files, the archives, image
