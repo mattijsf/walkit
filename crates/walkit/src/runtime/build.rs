@@ -122,6 +122,9 @@ impl SkinRuntime {
             if let Some(text) = self.files.read("pledit.txt") {
                 self.classic_pledit = crate::classic::pledit::parse(&utf8(&text));
             }
+            if let Some(text) = self.files.read("viscolor.txt") {
+                self.classic_palette = crate::classic::viscolor::parse(&utf8(&text));
+            }
         }
         let root_text = self
             .files

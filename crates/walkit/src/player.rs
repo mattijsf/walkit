@@ -43,6 +43,12 @@ pub trait Player {
         let _ = (title, length_ms);
     }
 
+    /// Makes the player hand out silence (an empty-ish spectrum and a flat wave) where it allows
+    /// a host to stage one (a check page's fake player); nothing elsewhere.
+    fn set_silent(&mut self, silent: bool) {
+        let _ = silent;
+    }
+
     /// Stages the song's format where the player allows it (a check page's fake player):
     /// `kbps`, `khz` and `channels`; nothing elsewhere.
     fn set_format(&mut self, kbps: i32, khz: i32, channels: i32) {
@@ -156,6 +162,8 @@ pub struct FakePlayer {
     pub sample_rate_khz: i32,
     /// The channel count.
     pub channels: i32,
+    /// Whether it hands out silence.
+    pub silent: bool,
     volume: i32,
     shuffle: bool,
     repeat: bool,
@@ -182,6 +190,7 @@ impl FakePlayer {
             bitrate_kbps: 192,
             sample_rate_khz: 44,
             channels: 2,
+            silent: false,
             volume: 200,
             shuffle: false,
             repeat: false,
@@ -199,6 +208,10 @@ impl FakePlayer {
 }
 
 impl Player for FakePlayer {
+    fn set_silent(&mut self, silent: bool) {
+        self.silent = silent;
+    }
+
     fn set_format(&mut self, kbps: i32, khz: i32, channels: i32) {
         self.bitrate_kbps = kbps;
         self.sample_rate_khz = khz;
@@ -393,6 +406,9 @@ impl Player for FakePlayer {
     fn spectrum(&self) -> Vec<f32> {
         if self.status != Status::Playing {
             return Vec::new();
+        }
+        if self.silent {
+            return vec![0.0; 75];
         }
         let t = self.now() as f64 / 60.0;
         (0..75)

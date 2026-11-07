@@ -243,6 +243,16 @@ export class Runtime {
     this.w.withString(title, (p, n) => this.w.x.wk_rt_set_track(this.id, p, n, lengthMs));
   }
 
+  /** Shows a window's container in the layout named ("normal", "shade"). */
+  setWindowLayout(window, name) {
+    this.w.withString(name, (p, n) => this.w.x.wk_rt_set_window_layout(this.id, window, p, n));
+  }
+
+  /** Makes the page's fake player hand out silence, or not. */
+  setSilent(silent) {
+    this.w.x.wk_rt_set_silent(this.id, silent ? 1 : 0);
+  }
+
   /** Stages the song's format on the page's fake player: kbps, kHz, channels. */
   setFormat(kbps, khz, channels) {
     this.w.x.wk_rt_set_format(this.id, kbps, khz, channels);

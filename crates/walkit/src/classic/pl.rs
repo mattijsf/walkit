@@ -5,6 +5,7 @@
 
 use crate::classic::font;
 use crate::classic::main::Painter;
+use crate::classic::touch::Control;
 use crate::draw::{Align, DrawCmd, Rect};
 use crate::gui::ObjId;
 use crate::player::Status;
@@ -27,9 +28,87 @@ fn time_text(seconds: i32) -> String {
 /// The playlist font's size, as Winamp's "playlist font size" default has it.
 pub(super) const ROW_FONT: i32 = 12;
 /// A row's height in that font.
-const ROW_HEIGHT: i32 = 14;
+pub(crate) const ROW_HEIGHT: i32 = 14;
 
 impl SkinRuntime {
+    /// The playlist's shade bar (14 high): the left piece, tiles, a stretched
+    /// remainder, and the right piece with the bar's buttons; active y 42, inactive 57.
+    pub(crate) fn draw_classic_pl_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
+        let w = at.width;
+        let active = self
+            .layout_object(o)
+            .is_some_and(|l| self.has_focus(Some(l)));
+        let y = if active { 42 } else { 57 };
+        let mut p = Painter { at, out };
+        p.blit("pledit.bmp", 72, y, 25, 14, 0, 0);
+        let mut x = 25;
+        for _ in 1..(w - 50) / 25 {
+            p.blit("pledit.bmp", 72, 57, 25, 14, x, 0);
+            x += 25;
+        }
+        let rest = (w - 50) % 25;
+        if rest != 0 {
+            p.stretch("pledit.bmp", 72, 57, 24, 14, x, 0, rest, 14);
+            x += rest;
+        }
+        p.blit("pledit.bmp", 99, y, 50, 14, x, 0);
+        // the song's line in text.bmp cells (with the bitmap font): "n. TITLE" from
+        // x 4 at y 4, its length ending at w-29, blank cells between
+        let index = self.player.track_index();
+        let (title, length) = usize::try_from(index)
+            .ok()
+            .and_then(|i| self.player.tracks().into_iter().nth(i))
+            .map_or((String::new(), 0), |t| (t.title, t.length_ms / 1000));
+        let time = time_text(length);
+        let time_cells = time.chars().count() as i32;
+        let room = (w - 29 - 4) / 5 - time_cells - 1;
+        let mut x = 4;
+        let line = format!("{}. {}", index + 1, title);
+        for c in line.chars().take(room.max(0) as usize) {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, x, 4);
+            x += 5;
+        }
+        // blank cells on the grid up to where the length starts: the first cell at or past
+        // w-29 less the length's cells (confirmed on the VM: the length sits on the grid)
+        let time_x = w - 29 - time_cells * 5;
+        while x < time_x {
+            let (cx, cy) = font::cell(' ');
+            p.blit("text.bmp", cx, cy, 5, 6, x, 4);
+            x += 5;
+        }
+        for c in time.chars() {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, x, 4);
+            x += 5;
+        }
+        if x < w - 30 {
+            let (cx, cy) = font::cell(' ');
+            p.blit("text.bmp", cx, cy, (w - 30 - x).min(5), 6, x, 4);
+        }
+    }
+
+    /// The rows a playlist window `h` tall shows: `(h - 60) / row`.
+    pub(crate) fn classic_pl_rows(h: i32) -> i32 {
+        ((h - 60) / ROW_HEIGHT).max(0)
+    }
+
+    /// The first row shown, clamped to the rows that fit under the list's end.
+    pub(crate) fn classic_pl_scroll(&self, h: i32) -> i32 {
+        let past = self.player.tracks().len() as i32 - Self::classic_pl_rows(h);
+        self.classic_pl_scroll.clamp(0, past.max(0))
+    }
+
+    /// How far down the track the thumb sits for `scroll` of `count` rows: the track is
+    /// `h - 76` long past the thumb, shared out over the rows past the window.
+    pub(crate) fn classic_pl_thumb(h: i32, count: i32, scroll: i32) -> i32 {
+        let past = count - Self::classic_pl_rows(h);
+        if past <= 0 {
+            return 0;
+        }
+        ((h - 76) * scroll.min(past) / past).max(0)
+    }
+
     pub(crate) fn draw_classic_pl(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let (w, h) = (at.width, at.height);
         let active = self
@@ -43,8 +122,18 @@ impl SkinRuntime {
         // length at the right, the current song in the current color
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
         let rows = (h - 58) / ROW_HEIGHT;
-        for (i, t) in tracks.iter().take(rows.max(0) as usize).enumerate() {
-            let y = 20 + i as i32 * ROW_HEIGHT;
+        let selected = self.classic_selected_row;
+        let scroll = self.classic_pl_scroll(h).max(0) as usize;
+        for (i, t) in tracks
+            .iter()
+            .enumerate()
+            .skip(scroll)
+            .take(rows.max(0) as usize)
+        {
+            let y = 20 + (i - scroll) as i32 * ROW_HEIGHT;
+            if selected == Some(i as i32) {
+                p.fill(12, y, w - 32, ROW_HEIGHT, style.selected_bg);
+            }
             let color = if i as i32 == current {
                 style.current
             } else {
@@ -113,8 +202,21 @@ impl SkinRuntime {
             p.blit("pledit.bmp", 36, 42, 8, rest, w - 15, y);
             y += rest;
         }
-        // the scrollbar's thumb, at the top of a list that does not scroll
-        p.blit("pledit.bmp", 52, 53, 8, 18, w - 15, 20);
+        // the scrollbar's thumb: down the track by the scroll's share of the
+        // rows past the window, pressed while a finger holds it
+        let thumb = Self::classic_pl_thumb(h, tracks.len() as i32, scroll as i32);
+        let held = self
+            .classic_press_on(o)
+            .is_some_and(|p| p.control == Control::PlScroll);
+        p.blit(
+            "pledit.bmp",
+            if held { 61 } else { 52 },
+            53,
+            8,
+            18,
+            w - 15,
+            20 + thumb,
+        );
         // the bottom: the left part with its buttons, tiles, the visualizer part when there is
         // room for it, and the right part
         p.blit("pledit.bmp", 0, 72, 125, 38, 0, y);
@@ -142,7 +244,10 @@ impl SkinRuntime {
         // selected songs' time over the list's, 18 cells from (w-143, h-28); and the song's
         // time at (w-86, h-15), blank while nothing plays
         let total: i32 = tracks.iter().map(|t| t.length_ms / 1000).sum();
-        let line = format!("0:00/{}", time_text(total));
+        let picked: i32 = selected
+            .and_then(|i| tracks.get(i.max(0) as usize))
+            .map_or(0, |t| t.length_ms / 1000);
+        let line = format!("{}/{}", time_text(picked), time_text(total));
         let mut x = w - 143;
         for c in line.chars().chain(std::iter::repeat(' ')).take(18) {
             let (cx, cy) = font::cell(c);

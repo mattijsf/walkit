@@ -57,7 +57,7 @@ struct Stack {
 
 /// A runtime the host drives, with the clock it steps, and what plans and writes its frames.
 struct Rt {
-    rt: SkinRuntime,
+    engine: SkinRuntime,
     now: Rc<std::cell::Cell<i64>>,
     planner: DrawPlanner,
     frames: FrameWriter,
@@ -137,7 +137,7 @@ pub extern "C" fn wk_alloc(len: usize) -> *mut u8 {
 /// Gives back memory from `wk_alloc`.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_free(ptr: *mut u8, len: usize) {
-    imports::free(ptr, len)
+    imports::free(ptr, len);
 }
 
 /// Where the last result's text starts.
@@ -355,7 +355,7 @@ pub extern "C" fn wk_rt_new(
         let clock_now = now.clone();
         let clock: walkit::host::Clock = Rc::new(move || clock_now.get());
         let player = FakePlayer::new(clock.clone());
-        let rt = SkinRuntime::new(
+        let engine = SkinRuntime::new(
             files,
             Box::new(JsHost),
             Box::new(player),
@@ -367,7 +367,7 @@ pub extern "C" fn wk_rt_new(
             clock,
         );
         s.runtimes.push(Some(Rt {
-            rt,
+            engine,
             now,
             planner: DrawPlanner::new(),
             frames: FrameWriter::new(),
@@ -388,21 +388,21 @@ fn with_rt<T>(id: i32, f: impl FnOnce(&mut Rt) -> T) -> Option<T> {
 /// Loads the skin: `skin.xml` and everything it includes, the windows, the scripts.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_load(id: i32) -> i32 {
-    with_rt(id, |r| r.rt.load()).map(|_| 1).unwrap_or(0)
+    with_rt(id, |r| r.engine.load()).map(|()| 1).unwrap_or(0)
 }
 
 /// Sets the clock the runtime's timers, animations and scripts read, in ms.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_now(id: i32, now_ms: f64) -> i32 {
     with_rt(id, |r| r.now.set(now_ms as i64))
-        .map(|_| 1)
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
 /// Advances timers, tickers and player-driven objects; 1 when a redraw is due.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_tick(id: i32) -> i32 {
-    with_rt(id, |r| r.rt.tick() as i32).unwrap_or(0)
+    with_rt(id, |r| r.engine.tick() as i32).unwrap_or(0)
 }
 
 /// Every window's drawing as text: a `window <id> <container>/<layout> <rect>` line, then one
@@ -410,12 +410,12 @@ pub extern "C" fn wk_rt_tick(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
     let Some(text) = with_rt(id, |r| {
-        let ids = r.rt.window_ids();
-        let drawn = r.rt.draw_windows();
+        let ids = r.engine.window_ids();
+        let drawn = r.engine.draw_windows();
         let mut out = String::new();
         for (wid, (_, cmds)) in ids.iter().zip(drawn.iter()) {
-            let info = r.rt.window_info(*wid);
-            let rect = r.rt.window_rect(*wid);
+            let info = r.engine.window_info(*wid);
+            let rect = r.engine.window_rect(*wid);
             out.push_str(&format!(
                 "window {} {}/{} {},{},{},{}\n",
                 wid.0, info.container, info.layout, rect.left, rect.top, rect.width, rect.height
@@ -439,11 +439,11 @@ pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
     let Some(bytes) = with_rt(id, |r| {
-        let ids = r.rt.window_ids();
-        let moving = r.rt.take_tick_changed();
-        let drawn = r.rt.draw_windows_owned();
+        let ids = r.engine.window_ids();
+        let moving = r.engine.take_tick_changed();
+        let drawn = r.engine.draw_windows_owned();
         let planned = r.planner.plan(&ids, drawn, &moving, now_ms as i64);
-        let infos: Vec<_> = planned.iter().map(|w| r.rt.window_info(w.id)).collect();
+        let infos: Vec<_> = planned.iter().map(|w| r.engine.window_info(w.id)).collect();
         let windows: Vec<FrameWindow> = planned
             .iter()
             .zip(infos.iter())
@@ -467,14 +467,18 @@ pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
 /// The main window as it shows now, or -1 when the skin has none.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_main_window(id: i32) -> i32 {
-    with_rt(id, |r| r.rt.main_window().map(|w| w.0 as i32).unwrap_or(-1)).unwrap_or(-1)
+    with_rt(id, |r| {
+        r.engine.main_window().map(|w| w.0 as i32).unwrap_or(-1)
+    })
+    .unwrap_or(-1)
 }
 
 /// Whether window `window` resizes both ways (a host fits such a window to its view).
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_window_resizable(id: i32, window: i32) -> i32 {
     with_rt(id, |r| {
-        r.rt.window_info(walkit::host::WindowId(window as u32))
+        r.engine
+            .window_info(walkit::host::WindowId(window as u32))
             .resizable_both_ways as i32
     })
     .unwrap_or(0)
@@ -484,49 +488,50 @@ pub extern "C" fn wk_rt_window_resizable(id: i32, window: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_resize_window(id: i32, window: i32, w: i32, h: i32) -> i32 {
     with_rt(id, |r| {
-        r.rt.resize_window(walkit::host::WindowId(window as u32), w, h)
+        r.engine
+            .resize_window(walkit::host::WindowId(window as u32), w, h);
     })
-    .map(|_| 1)
+    .map(|()| 1)
     .unwrap_or(0)
 }
 
 /// A right click, or a long press, at the last pointer position; `seq` names the touch.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_right_click(id: i32, seq: i32) -> i32 {
-    with_rt(id, |r| r.rt.right_click(seq))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.right_click(seq))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
 /// A double tap at `x`, `y` of the stack.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_double_tap(id: i32, x: i32, y: i32, seq: i32) -> i32 {
-    with_rt(id, |r| r.rt.double_tap(x, y, seq))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.double_tap(x, y, seq))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
 /// The finger goes down at a point of the stack.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_pointer_down(id: i32, x: i32, y: i32, seq: i32) -> i32 {
-    with_rt(id, |r| r.rt.pointer_down(x, y, seq))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.pointer_down(x, y, seq))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
 /// The finger moves to a point of the stack.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_pointer_move(id: i32, x: i32, y: i32) -> i32 {
-    with_rt(id, |r| r.rt.pointer_move(x, y))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.pointer_move(x, y))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
 /// The finger lifts at a point of the stack.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
-    with_rt(id, |r| r.rt.pointer_up(x, y))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.pointer_up(x, y))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
@@ -534,7 +539,7 @@ pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_open_window(id: i32, name: *const u8, name_len: usize) -> i32 {
     let name = text(name, name_len);
-    with_rt(id, |r| r.rt.open_window(&name) as i32).unwrap_or(0)
+    with_rt(id, |r| r.engine.open_window(&name) as i32).unwrap_or(0)
 }
 
 /// Stages a song on the page's fake player: `title`, `length_ms` long.
@@ -547,7 +552,34 @@ pub extern "C" fn wk_rt_set_track(
 ) -> i32 {
     let title = text(title, title_len);
     with_rt(id, |r| {
-        r.rt.player().set_track(&title, length_ms);
+        r.engine.player().set_track(&title, length_ms);
+        1
+    })
+    .unwrap_or(0)
+}
+
+/// Shows window `window`'s container in the layout named.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_window_layout(
+    id: i32,
+    window: i32,
+    name: *const u8,
+    name_len: usize,
+) -> i32 {
+    let name = text(name, name_len);
+    with_rt(id, |r| {
+        r.engine
+            .set_window_layout(walkit::host::WindowId(window as u32), &name);
+        1
+    })
+    .unwrap_or(0)
+}
+
+/// Makes the page's fake player hand out silence, or not.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_silent(id: i32, silent: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine.player().set_silent(silent != 0);
         1
     })
     .unwrap_or(0)
@@ -557,7 +589,7 @@ pub extern "C" fn wk_rt_set_track(
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_format(id: i32, kbps: i32, khz: i32, channels: i32) -> i32 {
     with_rt(id, |r| {
-        r.rt.player().set_format(kbps, khz, channels);
+        r.engine.player().set_format(kbps, khz, channels);
         1
     })
     .unwrap_or(0)
@@ -567,8 +599,8 @@ pub extern "C" fn wk_rt_set_format(id: i32, kbps: i32, khz: i32, channels: i32) 
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_levels(id: i32, volume: i32, pan: i32) -> i32 {
     with_rt(id, |r| {
-        r.rt.player().set_volume(volume);
-        r.rt.player().set_pan(pan);
+        r.engine.player().set_volume(volume);
+        r.engine.player().set_pan(pan);
         1
     })
     .unwrap_or(0)
@@ -578,8 +610,8 @@ pub extern "C" fn wk_rt_set_levels(id: i32, volume: i32, pan: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_select_theme(id: i32, name: *const u8, name_len: usize) -> i32 {
     let name = text(name, name_len);
-    with_rt(id, |r| r.rt.select_color_theme(&name))
-        .map(|_| 1)
+    with_rt(id, |r| r.engine.select_color_theme(&name))
+        .map(|()| 1)
         .unwrap_or(0)
 }
 
@@ -587,9 +619,10 @@ pub extern "C" fn wk_rt_select_theme(id: i32, name: *const u8, name_len: usize) 
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_view(id: i32, w: i32, h: i32) -> i32 {
     with_rt(id, |r| {
-        r.rt.set_view_size(if w > 0 && h > 0 { Some((w, h)) } else { None })
+        r.engine
+            .set_view_size(if w > 0 && h > 0 { Some((w, h)) } else { None });
     })
-    .map(|_| 1)
+    .map(|()| 1)
     .unwrap_or(0)
 }
 
@@ -598,14 +631,14 @@ pub extern "C" fn wk_rt_set_view(id: i32, w: i32, h: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_free(id: i32, on: i32, w: i32, h: i32) -> i32 {
     with_rt(id, |r| {
-        let mut p = r.rt.presentation();
+        let mut p = r.engine.presentation();
         p.free_windows = on != 0;
         if on != 0 && w > 0 && h > 0 {
             p.viewport = (w, h);
         }
-        r.rt.set_presentation(&p);
+        r.engine.set_presentation(&p);
     })
-    .map(|_| 1)
+    .map(|()| 1)
     .unwrap_or(0)
 }
 
@@ -613,21 +646,24 @@ pub extern "C" fn wk_rt_set_free(id: i32, on: i32, w: i32, h: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_player(id: i32, action: i32) -> i32 {
     with_rt(id, |r| match action {
-        1 => r.rt.player().play(),
-        2 => r.rt.player().pause(),
-        3 => r.rt.player().stop(),
-        4 => r.rt.player().next(),
-        5 => r.rt.player().previous(),
+        1 => r.engine.player().play(),
+        2 => r.engine.player().pause(),
+        3 => r.engine.player().stop(),
+        4 => r.engine.player().next(),
+        5 => r.engine.player().previous(),
         _ => {}
     })
-    .map(|_| 1)
+    .map(|()| 1)
     .unwrap_or(0)
 }
 
 /// When, in clock ms, something on the skin next changes by itself; -1 when nothing will.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_next_due_at(id: i32) -> f64 {
-    with_rt(id, |r| r.rt.next_due_at().map(|d| d as f64).unwrap_or(-1.0)).unwrap_or(-1.0)
+    with_rt(id, |r| {
+        r.engine.next_due_at().map(|d| d as f64).unwrap_or(-1.0)
+    })
+    .unwrap_or(-1.0)
 }
 
 /// Drops the runtime.
@@ -637,5 +673,5 @@ pub extern "C" fn wk_rt_free(id: i32) {
         if let Some(slot) = s.runtimes.get_mut(id as usize) {
             *slot = None;
         }
-    })
+    });
 }
