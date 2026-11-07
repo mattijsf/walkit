@@ -3,7 +3,8 @@
 //! The windows set out apart, as on Winamp's desktop: each window where it is, moved by a drag
 //! on its move areas, docking and snapping to the viewport's edges and to each other as Winamp
 //! 5.666 does. The host turns this on with `Presentation::free_windows`; off, the windows are
-//! one stack.
+//! one stack. The viewport here is the host's view once it gives a view size, as scripts see it
+//! (`getViewportWidth`).
 //!
 //! The rules, measured against Winamp: a moved window's edge within [`DOCK_DISTANCE`] (strictly)
 //! of the viewport's same edge, of another window's same edge, or of another window's facing
@@ -198,12 +199,10 @@ impl SkinRuntime {
                     .map(|c| (c.default_x, c.default_y));
                 let (x, y) = match spot {
                     Some((x, y)) => {
-                        // kept inside the viewport at the size it will have apart
+                        // kept inside the view at the size it will have apart
                         let (w, h) = self.own_free_size(l).unwrap_or((r.width, r.height));
-                        (
-                            x.min(self.viewport_w - w).max(0),
-                            y.min(self.viewport_h - h).max(0),
-                        )
+                        let (vw, vh) = self.viewport();
+                        (x.min(vw - w).max(0), y.min(vh - h).max(0))
                     }
                     None => (r.left, r.top),
                 };
@@ -363,15 +362,15 @@ impl SkinRuntime {
         self.docked_group(l).len() > 1
     }
 
-    /// What a window snaps to: the viewport first, then the docking rects of the windows from
+    /// What a window snaps to: the view (the viewport until the host gives a view size) first, then the docking rects of the windows from
     /// the last opened to the first, as Winamp tries them; `l` itself and `group` left out.
     /// `true` marks a window, which also offers its facing edges and must be touched.
     fn snap_targets(&mut self, l: ObjId, group: &[ObjId]) -> Vec<(bool, Rect)> {
         if self.needs_layout {
             self.do_layout();
         }
-        let mut targets: Vec<(bool, Rect)> =
-            vec![(false, Rect::new(0, 0, self.viewport_w, self.viewport_h))];
+        let (vw, vh) = self.viewport();
+        let mut targets: Vec<(bool, Rect)> = vec![(false, Rect::new(0, 0, vw, vh))];
         let others: Vec<ObjId> = self
             .windows()
             .into_iter()
