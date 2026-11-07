@@ -586,6 +586,10 @@ document.body.addEventListener("drop", async (e) => {
       select.value = wanted;
       if (params.has("check")) await checkFrame();
       else await loadFromServer();
+      // open=library,video opens those windows as well (a classic skin's library and video)
+      for (const name of (params.get("open") || "").split(",").filter(Boolean)) {
+        if (state.rt && state.rt.openWindow(name)) state.dirty = true;
+      }
     }
     requestAnimationFrame(loop);
   } catch (e) {
