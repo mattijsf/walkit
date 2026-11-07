@@ -242,7 +242,9 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if y < 20 {
                 return Some(TitleBar);
             }
-            if hit(x, y, width - 15, 20, 8, height - 58) {
+            // the scrollbar's track answers a column beyond its picture (probed in the VM at
+            // width 275: x 260..=268, 259 dead)
+            if hit(x, y, width - 15, 20, 9, height - 58) {
                 return Some(PlScroll);
             }
             // the rows answer presses up to two columns short of the scrollbar (probed in

@@ -836,6 +836,21 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
     // a double tap plays it
     rt.double_tap(60, 116 + 40, 3);
     assert_eq!(rt.player.track_index(), 3);
+    // the track answers to x 268, not at 259
+    let before = rt.classic_pl_scroll;
+    rt.pointer_down(259, 116 + 60, 8);
+    rt.pointer_up(259, 116 + 60);
+    assert_eq!(
+        rt.classic_pl_scroll, before,
+        "x 259 lies between the rows and the track"
+    );
+    rt.pointer_down(268, 116 + 60, 9);
+    rt.pointer_up(268, 116 + 60);
+    assert!(
+        rt.classic_pl_scroll > before,
+        "x 268 is the track's last column"
+    );
+    rt.classic_pl_scroll = before;
     // the thumb dragged to the track's end shows the last rows
     rt.pointer_down(262, 116 + 30, 4);
     let windows = rt.draw_windows();
