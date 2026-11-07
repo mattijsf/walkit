@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod classic;
 pub mod draw;
 pub mod files;
 pub mod gdi;

@@ -111,6 +111,18 @@ impl SkinRuntime {
             }
             self.collecting_base = false;
         }
+        // a classic skin's windows are generated around its bitmaps
+        if crate::classic::is_classic(&*self.files) {
+            let inner =
+                std::mem::replace(&mut self.files, Box::new(crate::files::MemoryFiles::new()));
+            self.files = Box::new(crate::classic::ClassicFiles::new(inner));
+            if let Some(text) = self.files.read("region.txt") {
+                self.classic_regions = crate::classic::region::parse(&utf8(&text));
+            }
+            if let Some(text) = self.files.read("pledit.txt") {
+                self.classic_pledit = crate::classic::pledit::parse(&utf8(&text));
+            }
+        }
         let root_text = self
             .files
             .read("skin.xml")
@@ -691,6 +703,7 @@ impl SkinRuntime {
                 return;
             }
             "vis" => Kind::Vis(Box::default()),
+            "classicwindow" => Kind::ClassicWindow(crate::classic::ClassicWindow::Main),
             "eqvis" => Kind::EqVis(EqVisData::default()),
             "colorthemes:list" => Kind::ColorThemeList(ThemeListData::default()),
             "gradient" => Kind::Gradient(GradientData::default()),

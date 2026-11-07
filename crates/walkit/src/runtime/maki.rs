@@ -238,6 +238,7 @@ impl SkinRuntime {
                     Kind::Bucket(_) => "ComponentBucket",
                     Kind::XFade(_) => "GroupXFade",
                     Kind::Vis(_) => "Vis",
+                    Kind::ClassicWindow(_) => "ClassicWindow",
                     Kind::EqVis(_) => "EqVis",
                     Kind::ColorThemeList(_) => "ColorThemeList",
                     Kind::Gradient(_) => "Gradient",

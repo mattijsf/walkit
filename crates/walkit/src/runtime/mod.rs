@@ -112,6 +112,12 @@ pub(crate) enum Fit {
 /// A loaded modern skin.
 pub struct SkinRuntime {
     pub(crate) files: Box<dyn SkinFiles>,
+    /// How far a classic title has scrolled, in pixels.
+    pub(crate) classic_scroll: i32,
+    /// A classic skin's `region.txt` polygons by section.
+    pub(crate) classic_regions: HashMap<String, Vec<Vec<(i32, i32)>>>,
+    /// A classic skin's playlist look (`pledit.txt`).
+    pub(crate) classic_pledit: crate::classic::pledit::PleditStyle,
     pub(crate) host: Box<dyn SkinHost>,
     pub(crate) player: Box<dyn Player>,
     clock: Clock,
@@ -268,6 +274,9 @@ impl SkinRuntime {
         let last_bands = player.eq_bands();
         SkinRuntime {
             files,
+            classic_scroll: 0,
+            classic_regions: HashMap::new(),
+            classic_pledit: crate::classic::pledit::PleditStyle::default(),
             host,
             player,
             clock,
