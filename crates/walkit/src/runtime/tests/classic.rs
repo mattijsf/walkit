@@ -1110,3 +1110,53 @@ fn the_equalizer_controls_take_presses_on_their_probed_boxes() {
     tap(&mut rt, 90, 116 + 50, 6);
     assert_ne!(rt.player.eq_bands()[0], flat);
 }
+
+#[test]
+fn the_title_buttons_take_presses_on_their_probed_boxes() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    let pl = rt.container("pledit").expect("the playlist");
+    let eq = rt.container("equalizer").expect("the equalizer");
+    // the playlist sits at y 116, the equalizer under it at 232
+    tap(&mut rt, 264, 116 + 12, 1);
+    rt.ensure_layout();
+    assert_eq!(
+        rt.window_size(rt.window_id_of(rt.container_layout(pl, "shade").unwrap()))
+            .1,
+        14,
+        "x 264, y 12 shades the playlist"
+    );
+    tap(&mut rt, 255, 116 + 3, 2);
+    rt.ensure_layout();
+    assert!(rt.is_open(pl));
+    assert_eq!(
+        rt.containers[pl].current,
+        rt.container_layout(pl, "normal"),
+        "x 255 shades it back"
+    );
+    tap(&mut rt, 254, 116 + 7, 3);
+    rt.ensure_layout();
+    assert_eq!(
+        rt.containers[pl].current,
+        rt.container_layout(pl, "normal"),
+        "x 254 is dead on the playlist"
+    );
+    tap(&mut rt, 265, 116 + 7, 4);
+    assert!(!rt.is_open(pl), "x 265 closes the playlist");
+    rt.ensure_layout();
+    // the equalizer now sits at y 116: its shade box starts at 253, its close at 264
+    tap(&mut rt, 253, 116 + 12, 5);
+    rt.ensure_layout();
+    assert_eq!(rt.containers[eq].current, rt.container_layout(eq, "shade"));
+    tap(&mut rt, 263, 116 + 3, 6);
+    rt.ensure_layout();
+    assert_eq!(rt.containers[eq].current, rt.container_layout(eq, "normal"));
+    tap(&mut rt, 273, 116 + 12, 7);
+    assert!(!rt.is_open(eq), "x 273, y 12 closes the equalizer");
+}
