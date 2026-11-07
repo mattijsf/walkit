@@ -223,6 +223,7 @@ impl SkinRuntime {
             stretch_last: self.stretch_last,
             touch_slop: self.touch_slop,
             free_windows: self.free.on,
+            touch: self.touch,
         }
     }
 
@@ -234,6 +235,10 @@ impl SkinRuntime {
         self.set_column_width(p.column_width);
         self.set_stretch_last(p.stretch_last);
         self.touch_slop = p.touch_slop;
+        self.touch = p.touch;
+        if !p.touch {
+            self.classic_open_menu = None;
+        }
         self.set_view_size(p.view_size);
         self.set_free_windows(p.free_windows);
     }

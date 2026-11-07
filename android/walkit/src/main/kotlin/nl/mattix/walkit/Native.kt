@@ -159,6 +159,7 @@ internal object Native {
         stretchLast: Boolean,
         touchSlop: Int,
         freeWindows: Boolean,
+        touch: Boolean,
     )
 
     @JvmStatic

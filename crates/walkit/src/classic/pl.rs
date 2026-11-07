@@ -248,24 +248,32 @@ impl SkinRuntime {
             x += 75;
         }
         p.blit("pledit.bmp", 126, 72, 150, 38, x, y);
-        // a bottom button held: its menu of pictures stacked over it, the one under the finger
+        // a bottom button held, or its menu a tap left open: the pictures stacked over it, the one under the finger
         // from the pressed column, the bar beside them
-        if let Some(press) = self.classic_press_on(o) {
-            if let Control::PlButton(b) = press.control {
-                let left = b.menu_left(w);
-                let items = b.items();
-                let top = h - 12 - 18 * items;
-                p.blit("pledit.bmp", b.bar_source(), 111, 3, 18 * items, left, top);
-                for i in 0..items {
-                    let sy = match i {
-                        3 => 168,
-                        2 => 111,
-                        1 => 130,
-                        _ => 149,
-                    };
-                    let sx = b.picture_source() + if press.hover == Some(i) { 23 } else { 0 };
-                    p.blit("pledit.bmp", sx, sy, 22, 18, left + 3, h - 30 - 18 * i);
-                }
+        let held = self
+            .classic_press_on(o)
+            .and_then(|p| match p.control {
+                Control::PlButton(b) => Some((b, p.hover)),
+                _ => None,
+            })
+            .or(self
+                .classic_open_menu
+                .filter(|(menu_on, _)| *menu_on == o)
+                .map(|(_, b)| (b, None)));
+        if let Some((b, hover)) = held {
+            let left = b.menu_left(w);
+            let items = b.items();
+            let top = h - 12 - 18 * items;
+            p.blit("pledit.bmp", b.bar_source(), 111, 3, 18 * items, left, top);
+            for i in 0..items {
+                let sy = match i {
+                    3 => 168,
+                    2 => 111,
+                    1 => 130,
+                    _ => 149,
+                };
+                let sx = b.picture_source() + if hover == Some(i) { 23 } else { 0 };
+                p.blit("pledit.bmp", sx, sy, 22, 18, left + 3, h - 30 - 18 * i);
             }
         }
         // the bottom bar's two lines in text.bmp cells: the

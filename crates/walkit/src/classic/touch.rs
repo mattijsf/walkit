@@ -235,6 +235,8 @@ pub struct ClassicPress {
     pub acted: bool,
     /// Whether a press on the playlist's rows has moved far enough to scroll them.
     pub dragged: bool,
+    /// Whether the press landed on a picture of a menu a tap left open, under touch.
+    pub on_open_menu: bool,
 }
 
 /// How far a finger moves on the playlist's rows before the press scrolls them instead of
@@ -521,6 +523,33 @@ impl SkinRuntime {
             return;
         };
         let rect = self.objects[o].base.rect;
+        // a menu a tap left open takes the next press on its window: a picture is pressed, as a
+        // held button's is, and a press anywhere else only closes the menu
+        if let Some((menu_on, b)) = self.classic_open_menu {
+            self.repaint();
+            if menu_on == o {
+                if let Some(i) = pl_menu_item_at(b, rect.width, rect.height, px, py) {
+                    self.classic_press = Some(ClassicPress {
+                        object: o,
+                        control: Control::PlButton(b),
+                        at: (px, py),
+                        inside: true,
+                        position: 0,
+                        hover: Some(i),
+                        from: (px, py),
+                        scroll_from: self.classic_pl_scroll,
+                        grab: px,
+                        acted: false,
+                        dragged: false,
+                        on_open_menu: true,
+                    });
+                    return;
+                }
+                self.classic_open_menu = None;
+                return;
+            }
+            self.classic_open_menu = None;
+        }
         let Some(mut control) = control_at(w, rect.width, rect.height, px, py) else {
             return;
         };
@@ -542,6 +571,7 @@ impl SkinRuntime {
             grab: px,
             acted: false,
             dragged: false,
+            on_open_menu: false,
         };
         self.classic_grab(&mut press, px);
         self.classic_follow(&mut press, px, py);
@@ -695,6 +725,20 @@ impl SkinRuntime {
         // a bottom button's menu is picked by the picture under the finger, above the button
         let seeks = matches!(press.control, Control::Position | Control::ShadePosition);
         let picks = matches!(press.control, Control::PlButton(_)) && press.hover.is_some();
+        // under touch a tap on a bottom button leaves its menu open; a slide to a picture still
+        // picks it on release, and a release off the pictures of an open menu leaves it open
+        if let (true, Control::PlButton(b)) = (self.touch, press.control) {
+            let tapped = !press.on_open_menu && near;
+            let missed = press.on_open_menu && !picks;
+            if tapped || missed {
+                self.classic_open_menu = Some((o, b));
+                self.classic_press = None;
+                self.classic_release(press);
+                self.repaint();
+                return;
+            }
+            self.classic_open_menu = None;
+        }
         self.classic_press = None;
         self.classic_release(press);
         if (over || seeks || picks) && !press.dragged && !press.acted {

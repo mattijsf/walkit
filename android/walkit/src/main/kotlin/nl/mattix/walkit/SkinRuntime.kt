@@ -213,6 +213,7 @@ public class SkinRuntime(
                 stretchLast = p[7] != 0,
                 touchSlop = p[8],
                 freeWindows = p[9] != 0,
+                touch = p[10] != 0,
             )
         }
         set(value) =
@@ -228,6 +229,7 @@ public class SkinRuntime(
                 value.stretchLast,
                 value.touchSlop,
                 value.freeWindows,
+                value.touch,
             )
 
     // ---- loading and themes --------------------------------------------------------------------
