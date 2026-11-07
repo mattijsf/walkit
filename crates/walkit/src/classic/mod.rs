@@ -16,16 +16,25 @@ mod main;
 mod pl;
 pub mod pledit;
 pub mod region;
+pub mod touch;
+pub mod vis;
+pub mod viscolor;
 
 /// The classic windows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClassicWindow {
     /// The main window, 275 x 116.
     Main,
+    /// The main window's shade bar, 275 x 14.
+    MainShade,
     /// The equalizer, 275 x 116.
     Equalizer,
+    /// The equalizer's shade bar, 275 x 14.
+    EqualizerShade,
     /// The playlist editor, 275 x 116 at least.
     Playlist,
+    /// The playlist editor's shade bar, as wide as the editor, 14 high.
+    PlaylistShade,
 }
 
 impl ClassicWindow {
@@ -33,8 +42,11 @@ impl ClassicWindow {
     pub fn parse(name: &str) -> Option<Self> {
         match name.to_lowercase().as_str() {
             "main" => Some(ClassicWindow::Main),
+            "mainshade" => Some(ClassicWindow::MainShade),
             "equalizer" => Some(ClassicWindow::Equalizer),
+            "equalizershade" => Some(ClassicWindow::EqualizerShade),
             "playlist" => Some(ClassicWindow::Playlist),
+            "playlistshade" => Some(ClassicWindow::PlaylistShade),
             _ => None,
         }
     }
@@ -43,6 +55,9 @@ impl ClassicWindow {
     pub fn size(self) -> (i32, i32) {
         match self {
             ClassicWindow::Main | ClassicWindow::Equalizer | ClassicWindow::Playlist => (275, 116),
+            ClassicWindow::MainShade
+            | ClassicWindow::EqualizerShade
+            | ClassicWindow::PlaylistShade => (275, 14),
         }
     }
 
@@ -50,8 +65,10 @@ impl ClassicWindow {
     pub fn region_section(self) -> &'static str {
         match self {
             ClassicWindow::Main => "normal",
+            ClassicWindow::MainShade => "windowshade",
             ClassicWindow::Equalizer => "equalizer",
-            ClassicWindow::Playlist => "",
+            ClassicWindow::EqualizerShade => "equalizerws",
+            ClassicWindow::Playlist | ClassicWindow::PlaylistShade => "",
         }
     }
 }
@@ -75,14 +92,24 @@ fn generated_xml() -> String {
             r#"<container id="main" name="Main Window" default_visible="1" default_x="0" default_y="0">"#,
             r#"<layout id="normal" w="{w}" h="{h}">"#,
             r#"<classicwindow id="classic.main" window="main" x="0" y="0" w="{w}" h="{h}" sysregion="1"/>"#,
+            r#"</layout>"#,
+            r#"<layout id="shade" w="{w}" h="14">"#,
+            r#"<classicwindow id="classic.mainshade" window="mainshade" x="0" y="0" w="{w}" h="14" sysregion="1"/>"#,
             r#"</layout></container>"#,
             r#"<container id="equalizer" name="Equalizer" default_visible="0" default_x="0" default_y="{h}">"#,
             r#"<layout id="normal" w="{w}" h="{h}">"#,
             r#"<classicwindow id="classic.eq" window="equalizer" x="0" y="0" w="{w}" h="{h}" sysregion="1"/>"#,
+            r#"</layout>"#,
+            r#"<layout id="shade" w="{w}" h="14">"#,
+            r#"<classicwindow id="classic.eqshade" window="equalizershade" x="0" y="0" w="{w}" h="14" sysregion="1"/>"#,
             r#"</layout></container>"#,
             r#"<container id="pledit" name="Playlist Editor" default_visible="0" default_x="0" default_y="{h2}">"#,
-            r#"<layout id="normal" w="{w}" h="{h}" minimum_w="{w}" minimum_h="{h}">"#,
+            r#"<layout id="normal" w="{w}" h="{h}" minimum_w="{w}" minimum_h="{h}" linkwidth="shade">"#,
             r#"<classicwindow id="classic.pl" window="playlist" x="0" y="0" w="0" h="0" relatw="1" relath="1" sysregion="1"/>"#,
+            r#"<layer id="classic.pl.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
+            r#"</layout>"#,
+            r#"<layout id="shade" w="{w}" h="14" minimum_w="{w}" linkwidth="normal">"#,
+            r#"<classicwindow id="classic.plshade" window="playlistshade" x="0" y="0" w="0" h="14" relatw="1" sysregion="1"/>"#,
             r#"</layout></container>"#,
             r#"</WinampAbstractionLayer>"#
         ),

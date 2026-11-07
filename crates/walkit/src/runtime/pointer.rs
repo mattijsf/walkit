@@ -189,7 +189,11 @@ impl SkinRuntime {
     fn is_control(&self, o: ObjId) -> bool {
         matches!(
             self.objects[o].kind,
-            Kind::Button(_) | Kind::Slider(_) | Kind::ColorThemeList(_) | Kind::PlaylistView(_)
+            Kind::Button(_)
+                | Kind::Slider(_)
+                | Kind::ColorThemeList(_)
+                | Kind::PlaylistView(_)
+                | Kind::ClassicWindow(_)
         ) || self.is_grip(o)
     }
 
@@ -624,6 +628,9 @@ impl SkinRuntime {
 
     /// Whether a drag that starts on `o` moves the window.
     pub(crate) fn moves_window(&mut self, o: ObjId) -> bool {
+        if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
+            return self.classic_moves_window(o);
+        }
         if matches!(
             self.objects[o].kind,
             Kind::Slider(_) | Kind::ColorThemeList(_) | Kind::PlaylistView(_)

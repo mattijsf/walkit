@@ -86,6 +86,7 @@ impl SkinRuntime {
                 self.slider_pointer_down(o, px, py);
                 return;
             }
+            Kind::ClassicWindow(_) => return self.classic_pointer_down(o, px, py),
             Kind::Menu(_) => self.menu_show_pressed(o, true),
             _ => {}
         }
@@ -99,6 +100,7 @@ impl SkinRuntime {
     pub(crate) fn object_pointer_move(&mut self, o: ObjId, px: i32, py: i32) {
         match self.objects[o].kind {
             Kind::Slider(_) => return self.slider_pointer_move(o, px, py),
+            Kind::ClassicWindow(_) => return self.classic_pointer_move(o, px, py),
             Kind::ColorThemeList(_) => return self.themes_pointer_move(o, py),
             Kind::PlaylistView(_) => return self.pl_pointer_move(o, py),
             _ => {}
@@ -128,6 +130,7 @@ impl SkinRuntime {
                 }
             }
             Kind::Slider(_) => self.slider_pointer_up(o, px, py),
+            Kind::ClassicWindow(_) => self.classic_pointer_up(o, px, py, inside),
             Kind::Menu(_) => {
                 self.menu_show_pressed(o, false);
                 self.dispatch(
@@ -161,6 +164,7 @@ impl SkinRuntime {
                 self.repaint();
             }
             Kind::Slider(_) => self.slider_pointer_cancel(o),
+            Kind::ClassicWindow(_) => self.classic_pointer_cancel(o),
             Kind::Menu(_) => self.menu_show_pressed(o, false),
             _ => {}
         }
@@ -183,6 +187,12 @@ impl SkinRuntime {
     pub(crate) fn object_double_tap(&mut self, o: ObjId, px: i32, py: i32) {
         if matches!(self.objects[o].kind, Kind::PlaylistView(_)) {
             return self.pl_double_tap(o, px, py);
+        }
+        if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
+            return self.classic_double_tap(o, px, py);
+        }
+        if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
+            return self.classic_double_tap(o, px, py);
         }
         self.dispatch(
             Handle::Gui(o),
