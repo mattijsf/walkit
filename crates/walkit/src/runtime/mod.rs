@@ -128,6 +128,8 @@ pub struct SkinRuntime {
     pub(crate) classic_pl_scroll: i32,
     /// What a classic skin's vis area shows.
     pub(crate) classic_vis_mode: crate::classic::vis::VisMode,
+    /// How a classic skin's vis area draws: Winamp's visualization options.
+    pub(crate) classic_vis_style: crate::classic::vis::VisStyle,
     /// A press on a classic window that has not ended.
     pub(crate) classic_press: Option<crate::classic::touch::ClassicPress>,
     /// Whether the classic time display counts down.
@@ -295,6 +297,7 @@ impl SkinRuntime {
             classic_palette: crate::classic::viscolor::BASE,
             classic_vis: crate::classic::vis::ClassicVis::default(),
             classic_vis_mode: crate::classic::vis::VisMode::default(),
+            classic_vis_style: crate::classic::vis::VisStyle::default(),
             classic_pl_scroll: 0,
             classic_eq_auto: false,
             classic_press: None,
@@ -422,6 +425,12 @@ impl SkinRuntime {
     /// The player, for a host that drives it.
     pub fn player(&mut self) -> &mut dyn Player {
         &mut *self.player
+    }
+
+    /// Sets how a classic skin's vis area draws (Winamp's visualization options).
+    pub fn set_classic_vis_style(&mut self, style: crate::classic::vis::VisStyle) {
+        self.classic_vis_style = style;
+        self.repaint();
     }
 
     /// The clock's reading now, in ms.

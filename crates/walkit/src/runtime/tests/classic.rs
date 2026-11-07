@@ -657,12 +657,12 @@ fn the_grip_at_the_playlist_corner_sizes_it() {
 
 #[test]
 fn a_press_on_the_vis_area_switches_to_the_oscilloscope() {
-    use crate::classic::vis::{scope, HEIGHT, WIDTH};
+    use crate::classic::vis::{scope, ScopeStyle, HEIGHT, WIDTH};
     // a quarter-scale sine: rows 6..13 around the middle, as the VM showed for the same tone
     let wave: Vec<f32> = (0..576)
         .map(|i| 0.244 * (i as f32 / 576.0 * std::f32::consts::TAU).sin())
         .collect();
-    let px = scope(&wave);
+    let px = scope(&wave, ScopeStyle::Lines);
     let rows_used: Vec<usize> = (0..HEIGHT)
         .filter(|y| (0..WIDTH).any(|x| px[y * WIDTH + x] >= 18))
         .collect();
@@ -678,7 +678,7 @@ fn a_press_on_the_vis_area_switches_to_the_oscilloscope() {
     // the first column is the sample alone; a later one runs from the sample before
     assert_eq!((0..HEIGHT).filter(|y| px[y * WIDTH] >= 18).count(), 1);
     // silence shows the grid alone: the odd rows' even columns
-    let quiet = scope(&[0.0; 576]);
+    let quiet = scope(&[0.0; 576], ScopeStyle::Lines);
     for y in 0..HEIGHT {
         for x in 0..WIDTH {
             assert_eq!(quiet[y * WIDTH + x], u8::from(y % 2 == 1 && x % 2 == 0));
@@ -709,11 +709,11 @@ fn a_press_on_the_vis_area_switches_to_the_oscilloscope() {
 
 #[test]
 fn the_shade_bar_shows_a_mini_analyzer_and_oscilloscope() {
-    use crate::classic::vis::{scope_shade, ClassicVis, SHADE_WIDTH};
+    use crate::classic::vis::{scope_shade, ClassicVis, ScopeStyle, VisStyle, SHADE_WIDTH};
     let mut vis = ClassicVis::default();
     // every band full: thick bars of three columns, five rows in colors 17 down to 5, no peak
     // row left to show; the fourth column of each group and the 38th column empty
-    let px = vis.frame_shade(0, &[1.0; 75]);
+    let px = vis.frame_shade(0, &[1.0; 75], &VisStyle::default());
     let col = |x: usize| (0..5).map(|y| px[y * SHADE_WIDTH + x]).collect::<Vec<_>>();
     assert_eq!(col(0), vec![5, 8, 11, 14, 17]);
     assert_eq!(col(2), vec![5, 8, 11, 14, 17]);
@@ -723,8 +723,8 @@ fn the_shade_bar_shows_a_mini_analyzer_and_oscilloscope() {
     assert_eq!(col(37), vec![0; 5]);
     // silence after: the bars fall off and the peak marks show in color 23
     let mut vis = ClassicVis::default();
-    let _ = vis.frame_shade(0, &[0.6; 75]);
-    let px = vis.frame_shade(25, &[0.0; 75]);
+    let _ = vis.frame_shade(0, &[0.6; 75], &VisStyle::default());
+    let px = vis.frame_shade(25, &[0.0; 75], &VisStyle::default());
     assert!(
         (0..5).any(|y| px[y * SHADE_WIDTH] == 23),
         "a peak: {:?}",
@@ -735,7 +735,7 @@ fn the_shade_bar_shows_a_mini_analyzer_and_oscilloscope() {
     let wave: Vec<f32> = (0..576)
         .map(|i| 0.244 * (i as f32 / 576.0 * std::f32::consts::TAU).sin())
         .collect();
-    let px = scope_shade(&wave);
+    let px = scope_shade(&wave, ScopeStyle::Lines);
     let rows: Vec<usize> = (0..5)
         .filter(|y| (0..SHADE_WIDTH).any(|x| px[y * SHADE_WIDTH + x] == 18))
         .collect();
@@ -936,4 +936,63 @@ fn the_title_scrolls_a_cell_every_step_and_the_time_blinks_while_paused() {
     assert!(!rt.classic_title_scrolls());
     assert_eq!(digits(&mut rt), 4);
     assert_eq!(rt.next_due_at(), None);
+}
+
+#[test]
+fn the_vis_styles_color_bars_and_lines_as_winamp_options_do() {
+    use crate::classic::vis::{
+        scope, AnalyzerStyle, ClassicVis, ScopeStyle, VisStyle, HEIGHT, WIDTH,
+    };
+    let column = |px: &[u8; WIDTH * HEIGHT], x: usize| -> Vec<u8> {
+        (0..HEIGHT).map(|y| px[y * WIDTH + x]).collect()
+    };
+    // fire: a bar of 8 shown rows (10 less the two under the picture) burns from color 3 at
+    // its top down to 10 at the picture's bottom row; line: one color, 17 less the height
+    let levels: Vec<f32> = (0..75).map(|_| 10.0 / 15.0).collect();
+    let fire = VisStyle {
+        analyzer: AnalyzerStyle::Fire,
+        ..VisStyle::default()
+    };
+    let px = ClassicVis::default().frame(0, &levels, &fire);
+    assert_eq!(&column(&px, 0)[8..], &[3, 4, 5, 6, 7, 8, 9, 10]);
+    let line = VisStyle {
+        analyzer: AnalyzerStyle::Line,
+        ..VisStyle::default()
+    };
+    let px = ClassicVis::default().frame(0, &levels, &line);
+    assert_eq!(&column(&px, 0)[8..], &[7; 8]);
+    // thin bars: every column, its own band; no peaks when they are off
+    let mut uneven = vec![0.0f32; 75];
+    uneven[3] = 1.0;
+    let thin = VisStyle {
+        thin_bars: true,
+        peaks: false,
+        ..VisStyle::default()
+    };
+    let px = ClassicVis::default().frame(0, &uneven, &thin);
+    // a full bar reaches row 3 (its lowest two rows lie under the picture)
+    assert_eq!(
+        &column(&px, 3)[3..],
+        &[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    );
+    assert!(!px.contains(&23), "no peak marks");
+    let px = ClassicVis::default().frame(0, &uneven, &VisStyle::default());
+    assert_eq!(
+        column(&px, 3),
+        vec![0; 16],
+        "thick: the fourth column stays empty"
+    );
+    // dots: one pixel per column; solid: a run to the middle
+    let wave: Vec<f32> = (0..576)
+        .map(|i| 0.244 * (i as f32 / 576.0 * std::f32::consts::TAU).sin())
+        .collect();
+    let dots = scope(&wave, ScopeStyle::Dots);
+    for x in 0..75 {
+        assert_eq!(column(&dots, x).iter().filter(|p| **p >= 18).count(), 1);
+    }
+    let solid = scope(&wave, ScopeStyle::Solid);
+    let top = column(&solid, 18);
+    let lit: Vec<usize> = (0..HEIGHT).filter(|y| top[*y] >= 18).collect();
+    assert_eq!(lit.first(), Some(&6), "the sine's crest");
+    assert_eq!(lit.last(), Some(&9), "down to the middle value 8's row");
 }
