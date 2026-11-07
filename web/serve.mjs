@@ -17,7 +17,8 @@ import { createServer } from "node:http";
 import { readFileSync, readdirSync, existsSync, appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inflateRawSync } from "node:zlib";
+import { inflateRawSync, gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { unzip } from "./zip.mjs";
 import { pack } from "./corpus.mjs";
 
@@ -36,10 +37,39 @@ const packOf = (key, make) => {
   return packs.get(key);
 };
 
+// a body's tag and gzip, kept with the body: the packs are made once, so are these
+const tags = new WeakMap();
+const zipped = new WeakMap();
+const tagOf = (body) => {
+  if (!tags.has(body)) tags.set(body, `"${createHash("sha1").update(body).digest("base64url")}"`);
+  return tags.get(body);
+};
+const gzipOf = (body) => {
+  if (!zipped.has(body)) zipped.set(body, gzipSync(body, { level: 6 }));
+  return zipped.get(body);
+};
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
+  // a large body goes out gzipped when the browser takes it, with a tag the browser checks
+  // next time: an unchanged skin, font set or module then costs no download
   const send = (status, body, type = "application/octet-stream") => {
-    res.writeHead(status, { "content-type": type, "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "require-corp", "cache-control": "no-store" });
+    const head = { "content-type": type, "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "require-corp", "cache-control": "no-store" };
+    if (status === 200 && typeof body !== "string" && body.length > 1024) {
+      const tag = tagOf(body);
+      head["cache-control"] = "no-cache";
+      head.etag = tag;
+      head.vary = "accept-encoding";
+      if (req.headers["if-none-match"] === tag) {
+        res.writeHead(304, head);
+        return res.end();
+      }
+      if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
+        head["content-encoding"] = "gzip";
+        body = gzipOf(body);
+      }
+    }
+    res.writeHead(status, head);
     res.end(body);
   };
   try {

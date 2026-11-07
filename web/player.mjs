@@ -170,12 +170,45 @@ async function loadModule() {
     now: () => performance.now(),
   });
   state.defaults = await fetchBytes("/pack/defaults").then((b) => (b ? unpack(b) : new Map()));
-  state.fonts = await fetchBytes("/pack/fonts").then((b) => (b ? unpack(b) : new Map()));
-  for (const [name, bytes] of state.fonts) await registerFont(name, bytes);
-  for (const [id, file] of Object.entries(standIns)) if (families.has(file)) families.set(`id:${id}`, file);
-  if (families.has("fonts/liberationsans.ttf")) families.set("", "fonts/liberationsans.ttf");
   state.defaultsId = state.defaults.size ? state.w.filesFrom(state.defaults) : -1;
-  say(`engine loaded; default set ${state.defaults.size} files, ${state.fonts.size} fonts`);
+  say(`engine loaded; default set ${state.defaults.size} files`);
+}
+
+/**
+ * The stand-in fonts for the system fonts skins name, fetched once when a skin first wants
+ * them: a modern skin lays its text out with them, a classic skin only draws its playlist in one.
+ */
+function loadFonts() {
+  if (!state.fontsReady) {
+    state.fontsReady = (async () => {
+      state.fonts = await fetchBytes("/pack/fonts").then((b) => (b ? unpack(b) : new Map()));
+      for (const [name, bytes] of state.fonts) await registerFont(name, bytes);
+      for (const [id, file] of Object.entries(standIns)) if (families.has(file)) families.set(`id:${id}`, file);
+      if (families.has("fonts/liberationsans.ttf")) families.set("", "fonts/liberationsans.ttf");
+      say(`${state.fonts.size} fonts`);
+    })();
+  }
+  return state.fontsReady;
+}
+
+/** Whether `entries` hold a classic skin: a main.bmp and no skin.xml. */
+function isClassic(entries) {
+  const names = new Set([...inSkinFolder(entries).keys()].map(normalize));
+  return names.has("main.bmp") && !names.has("skin.xml");
+}
+
+/**
+ * The sister skins `entries` read files of, by `siblingName`: the folders their XML and scripts
+ * name as `../<folder>/` (Bento reads Big Bento's). A classic skin reads none.
+ */
+function siblingsNamed(entries) {
+  const out = new Set();
+  const text = new TextDecoder("latin1");
+  for (const [n, b] of entries) {
+    if (!/\.(xml|maki|m)$/i.test(n)) continue;
+    for (const m of text.decode(b).matchAll(/\.\.[\\/]+([^\\/"'<>\r\n]+)[\\/]/g)) out.add(siblingName(m[1]));
+  }
+  return out;
 }
 
 /**
@@ -214,15 +247,31 @@ async function openSkin(name, entries, { clock = null } = {}) {
   state.renderer = new Renderer(state.pictures, families);
   state.reader = new FrameReader();
   const skinId = fileIdOf(name, entries);
-  // every archive of the folder, the skin itself included (Bento reads Big Bento's scripts)
+  // the sister skins the skin names, and theirs in turn (Bento reads Big Bento's scripts);
+  // none for a classic skin
   const siblings = {};
   siblings[siblingName(name)] = skinId;
-  for (const f of state.walFiles) {
-    if (f === name) continue;
-    const e = await archive(f);
-    if (!e) continue;
-    siblings[siblingName(f)] = fileIdOf(f, e);
-    await picturesOf(f, e);
+  const wanted = siblingsNamed(entries);
+  for (let more = true; more; ) {
+    more = false;
+    for (const f of state.walFiles) {
+      const key = siblingName(f);
+      if (f === name || key in siblings || !wanted.has(key)) continue;
+      const e = await archive(f);
+      if (!e) continue;
+      siblings[key] = fileIdOf(f, e);
+      await picturesOf(f, e);
+      for (const k of siblingsNamed(e)) if (!wanted.has(k)) (wanted.add(k), (more = true));
+    }
+  }
+  // a modern skin lays text out with the stand-in fonts as it loads; a classic skin starts
+  // without them and draws its playlist again once they are here
+  if (isClassic(entries)) {
+    loadFonts().then(() => {
+      state.dirty = true;
+    });
+  } else {
+    await loadFonts();
   }
   const stack = state.w.stack(skinId, state.defaultsId, siblings);
   const skinName = name.replace(/\.(wal|wsz)$/i, "");
