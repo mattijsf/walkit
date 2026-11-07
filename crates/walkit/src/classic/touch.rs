@@ -126,15 +126,18 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
                 // the vis area answers presses from 3 rows above its picture to 3 below
                 // (Winamp 5.666, probed by clicks in the VM: y 40..=61, x 24..=99)
                 (Vis, 24, 40, 76, 22),
-                (Volume, 107, 57, 68, 13),
-                (Balance, 177, 57, 38, 13),
+                // the sliders answer presses on the rows their thumbs travel (probed in the
+                // VM): volume x 107..=175 and balance x 177..=215, both y 58..=66; the
+                // position bar x 18..=263 (16 and 17 miss), y 73..=81
+                (Volume, 107, 58, 69, 9),
+                (Balance, 177, 58, 39, 9),
                 // the toggles and the control buttons answer presses on boxes probed in the
                 // VM, a column or row beside their blits: EQ x 219..=242, PL x 243..=265, both
                 // y 58..=70; previous x 15..=37, play 38..=60, pause 61..=82, stop 83..=106,
                 // next 107..=130, all y 87..=106
                 (EqToggle, 219, 58, 24, 13),
                 (PlToggle, 243, 58, 23, 13),
-                (Position, 16, 72, 248, 10),
+                (Position, 18, 73, 246, 9),
                 (Previous, 15, 87, 23, 20),
                 (Play, 38, 87, 23, 20),
                 (Pause, 61, 87, 22, 20),
