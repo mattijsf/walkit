@@ -616,7 +616,7 @@ pub fn rt_set_skin_name<'l>(
 
 /// How the host shows the windows: whether there is a view size and its width and height, the
 /// viewport's width and height, the columns, the column width, whether the last list window
-/// stretches, and the touch slop.
+/// stretches, the touch slop, whether the windows are apart and whether a finger drives the skin.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_presentation<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JIntArray<'l> {
     env.with_env(|env| {
@@ -635,6 +635,7 @@ pub fn rt_presentation<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong
                 p.stretch_last as i32,
                 p.touch_slop,
                 p.free_windows as i32,
+                p.touch as i32,
             ],
         )
     })
@@ -658,6 +659,7 @@ pub fn rt_set_presentation<'l>(
     stretch_last: jboolean,
     touch_slop: jint,
     free_windows: jboolean,
+    touch: jboolean,
 ) {
     env.with_env(|env| {
         let p = Presentation {
@@ -668,6 +670,7 @@ pub fn rt_set_presentation<'l>(
             stretch_last,
             touch_slop,
             free_windows,
+            touch,
         };
         with_rt(env, h, |r| r.rt.set_presentation(&p))
     })

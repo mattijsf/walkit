@@ -147,6 +147,9 @@ pub struct SkinRuntime {
     pub(crate) classic_vis_style: crate::classic::vis::VisStyle,
     /// A press on a classic window that has not ended.
     pub(crate) classic_press: Option<crate::classic::touch::ClassicPress>,
+    /// A classic playlist's bottom-button menu a tap left open, under touch: the window and the
+    /// button.
+    pub(crate) classic_open_menu: Option<(ObjId, crate::classic::touch::PlMenu)>,
     /// Whether the classic time display counts down.
     pub(crate) classic_remaining: bool,
     /// The classic playlist's selected row.
@@ -242,6 +245,8 @@ pub struct SkinRuntime {
     column_width: i32,
     stretch_last: bool,
     pub(crate) touch_slop: i32,
+    /// Whether a finger drives the skin (`Presentation::touch`).
+    pub(crate) touch: bool,
     pub(crate) last_pointer: (i32, i32),
     dirty: bool,
     needs_layout: bool,
@@ -324,6 +329,7 @@ impl SkinRuntime {
             classic_pl_scroll: 0,
             classic_eq_auto: false,
             classic_press: None,
+            classic_open_menu: None,
             classic_remaining: false,
             classic_selected_row: None,
             host,
@@ -399,6 +405,7 @@ impl SkinRuntime {
             column_width: 0,
             stretch_last: true,
             touch_slop: 6,
+            touch: false,
             last_pointer: (0, 0),
             dirty: true,
             needs_layout: true,

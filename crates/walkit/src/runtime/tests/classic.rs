@@ -1709,6 +1709,86 @@ fn the_playlist_buttons_pop_their_menus_and_the_pick_goes_to_the_host() {
     );
 }
 
+/// The playlist's pledit.bmp blits, as the stack draws them now.
+fn playlist_blits(rt: &mut SkinRuntime) -> Vec<(i32, i32, i32, i32, i32, i32)> {
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    blits(cmds, "pledit.bmp")
+}
+
+#[test]
+fn under_touch_a_tap_on_a_playlist_button_leaves_its_menu_open_for_a_second_tap() {
+    let (mut rt, actions) = classic_recording();
+    rt.set_presentation(&crate::host::Presentation {
+        touch: true,
+        ..rt.presentation()
+    });
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    // a tap on ADD: nothing picked, the bar and its three pictures stay up
+    tap(&mut rt, 20, 116 + 95, 1);
+    assert!(actions.borrow().is_empty(), "a tap picks nothing");
+    let pl = playlist_blits(&mut rt);
+    assert!(
+        pl.contains(&(48, 111, 3, 54, 11, 50)),
+        "the bar stays: {pl:?}"
+    );
+    assert!(
+        pl.contains(&(0, 111, 22, 18, 14, 50)),
+        "the top picture at rest"
+    );
+    // the top picture lights while the second finger holds it and picks on release
+    rt.pointer_down(20, 116 + 55, 2);
+    assert!(
+        playlist_blits(&mut rt).contains(&(23, 111, 22, 18, 14, 50)),
+        "pressed"
+    );
+    rt.pointer_up(20, 116 + 55);
+    assert_eq!(*actions.borrow(), vec!["PLAYLIST add_url"]);
+    assert!(
+        !playlist_blits(&mut rt).contains(&(48, 111, 3, 54, 11, 50)),
+        "a pick closes the menu"
+    );
+    // a tap beside an open menu closes it and does nothing else
+    tap(&mut rt, 50, 116 + 95, 3);
+    assert!(
+        playlist_blits(&mut rt).contains(&(100, 111, 3, 72, 40, 32)),
+        "REM open"
+    );
+    tap(&mut rt, 200, 116 + 40, 4);
+    assert!(
+        !playlist_blits(&mut rt).contains(&(100, 111, 3, 72, 40, 32)),
+        "closed"
+    );
+    assert_eq!(actions.borrow().len(), 1, "and nothing picked");
+    // holding and sliding to a picture still picks it on release, as with a mouse
+    rt.pointer_down(50, 116 + 95, 5);
+    rt.pointer_move(50, 116 + 58);
+    rt.pointer_up(50, 116 + 58);
+    assert_eq!(
+        actions.borrow().last().map(String::as_str),
+        Some("PLAYLIST remove_all")
+    );
+}
+
+#[test]
+fn with_a_mouse_a_click_on_a_playlist_button_picks_its_lowest_picture_and_closes() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt.pointer_down(20, 116 + 95, 1);
+    rt.pointer_up(20, 116 + 95);
+    assert_eq!(*actions.borrow(), vec!["PLAYLIST add_file"]);
+    assert!(!playlist_blits(&mut rt).contains(&(48, 111, 3, 54, 11, 50)));
+}
+
 #[test]
 fn the_menu_button_the_clutter_bar_and_presets_reach_the_host() {
     let (mut rt, actions) = classic_recording();

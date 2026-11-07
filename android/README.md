@@ -11,7 +11,7 @@ changes its imports and little else.
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.5
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.6
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
@@ -23,7 +23,7 @@ say where each one is.
 
 The AAR ships consumer ProGuard rules for what the native side reaches by name, so a
 consumer's shrinker needs no rule of its own. Its test fixtures
-(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.5"))`) carry the engine built
+(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.6"))`) carry the engine built
 for the machine that published them (`cargoBuildHost`, a plain `cargo build`), so a consumer's
 JVM unit tests run skins on it: `SkinRuntime` loads `libwalkit.so` on Android and falls back to
 that build on a JVM (`HostLibrary`). The fixtures also carry `nl.mattix.walkit.fixtures`, helpers
