@@ -1014,7 +1014,8 @@ impl SkinRuntime {
             // buttons, its presets button, its playlist's bottom buttons, the clutter bar's A and D
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
             | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "VID_1X" | "VID_2X" | "VID_TV"
-            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" => {
+            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "ALWAYS_ON_TOP"
+            | "DOUBLESIZE" | "ABOUT" => {
                 if self.host_actions {
                     self.host.host_action(&a, param);
                 }

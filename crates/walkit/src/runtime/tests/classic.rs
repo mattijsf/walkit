@@ -1697,16 +1697,34 @@ fn the_playlist_buttons_pop_their_menus_and_the_pick_goes_to_the_host() {
         actions.borrow().last().map(String::as_str),
         Some("PLAYLIST list_load")
     );
-    // SEL's middle picture clears the selection here and tells the host
+    // SEL's middle picture clears the selection here and tells the host, which then hears
+    // that no row is selected
     rt.classic_selected_row = Some(0);
     rt.pointer_down(80, 116 + 95, 4);
     rt.pointer_move(80, 116 + 72);
     rt.pointer_up(80, 116 + 72);
     assert_eq!(rt.classic_selected_row, None);
+    let n = actions.borrow().len();
     assert_eq!(
-        actions.borrow().last().map(String::as_str),
-        Some("PLAYLIST select_none")
+        actions.borrow()[n - 2..],
+        ["PLAYLIST select_none", "PLAYLIST_SELECT"]
     );
+}
+
+#[test]
+fn a_row_tapped_in_the_playlist_is_the_selection_the_host_hears_of() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    // the first row, as a_press_on_a_playlist_row_selects_it presses it
+    rt.pointer_down(30, 116 + 25, 1);
+    rt.pointer_up(30, 116 + 25);
+    assert_eq!(rt.classic_selected_row, Some(0));
+    assert_eq!(*actions.borrow(), vec!["PLAYLIST_SELECT 0"]);
+    // the same row again tells the host nothing new
+    rt.pointer_down(30, 116 + 25, 2);
+    rt.pointer_up(30, 116 + 25);
+    assert_eq!(actions.borrow().len(), 1);
 }
 
 /// The playlist's pledit.bmp blits, as the stack draws them now.
