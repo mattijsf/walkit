@@ -195,6 +195,17 @@ impl PlMenu {
     }
 }
 
+/// The playlist picks after which no row stays selected: they clear the selection or change the
+/// list it pointed into.
+const CLEARS_SELECTION: [&str; 6] = [
+    "select_none",
+    "remove_selected",
+    "remove_all",
+    "crop",
+    "list_new",
+    "list_load",
+];
+
 /// The menu picture under `x`, `y` of a playlist `width` by `height`, for button `b`: the
 /// pictures are 22 wide and 18 tall, the lowest at `height - 30`, each next one 18 above.
 fn pl_menu_item_at(b: PlMenu, width: i32, height: i32, x: i32, y: i32) -> Option<i32> {
@@ -697,6 +708,17 @@ impl SkinRuntime {
         self.repaint();
     }
 
+    /// Selects playlist row `row` (or none) and tells the host, which keeps the selection the
+    /// bottom buttons' picks act on (`PLAYLIST_SELECT` with the row, or no param for none).
+    fn classic_select_row(&mut self, o: ObjId, row: Option<i32>) {
+        if self.classic_selected_row == row {
+            return;
+        }
+        self.classic_selected_row = row;
+        let param = row.map(|r| r.to_string());
+        self.action(o, "PLAYLIST_SELECT", param.as_deref(), None);
+    }
+
     /// Whether the finger at `px`, `py` is still within the touch slop of where `press` went
     /// down.
     fn classic_near(&self, press: &ClassicPress, px: i32, py: i32) -> bool {
@@ -819,16 +841,17 @@ impl SkinRuntime {
             (_, Some(Control::PlRow(i))) => {
                 let index = self.classic_pl_scroll(rect.height) + i;
                 if (index as usize) < self.player.tracks().len() {
-                    self.classic_selected_row = Some(index);
+                    self.classic_select_row(o, Some(index));
                     self.player.play_track(index);
                 }
             }
             (_, Some(Control::PlButton(b))) => {
                 if let Some(choice) = b.choice(0) {
-                    if choice == "select_none" {
-                        self.classic_selected_row = None;
-                    }
                     self.action(o, "PLAYLIST", Some(choice), None);
+                    // the list the selection pointed into changed, or the selection was cleared
+                    if CLEARS_SELECTION.contains(&choice) {
+                        self.classic_select_row(o, None);
+                    }
                 }
             }
             _ => {}
@@ -1065,10 +1088,11 @@ impl SkinRuntime {
             }
             Control::PlButton(b) => {
                 if let Some(choice) = press.hover.and_then(|i| b.choice(i)) {
-                    if choice == "select_none" {
-                        self.classic_selected_row = None;
-                    }
                     self.action(o, "PLAYLIST", Some(choice), None);
+                    // the list the selection pointed into changed, or the selection was cleared
+                    if CLEARS_SELECTION.contains(&choice) {
+                        self.classic_select_row(o, None);
+                    }
                 }
             }
             Control::Time => self.classic_remaining = !self.classic_remaining,
@@ -1077,7 +1101,7 @@ impl SkinRuntime {
                 let h = self.objects[o].base.rect.height;
                 let index = self.classic_pl_scroll(h) + i;
                 if (index as usize) < self.player.tracks().len() {
-                    self.classic_selected_row = Some(index);
+                    self.classic_select_row(o, Some(index));
                 }
             }
             _ => {}
