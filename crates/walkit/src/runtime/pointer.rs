@@ -984,7 +984,7 @@ impl SkinRuntime {
             // buttons, and the clutter bar's A and D
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
             | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "EQ_PRESETS" | "PLAYLIST"
-            | "ALWAYS_ON_TOP" | "DOUBLESIZE" => {
+            | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" => {
                 if self.host_actions {
                     self.host.host_action(&a, param);
                 }

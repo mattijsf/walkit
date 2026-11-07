@@ -371,7 +371,7 @@ impl SkinRuntime {
     /// When a classic skin's main window next changes by itself: the title's next scroll step
     /// while its normal layout shows a long title, the time's next blink while paused.
     fn classic_next_due_at(&mut self, now: i64) -> Option<i64> {
-        use crate::classic::main::{PAUSE_BLINK_MS, TITLE_STEP_MS};
+        use crate::classic::main::PAUSE_BLINK_MS;
         use crate::classic::ClassicWindow;
         let main = self.main_layout()?;
         let shown: Vec<ClassicWindow> = self.objects[main]
@@ -384,7 +384,7 @@ impl SkinRuntime {
             .collect();
         let mut due = None;
         if shown.contains(&ClassicWindow::Main) && self.classic_title_scrolls() {
-            due = Some((now / TITLE_STEP_MS + 1) * TITLE_STEP_MS);
+            due = self.classic_title_next_step(now);
         }
         if !shown.is_empty() && self.player.status() == Status::Paused {
             let blink = (now / PAUSE_BLINK_MS + 1) * PAUSE_BLINK_MS;

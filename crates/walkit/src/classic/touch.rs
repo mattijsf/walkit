@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Touches on the classic windows: the controls under a point are the ones the painters draw
-//! (each control's box is where it is drawn), a press shows the control pressed, a release
-//! inside it acts, the sliders follow the finger, the title bars move the window and a double
-//! tap on one toggles the shade bar.
+//! Touches on the classic windows, as Winamp's classic windows handle the mouse: each
+//! control answers on its own box (in the main window,
+//! the equalizer and the playlist), most act on release over
+//! the control and a few on the press, the sliders follow the finger from where they were
+//! grabbed, the control buttons hand the press along as the finger slides over them, a drag on
+//! any place without a control moves the window, and double taps do what Winamp's double clicks
+//! do.
 
 use crate::classic::ClassicWindow;
 use crate::gui::{Kind, ObjId};
@@ -14,6 +17,22 @@ use crate::runtime::SkinRuntime;
 pub enum Control {
     /// The bar a drag moves the window by.
     TitleBar,
+    /// A place without a control: a drag there moves the window too (Winamp's "easy move").
+    Background,
+    /// The song title's row: a drag scrolls it by hand.
+    TitleText,
+    /// The lightning logo at the main window's lower right, which opens the about box.
+    Logo,
+    /// The shade bar's small vis.
+    ShadeVis,
+    /// The playlist's small transport buttons by its time: 0 previous .. 4 next, 5 eject.
+    PlMini(i32),
+    /// The playlist's time display.
+    PlTime,
+    /// The playlist's arrow that scrolls the list a row up.
+    PlScrollUp,
+    /// The playlist's arrow that scrolls the list a row down.
+    PlScrollDown,
     /// The menu button at the title bar's left.
     Menu,
     /// The minimize button.
@@ -205,6 +224,10 @@ pub struct ClassicPress {
     pub from: (i32, i32),
     /// The playlist's scroll when the press began.
     pub scroll_from: i32,
+    /// Where on a slider's thumb the finger took it, or the title row's last x.
+    pub grab: i32,
+    /// Whether the press already did what it does (some controls act on the press).
+    pub acted: bool,
     /// Whether a press on the playlist's rows has moved far enough to scroll them.
     pub dragged: bool,
 }
@@ -224,71 +247,64 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
     use Control::*;
     match w {
         ClassicWindow::Main => {
-            let boxes: [(Control, i32, i32, i32, i32); 24] = [
-                // the title buttons answer a row below their pictures and, at the right, a
-                // column beyond; the VM showed minimize reaching x 253 and the equalizer's
-                // shade and close boxes at x 253..=263 and 264..=273, y 3..=12
-                (Menu, 6, 3, 9, 10),
+            // the box each control answers in (probed in the VM): title buttons, clutter bar,
+            // time and vis, sliders,
+            // position bar, control buttons, eject,
+            // shuffle and repeat, the window toggles, the
+            // logo, the title row
+            let boxes: [(Control, i32, i32, i32, i32); 26] = [
+                (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
-                (Shade, 254, 3, 10, 10),
-                (Close, 264, 3, 10, 10),
-                (ClutterO, 10, 22, 8, 8),
-                (ClutterA, 10, 30, 8, 8),
-                (ClutterI, 10, 38, 8, 8),
-                (ClutterD, 10, 46, 8, 8),
-                (ClutterV, 10, 54, 8, 11),
-                // the time's press box as probed in the VM: x 36..=97, y 26..=39
-                (Time, 36, 26, 62, 14),
-                // the vis area answers presses from 3 rows above its picture to 3 below
-                // (Winamp 5.666, probed by clicks in the VM: y 40..=61, x 24..=99)
-                (Vis, 24, 40, 76, 22),
-                // the sliders answer presses on the rows their thumbs travel (probed in the
-                // VM): volume x 107..=175 and balance x 177..=215, both y 58..=66; the
-                // position bar x 18..=263 (16 and 17 miss), y 73..=81
+                (Shade, 254, 3, 9, 10),
+                (Close, 264, 3, 9, 10),
+                (ClutterO, 11, 24, 9, 8),
+                (ClutterA, 11, 32, 9, 8),
+                (ClutterI, 11, 40, 9, 8),
+                (ClutterD, 11, 48, 9, 8),
+                (ClutterV, 11, 56, 9, 7),
+                (Time, 36, 26, 61, 14),
+                (Vis, 27, 40, 73, 22),
+                (TitleText, 117, 24, 150, 12),
                 (Volume, 107, 58, 69, 9),
                 (Balance, 177, 58, 39, 9),
-                // the toggles and the control buttons answer presses on boxes probed in the
-                // VM, a column or row beside their blits: EQ x 219..=242, PL x 243..=265, both
-                // y 58..=70; previous x 15..=37, play 38..=60, pause 61..=82, stop 83..=106,
-                // next 107..=130, all y 87..=106
                 (EqToggle, 219, 58, 24, 13),
                 (PlToggle, 243, 58, 23, 13),
                 (Position, 18, 73, 246, 9),
                 (Previous, 15, 87, 23, 20),
-                (Play, 38, 87, 23, 20),
-                (Pause, 61, 87, 22, 20),
-                (Stop, 83, 87, 24, 20),
+                (Play, 38, 87, 22, 20),
+                (Pause, 60, 87, 24, 20),
+                (Stop, 84, 87, 23, 20),
                 (Next, 107, 87, 24, 20),
-                (Eject, 136, 89, 22, 16),
-                // shuffle and repeat answer presses on boxes of their own, probed in the VM:
-                // shuffle x 165..=209, y 90..=102; repeat x 210..=239, y 89..=103
+                (Eject, 136, 89, 23, 17),
                 (Shuffle, 165, 90, 45, 13),
-                (Repeat, 210, 89, 30, 15),
+                (Repeat, 210, 90, 30, 13),
+                (Logo, 253, 91, 13, 15),
             ];
             for (c, bx, by, bw, bh) in boxes {
                 if hit(x, y, bx, by, bw, bh) {
                     return Some(c);
                 }
             }
-            (y < 14).then_some(TitleBar)
+            Some(if y < 14 { TitleBar } else { Background })
         }
         ClassicWindow::MainShade => {
-            // the bar's transport buttons sit nine columns apart from x 168 (probed in the VM:
-            // play x 177..=185, stop x 195..=203, rows 2..=11); its mini position bar answers
-            // x 230..=242, y 3..=12
-            let boxes: [(Control, i32, i32, i32, i32); 12] = [
-                (Menu, 6, 3, 9, 10),
+            // the bar's transport buttons split x 168..=224 at 176, 186, 195, 204 and 215
+            // and its mini position bar is x 228..=242, its time
+            // x 129..=157, its small vis x 78..=116
+            let boxes: [(Control, i32, i32, i32, i32); 13] = [
+                (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
-                (Shade, 254, 3, 10, 10),
-                (Close, 264, 3, 10, 10),
-                (Previous, 168, 2, 9, 10),
-                (Play, 177, 2, 9, 10),
+                (Shade, 254, 3, 9, 10),
+                (Close, 264, 3, 9, 10),
+                (Previous, 168, 2, 8, 10),
+                (Play, 176, 2, 10, 10),
                 (Pause, 186, 2, 9, 10),
                 (Stop, 195, 2, 9, 10),
-                (Next, 204, 2, 9, 10),
-                (Eject, 213, 2, 9, 10),
-                (ShadePosition, 230, 3, 13, 10),
-                (Time, 126, 4, 32, 6),
+                (Next, 204, 2, 11, 10),
+                (Eject, 215, 2, 10, 10),
+                (ShadePosition, 228, 3, 15, 10),
+                (Time, 129, 3, 29, 7),
+                (ShadeVis, 78, 4, 39, 8),
             ];
             for (c, bx, by, bw, bh) in boxes {
                 if hit(x, y, bx, by, bw, bh) {
@@ -306,9 +322,6 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, 264, 3, 10, 10) {
                 return Some(Close);
             }
-            if y < 14 {
-                return Some(TitleBar);
-            }
             // ON and AUTO answer a row more than their pictures; a slider's box stops a column
             // short of its picture's right edge (probed in the VM)
             if hit(x, y, 14, 18, 25, 13) {
@@ -317,7 +330,7 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, 39, 18, 34, 13) {
                 return Some(EqAuto);
             }
-            if hit(x, y, 217, 18, 44, 12) {
+            if hit(x, y, 217, 18, 45, 13) {
                 return Some(EqPresets);
             }
             // the labels between the preamp and the bands: x 42..=67, "+12" on
@@ -327,15 +340,16 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
                     return Some(EqLevel(level));
                 }
             }
-            if hit(x, y, 21, 38, 13, 63) {
+            // a slider answers rows 39..=98
+            if hit(x, y, 21, 39, 13, 60) {
                 return Some(EqSlider(0));
             }
             for n in 1..=10 {
-                if hit(x, y, n * 18 + 60, 38, 13, 63) {
+                if hit(x, y, n * 18 + 60, 39, 13, 60) {
                     return Some(EqSlider(n as usize));
                 }
             }
-            None
+            Some(if y < 14 { TitleBar } else { Background })
         }
         ClassicWindow::EqualizerShade => {
             if hit(x, y, 253, 3, 11, 10) {
@@ -362,34 +376,46 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, width - 20, 3, 10, 10) {
                 return Some(Shade);
             }
-            if y < 20 {
-                return Some(TitleBar);
+            // the small arrows above the corner and the scrollbar's track,
+            // a column beyond its picture (x 260..=268 at width 275)
+            if hit(x, y, width - 15, height - 36, 9, 5) {
+                return Some(PlScrollUp);
             }
-            // the scrollbar's track answers a column beyond its picture (probed in the VM at
-            // width 275: x 260..=268, 259 dead)
+            if hit(x, y, width - 15, height - 31, 9, 5) {
+                return Some(PlScrollDown);
+            }
             if hit(x, y, width - 15, 20, 9, height - 58) {
                 return Some(PlScroll);
             }
-            // the rows answer presses up to two columns short of the scrollbar (probed in
-            // the VM at width 275: x 12..=257, with 250 the last column tried and 259 dead)
-            if hit(x, y, 12, 20, width - 29, height - 58) {
-                return Some(PlRow((y - 20) / 14));
+            // the rows: x 12..=w-20, y 20..=h-38, a row counted from y 22
+            if hit(x, y, 12, 20, width - 31, height - 57) {
+                let row = (y - crate::classic::pl::ROW_TOP) / crate::classic::pl::ROW_HEIGHT;
+                return Some(PlRow(row));
             }
-            // the bottom buttons, 25 by 18 from the bottom-left piece and the right one
-            if y >= height - 30 && y < height - 12 {
-                for (b, left) in [
-                    (PlMenu::Add, 11),
-                    (PlMenu::Remove, 40),
-                    (PlMenu::Select, 69),
-                    (PlMenu::Misc, 98),
-                    (PlMenu::List, width - 46),
-                ] {
-                    if x >= left && x < left + 25 {
-                        return Some(PlButton(b));
-                    }
+            // the small transport by the time, x w-144..=w-91 split at 7, 17, 27, 36 and 45
+            // and the time beside it
+            if hit(x, y, width - 144, height - 15, 54, 8) {
+                let dx = x - (width - 144);
+                let index = [7, 17, 27, 36, 45].iter().filter(|e| dx >= **e).count();
+                return Some(PlMini(index as i32));
+            }
+            if hit(x, y, width - 87, height - 18, 35, 10) {
+                return Some(PlTime);
+            }
+            // the bottom buttons: ADD x 14..=35, REM 43..=64, SEL
+            // 72..=93, MISC 101..=122, LIST w-44..=w-22, rows h-30..=h-13
+            for (b, left, wide) in [
+                (PlMenu::Add, 14, 22),
+                (PlMenu::Remove, 43, 22),
+                (PlMenu::Select, 72, 22),
+                (PlMenu::Misc, 101, 22),
+                (PlMenu::List, width - 44, 23),
+            ] {
+                if hit(x, y, left, height - 30, wide, 18) {
+                    return Some(PlButton(b));
                 }
             }
-            None
+            Some(if y < 14 { TitleBar } else { Background })
         }
         ClassicWindow::PlaylistShade => {
             if hit(x, y, width - 10, 3, 10, 10) {
@@ -417,10 +443,19 @@ impl SkinRuntime {
         self.classic_press.filter(|p| p.object == o)
     }
 
-    /// Whether a drag from the press on `o` moves the window: it began on the title bar.
+    /// Whether a drag from the press on `o` moves the window: it began on the title bar or on
+    /// a place without a control.
     pub(crate) fn classic_moves_window(&self, o: ObjId) -> bool {
         self.classic_press_on(o)
-            .is_some_and(|p| p.control == Control::TitleBar)
+            .is_some_and(|p| matches!(p.control, Control::TitleBar | Control::Background))
+    }
+
+    /// Whether `c` is one of the main window's control buttons, which hand a press along.
+    fn is_cbutton(c: Control) -> bool {
+        matches!(
+            c,
+            Control::Previous | Control::Play | Control::Pause | Control::Stop | Control::Next
+        )
     }
 
     pub(crate) fn classic_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
@@ -428,9 +463,15 @@ impl SkinRuntime {
             return;
         };
         let rect = self.objects[o].base.rect;
-        let Some(control) = control_at(w, rect.width, rect.height, px, py) else {
+        let Some(mut control) = control_at(w, rect.width, rect.height, px, py) else {
             return;
         };
+        let playing = self.player.status() == Status::Playing;
+        // the main window's vis answers only while something plays; else it is a place to
+        // move the window by
+        if control == Control::Vis && !playing {
+            control = Control::Background;
+        }
         let mut press = ClassicPress {
             object: o,
             control,
@@ -440,11 +481,83 @@ impl SkinRuntime {
             hover: None,
             from: (px, py),
             scroll_from: self.classic_pl_scroll,
+            grab: px,
+            acted: false,
             dragged: false,
         };
+        self.classic_grab(&mut press, px);
         self.classic_follow(&mut press, px, py);
+        // these act on the press, as Winamp handles them on the button going down
+        if matches!(
+            control,
+            Control::Time
+                | Control::Vis
+                | Control::ShadeVis
+                | Control::PlMini(_)
+                | Control::PlTime
+                | Control::PlScrollUp
+                | Control::PlScrollDown
+        ) {
+            self.classic_act(o, w, press);
+            press.acted = true;
+        }
+        if control == Control::TitleText {
+            self.classic_title_hold();
+        }
         self.classic_press = Some(press);
         self.repaint();
+    }
+
+    /// Where the finger took a slider's thumb: on the thumb, the spot it pressed; beside it, the
+    /// thumb's middle.
+    fn classic_grab(&mut self, press: &mut ClassicPress, px: i32) {
+        match press.control {
+            Control::Volume => {
+                let left = 107 + self.player.volume().clamp(0, 255) * 51 / 255;
+                press.grab = if (left..left + 15).contains(&px) {
+                    px - left
+                } else {
+                    7
+                };
+            }
+            Control::Balance => {
+                let left = 189 + self.player.pan().clamp(-127, 127) * 12 / 127;
+                press.grab = if (left..left + 15).contains(&px) {
+                    px - left
+                } else {
+                    7
+                };
+            }
+            Control::EqSlider(n) => {
+                // on the thumb (its 12 rows from 89 + its offset) the spot taken, else 5
+                let v = if n == 0 {
+                    self.player.eq_preamp()
+                } else {
+                    self.player.eq_bands().get(n - 1).copied().unwrap_or(128)
+                };
+                let off = (crate::classic::eq::band_step(v) - 63) * 52 / 64;
+                let py = press.from.1;
+                press.grab = if (off + 89..off + 101).contains(&py) {
+                    py - off - 90
+                } else {
+                    5
+                };
+            }
+            Control::Position => {
+                let length = self.player.length_ms();
+                let at = if length > 0 {
+                    (i64::from(self.player.position_ms()) * 218 / i64::from(length)) as i32
+                } else {
+                    0
+                };
+                press.grab = if (at + 17..=at + 47).contains(&px) {
+                    px - (at + 18)
+                } else {
+                    14
+                };
+            }
+            _ => {}
+        }
     }
 
     pub(crate) fn classic_pointer_move(&mut self, o: ObjId, px: i32, py: i32) {
@@ -456,7 +569,15 @@ impl SkinRuntime {
         };
         let rect = self.objects[o].base.rect;
         press.at = (px, py);
-        press.inside = control_at(w, rect.width, rect.height, px, py) == Some(press.control);
+        let under = control_at(w, rect.width, rect.height, px, py);
+        press.inside = under == Some(press.control);
+        // the control buttons hand the press to the one under the finger
+        if w == ClassicWindow::Main && Self::is_cbutton(press.control) {
+            if let Some(c) = under.filter(|c| Self::is_cbutton(*c)) {
+                press.control = c;
+                press.inside = true;
+            }
+        }
         if matches!(press.control, Control::PlRow(_)) && (py - press.from.1).abs() >= DRAG_SLOP {
             press.dragged = true;
         }
@@ -477,22 +598,56 @@ impl SkinRuntime {
         self.classic_follow(&mut press, px, py);
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
-        let over = inside && control_at(w, rect.width, rect.height, px, py) == Some(press.control);
+        let under = control_at(w, rect.width, rect.height, px, py);
+        if w == ClassicWindow::Main && Self::is_cbutton(press.control) {
+            if let Some(c) = under.filter(|c| Self::is_cbutton(*c)) {
+                press.control = c;
+            }
+        }
+        let over = inside && under == Some(press.control);
         // a bottom button's menu is picked by the picture under the finger, above the button
         let seeks = matches!(press.control, Control::Position | Control::ShadePosition);
         let picks = matches!(press.control, Control::PlButton(_)) && press.hover.is_some();
         self.classic_press = None;
-        if (over || seeks || picks) && !press.dragged {
+        self.classic_release(press);
+        if (over || seeks || picks) && !press.dragged && !press.acted {
             self.classic_act(o, w, press);
         }
         self.repaint();
     }
 
     pub(crate) fn classic_pointer_cancel(&mut self, o: ObjId) {
-        if self.classic_press_on(o).is_some() {
+        if let Some(press) = self.classic_press_on(o) {
             self.classic_press = None;
+            self.classic_release(press);
             self.repaint();
         }
+    }
+
+    /// What ends with any press: the title row's text and its scroll come back, a balance near
+    /// the middle snaps to it (within 26 either side).
+    fn classic_release(&mut self, press: ClassicPress) {
+        if self.classic_status.take().is_some() {
+            self.classic_title_resume(0);
+        }
+        match press.control {
+            Control::Balance => {
+                if (-26..=26).contains(&self.player.pan()) {
+                    self.player.set_pan(0);
+                }
+            }
+            Control::TitleText => self.classic_title_resume(2000),
+            _ => {}
+        }
+    }
+
+    /// Shows `text` on the title row in place of the song while a slider is dragged, the title's
+    /// scroll held meanwhile.
+    fn classic_say(&mut self, text: String) {
+        if self.classic_status.is_none() {
+            self.classic_title_hold();
+        }
+        self.classic_status = Some(text);
     }
 
     /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
@@ -500,50 +655,99 @@ impl SkinRuntime {
         self.action(o, "MENU", None, None);
     }
 
-    /// A double tap: on a title bar it toggles the shade bar; on a playlist row it plays the song.
+    /// A double tap, as Winamp's double clicks go (main window,
+    /// equalizer, playlist): the title row toggles the shade bar;
+    /// the main window's song title asks for the file info; its vis puts the mode back to what
+    /// it was before the taps and asks for the visualization plugin; a playlist row plays its
+    /// song; a playlist bottom button picks its lowest item.
     pub(crate) fn classic_double_tap(&mut self, o: ObjId, px: i32, py: i32) {
         let Some(w) = self.classic_kind(o) else {
             return;
         };
         let rect = self.objects[o].base.rect;
-        match control_at(w, rect.width, rect.height, px, py) {
-            Some(Control::TitleBar) => self.classic_toggle_shade(o, w),
-            Some(Control::PlRow(i)) => {
+        let title_row = py < 15
+            && px
+                < match w {
+                    ClassicWindow::Main | ClassicWindow::MainShade => 244,
+                    ClassicWindow::Equalizer | ClassicWindow::EqualizerShade => 252,
+                    _ => rect.width - 20,
+                };
+        if title_row {
+            return self.classic_toggle_shade(o, w);
+        }
+        match (w, control_at(w, rect.width, rect.height, px, py)) {
+            (ClassicWindow::Main, Some(Control::TitleText)) if (25..35).contains(&py) => {
+                self.action(o, "TRACKINFO", None, None);
+            }
+            (ClassicWindow::Main, _) if (24..100).contains(&px) && (43..59).contains(&py) => {
+                self.classic_vis_mode = self.classic_vis_before;
+                self.action(o, "VIS_FS", None, None);
+            }
+            (ClassicWindow::MainShade, Some(Control::ShadeVis)) => {
+                self.classic_vis_mode = self.classic_vis_before;
+                self.action(o, "VIS_FS", None, None);
+            }
+            (_, Some(Control::PlRow(i))) => {
                 let index = self.classic_pl_scroll(rect.height) + i;
                 if (index as usize) < self.player.tracks().len() {
                     self.classic_selected_row = Some(index);
                     self.player.play_track(index);
                 }
             }
+            (_, Some(Control::PlButton(b))) => {
+                if let Some(choice) = b.choice(0) {
+                    if choice == "select_none" {
+                        self.classic_selected_row = None;
+                    }
+                    self.action(o, "PLAYLIST", Some(choice), None);
+                }
+            }
             _ => {}
         }
     }
 
-    /// The sliders follow the finger while pressed; the position bar only notes where it is.
+    /// The sliders follow the finger while pressed, telling their value on the title row; the
+    /// position bar only notes where it is; the title row scrolls with the finger.
     fn classic_follow(&mut self, press: &mut ClassicPress, px: i32, py: i32) {
         match press.control {
             Control::Volume => {
-                // the thumb's middle under the finger, over the 51 px the thumb travels
-                let v = ((px - 107 - 7) * 255 / 51).clamp(0, 255);
+                let v = ((px - press.grab - 107) * 255 / 51).clamp(0, 255);
                 self.player.set_volume(v);
+                self.classic_say_volume();
             }
             Control::Balance => {
-                let b = ((px - 177 - 7 - 12) * 127 / 12).clamp(-127, 127);
+                // the thumb's place 0..=24; a step either side of the middle snaps to it
+                let at = (px - press.grab - 177).clamp(0, 24);
+                let b = if (11..=13).contains(&at) {
+                    0
+                } else {
+                    (at - 12) * 127 / 12
+                };
                 self.player.set_pan(b);
+                self.classic_say_balance();
             }
             Control::Position => {
-                press.position = ((px - 16 - 14) * 256 / 219).clamp(0, 255);
+                press.position = (px - press.grab - 17).clamp(0, 218);
+                self.classic_say_seek(press.position);
             }
             Control::ShadePosition => {
-                press.position = ((px - 227) * 256 / 12).clamp(0, 255);
+                press.position = ((px - 228) * 218 / 13).clamp(0, 218);
+                self.classic_say_seek(press.position);
             }
             Control::ShadeVolume => {
                 let v = ((px - 62) * 255 / 94).clamp(0, 255);
                 self.player.set_volume(v);
+                self.classic_say_volume();
             }
             Control::ShadeBalance => {
                 let b = ((px - 165) * 255 / 39 - 128).clamp(-127, 127);
                 self.player.set_pan(b);
+                self.classic_say_balance();
+            }
+            Control::TitleText => {
+                // dragged left the title moves on, the step added to the scroll
+                self.classic_title_base += press.grab - px;
+                press.grab = px;
             }
             Control::PlButton(b) => {
                 let rect = self.objects[press.object].base.rect;
@@ -569,14 +773,12 @@ impl SkinRuntime {
                 }
             }
             Control::EqSlider(n) => {
-                // the thumb's top follows the finger, 6 above it (the VM put the thumb's top at
-                // 54 for a click at 60), over its 51 pixels of travel; the band's step is 0..63
-                // with 0 at the top
-                let top = (py - 6).clamp(38, 89);
-                let step = ((top - 38) * 63 + 25) / 51;
-                // a value a step either side of the middle snaps to it (Winamp does so
-                // unless Shift is held, which a touch never is)
-                let v = if (30..=32).contains(&step) {
+                // the band's step 0..=63 (0 at the top) from the finger less where
+                // it took the thumb, over 52 rows to 64 steps; a step either side of the middle
+                // snaps to it (unless Shift, which a touch never holds)
+                let step = ((py - press.grab - 39) * 64 / 52).clamp(0, 63);
+                let step = if (30..=32).contains(&step) { 31 } else { step };
+                let v = if step == 31 {
                     crate::runtime::EQ_FLAT
                 } else {
                     (63 - step) * 255 / 63
@@ -586,9 +788,58 @@ impl SkinRuntime {
                 } else {
                     self.player.set_eq_band(n as i32 - 1, v);
                 }
+                self.classic_say_eq(n, step);
             }
             _ => {}
         }
+    }
+
+    /// "Volume: 50%".
+    fn classic_say_volume(&mut self) {
+        let pct = self.player.volume().clamp(0, 255) * 100 / 255;
+        self.classic_say(format!("Volume: {pct}%"));
+    }
+
+    /// "Balance: 30% left", or "Balance: Center".
+    fn classic_say_balance(&mut self) {
+        let pct = self.player.pan().clamp(-127, 127) * 100 / 127;
+        let text = match pct {
+            0 => "Balance: Center".to_string(),
+            p if p < 0 => format!("Balance: {}% left", -p),
+            p => format!("Balance: {p}% right"),
+        };
+        self.classic_say(text);
+    }
+
+    /// "Seek To: 01:23/10:00 (13%)" for a position bar at `at` of its 218 steps.
+    fn classic_say_seek(&mut self, at: i32) {
+        let length = self.player.length_ms().max(0);
+        let to = (i64::from(length) * i64::from(at) / 218 / 1000) as i32;
+        let of = length / 1000;
+        let pct = to * 100 / of.max(1);
+        self.classic_say(format!(
+            "Seek To: {:02}:{:02}/{:02}:{:02} ({pct}%)",
+            to / 60,
+            to % 60,
+            of / 60,
+            of % 60
+        ));
+    }
+
+    /// "EQ: 70Hz: +3.0 dB" for slider `n` (0 the preamp) at step `step` 0..=63
+    /// ((step - 31.5) / 31.5 * -12 dB, within 0.32 of zero shown as zero).
+    fn classic_say_eq(&mut self, n: usize, step: i32) {
+        const BANDS: [&str; 10] = ["70", "180", "320", "600", "1", "3", "6", "12", "14", "16"];
+        let db = (f64::from(step) - 31.5) / 31.5 * -12.0;
+        let db = if (-0.32..0.32).contains(&db) { 0.0 } else { db };
+        let sign = if db < 0.0 { "" } else { "+" };
+        let name = if n == 0 {
+            "Preamp".to_string()
+        } else {
+            let unit = if n >= 5 { "KHz" } else { "Hz" };
+            format!("{}{unit}", BANDS[n - 1])
+        };
+        self.classic_say(format!("EQ: {name}: {sign}{db:.1} dB"));
     }
 
     /// What a release over the pressed control does.
@@ -633,9 +884,30 @@ impl SkinRuntime {
             Control::Position | Control::ShadePosition => {
                 let length = self.player.length_ms();
                 if self.player.status() != Status::Stopped && length > 0 {
-                    let ms = (i64::from(press.position) * i64::from(length) / 255) as i32;
+                    let ms = (i64::from(press.position) * i64::from(length) / 218) as i32;
                     self.player.seek_to(ms);
                 }
+            }
+            Control::Logo => self.action(o, "ABOUT", None, None),
+            Control::ShadeVis => self.classic_vis_step(),
+            Control::PlMini(i) => match i {
+                0 => self.player.previous(),
+                1 => self.player.play(),
+                2 => self.player.pause(),
+                3 => self.player.stop(),
+                4 => self.player.next(),
+                _ => self.action(o, "EJECT", None, None),
+            },
+            Control::PlTime => self.classic_remaining = !self.classic_remaining,
+            Control::PlScrollUp | Control::PlScrollDown => {
+                let h = self.objects[o].base.rect.height;
+                let past = self.player.tracks().len() as i32 - SkinRuntime::classic_pl_rows(h);
+                let step = if press.control == Control::PlScrollUp {
+                    -1
+                } else {
+                    1
+                };
+                self.classic_pl_scroll = (self.classic_pl_scroll(h) + step).clamp(0, past.max(0));
             }
             Control::Menu => self.action(o, "MENU", None, None),
             Control::ClutterO => self.action(o, "MENU", Some("wa5:options"), None),
@@ -658,7 +930,7 @@ impl SkinRuntime {
                 }
             }
             Control::Time => self.classic_remaining = !self.classic_remaining,
-            Control::Vis => self.classic_vis_mode = self.classic_vis_mode.next(),
+            Control::Vis => self.classic_vis_step(),
             Control::PlRow(i) => {
                 let h = self.objects[o].base.rect.height;
                 let index = self.classic_pl_scroll(h) + i;
@@ -668,6 +940,17 @@ impl SkinRuntime {
             }
             _ => {}
         }
+    }
+
+    /// The vis mode one on, keeping the mode before the first of two quick taps for a double
+    /// tap to put back.
+    fn classic_vis_step(&mut self) {
+        let now = self.now();
+        if now - self.classic_vis_tapped_at > 500 {
+            self.classic_vis_before = self.classic_vis_mode;
+        }
+        self.classic_vis_tapped_at = now;
+        self.classic_vis_mode = self.classic_vis_mode.next();
     }
 
     /// Opens the window of container `id`, or closes it when open.

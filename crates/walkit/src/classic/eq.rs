@@ -114,7 +114,7 @@ impl SkinRuntime {
 
 /// A band as Winamp's classic slider holds it, 0..63 with 0 the top, from the player's 0..255 (128 flat,
 /// 255 the top).
-fn band_step(v: i32) -> i32 {
+pub(crate) fn band_step(v: i32) -> i32 {
     (63 - v.clamp(0, 255) * 64 / 256).clamp(0, 63)
 }
 
