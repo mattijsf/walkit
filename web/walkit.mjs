@@ -234,6 +234,33 @@ export class Runtime {
     this.w.x.wk_rt_pointer_up(this.id, x, y);
   }
 
+  /** The classic cursor slot at x, y of the stack, or -1. */
+  cursorAt(x, y) {
+    return this.w.x.wk_rt_cursor_at(this.id, x, y);
+  }
+
+  /** What cursor slot stands for (0 arrow, 1 move, 2 sideways, 3 up and down, 4 close, 5 size). */
+  cursorKind(slot) {
+    return this.w.x.wk_cursor_kind(slot);
+  }
+
+  /** The skin's picture for cursor slot: { steps: [[frame, ms]], frames: [{w, h, hx, hy, argb}] }, or null. */
+  cursorImage(slot) {
+    if (!this.w.x.wk_rt_cursor_image(this.id, slot)) return null;
+    const b = this.w.resultBytes();
+    const u = new Uint32Array(b.buffer, b.byteOffset, b.byteLength >> 2);
+    let i = 0;
+    const steps = [];
+    for (let n = u[i++]; n > 0; n--) steps.push([u[i++], u[i++]]);
+    const frames = [];
+    for (let n = u[i++]; n > 0; n--) {
+      const w = u[i++], h = u[i++], hx = u[i++], hy = u[i++];
+      frames.push({ w, h, hx, hy, argb: u.slice(i, i + w * h) });
+      i += w * h;
+    }
+    return { steps, frames };
+  }
+
   openWindow(name) {
     return this.w.withString(name, (p, n) => this.w.x.wk_rt_open_window(this.id, p, n)) !== 0;
   }

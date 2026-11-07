@@ -535,6 +535,61 @@ pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// The classic skin cursor slot at `x`, `y` of the stack, or -1.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_cursor_at(id: i32, x: i32, y: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine
+            .classic_cursor_at(x, y)
+            .map_or(-1, |s| i32::try_from(s).unwrap_or(-1))
+    })
+    .unwrap_or(-1)
+}
+
+/// What cursor `slot` stands for, 0..5 in `CursorKind`'s order: what the page shows when the
+/// skin has no picture for it.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_cursor_kind(slot: i32) -> i32 {
+    use walkit::classic::cursor::{CursorKind, CURSOR_FILES};
+    usize::try_from(slot)
+        .ok()
+        .and_then(|s| CURSOR_FILES.get(s))
+        .map_or(0, |(_, k)| match k {
+            CursorKind::Arrow => 0,
+            CursorKind::Move => 1,
+            CursorKind::HorizontalSlide => 2,
+            CursorKind::VerticalSlide => 3,
+            CursorKind::Close => 4,
+            CursorKind::Resize => 5,
+        })
+}
+
+/// The skin's picture for cursor `slot` into the result, as little-endian u32s: the number of
+/// steps, each step's frame and milliseconds, the number of frames, then each frame's width,
+/// height, tip x, tip y and ARGB rows. 1 when the skin has the picture.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_cursor_image(id: i32, slot: i32) -> i32 {
+    let Ok(slot) = usize::try_from(slot) else {
+        return 0;
+    };
+    let Some(Some(c)) = with_rt(id, |r| r.engine.classic_cursor(slot)) else {
+        return 0;
+    };
+    let mut out: Vec<u32> = vec![u32::try_from(c.steps.len()).unwrap_or(0)];
+    for (f, ms) in &c.steps {
+        out.push(u32::try_from(*f).unwrap_or(0));
+        out.push(*ms);
+    }
+    out.push(u32::try_from(c.frames.len()).unwrap_or(0));
+    for f in &c.frames {
+        out.extend([f.width, f.height, f.hot_x, f.hot_y]);
+        out.extend(&f.argb);
+    }
+    let bytes: Vec<u8> = out.iter().flat_map(|v| v.to_le_bytes()).collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
 /// Opens the window of the container named; 1 when the skin has it.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_open_window(id: i32, name: *const u8, name_len: usize) -> i32 {
