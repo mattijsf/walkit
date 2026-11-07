@@ -9,6 +9,7 @@ mod options;
 mod presentation;
 mod settings;
 mod skin_name;
+mod sliders;
 mod stack;
 mod vis;
 

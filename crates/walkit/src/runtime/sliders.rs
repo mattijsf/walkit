@@ -127,7 +127,32 @@ impl SkinRuntime {
             let travel = (rect.width - tw).max(1);
             (px - rect.left - s.grab) as f64 / travel as f64
         };
-        s.low + (frac.clamp(0.0, 1.0) * self.slider_range(o) as f64) as i32
+        let value = s.low + (frac.clamp(0.0, 1.0) * self.slider_range(o) as f64) as i32;
+        self.slider_hot_spot(o, value)
+    }
+
+    /// Where a dragged balance or EQ slider settles: Winamp's balance, band and preamp sliders
+    /// snap to their middle when the finger brings them within a reach of it:
+    /// 7.5 % of the track's pixels, cut to whole pixels, in steps of the range.
+    /// A volume or seek slider has no such spot.
+    fn slider_hot_spot(&self, o: ObjId, value: i32) -> i32 {
+        let s = self.slider(o);
+        let hot = match s.action.as_deref() {
+            Some("pan") => s.low + PAN_REACH,
+            Some("eq_band" | "eq_preamp") => 0,
+            _ => return value,
+        };
+        let rect = self.objects[o].base.rect;
+        let track = if s.vertical { rect.height } else { rect.width };
+        if track <= 0 {
+            return value;
+        }
+        let reach = (f64::from(track) * 0.075) as i32 * (s.high - s.low) / track;
+        if (value - hot).abs() < reach {
+            hot
+        } else {
+            value
+        }
     }
 
     /// Sets the position and tells the script; `from_user` also drives the player first, and
@@ -274,8 +299,9 @@ impl SkinRuntime {
             Some("volume") => s.low + scaled(p.volume(), 255, span),
             Some("eq_band") => s.low + scaled(self.eq_value(s.param.as_deref())?, 255, span),
             Some("eq_preamp") => s.low + scaled(p.eq_preamp(), 255, span),
-            // the middle at 127 of 0..255, which Winamp Modern's display reads as the center
-            Some("pan") => s.low + (p.pan() + PAN_REACH) * span / (2 * PAN_REACH),
+            // the middle at 127 of 0..255, which Winamp Modern's display reads as the center;
+            // the balance is the position less 127
+            Some("pan") => s.low + (p.pan() + PAN_REACH) * span / 255,
             _ => return None,
         })
     }
@@ -333,7 +359,7 @@ impl SkinRuntime {
                 self.player.eq_preamp() == level
             }
             Some("pan") => {
-                let pan = (frac * 2.0 * PAN_REACH as f64).round() as i32 - PAN_REACH;
+                let pan = (level - PAN_REACH).clamp(-PAN_REACH, PAN_REACH);
                 self.player.set_pan(pan);
                 self.player.pan() == pan
             }
