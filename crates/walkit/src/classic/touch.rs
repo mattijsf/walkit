@@ -113,10 +113,13 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
     match w {
         ClassicWindow::Main => {
             let boxes: [(Control, i32, i32, i32, i32); 20] = [
-                (Menu, 6, 3, 9, 9),
-                (Minimize, 244, 3, 9, 9),
-                (Shade, 254, 3, 9, 9),
-                (Close, 264, 3, 9, 9),
+                // the title buttons answer a row below their pictures and, at the right, a
+                // column beyond; the VM showed minimize reaching x 253 and the equalizer's
+                // shade and close boxes at x 253..=263 and 264..=273, y 3..=12
+                (Menu, 6, 3, 9, 10),
+                (Minimize, 244, 3, 10, 10),
+                (Shade, 254, 3, 10, 10),
+                (Close, 264, 3, 10, 10),
                 (Clutter, 10, 22, 8, 43),
                 // the time's press box as probed in the VM: x 36..=97, y 26..=39
                 (Time, 36, 26, 62, 14),
@@ -152,10 +155,10 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
         }
         ClassicWindow::MainShade => {
             let boxes: [(Control, i32, i32, i32, i32); 6] = [
-                (Menu, 6, 3, 9, 9),
-                (Minimize, 244, 3, 9, 9),
-                (Shade, 254, 3, 9, 9),
-                (Close, 264, 3, 9, 9),
+                (Menu, 6, 3, 9, 10),
+                (Minimize, 244, 3, 10, 10),
+                (Shade, 254, 3, 10, 10),
+                (Close, 264, 3, 10, 10),
                 (ShadePosition, 226, 4, 17, 7),
                 (Time, 126, 4, 32, 6),
             ];
@@ -167,10 +170,12 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             Some(TitleBar)
         }
         ClassicWindow::Equalizer => {
-            if hit(x, y, 254, 3, 9, 9) {
+            // the title buttons answer a column beside their pictures and a row below (probed
+            // in the VM: shade x 253..=263, close x 264..=273, both y 3..=12)
+            if hit(x, y, 253, 3, 11, 10) {
                 return Some(Shade);
             }
-            if hit(x, y, 264, 3, 9, 9) {
+            if hit(x, y, 264, 3, 10, 10) {
                 return Some(Close);
             }
             if y < 14 {
@@ -198,10 +203,10 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             None
         }
         ClassicWindow::EqualizerShade => {
-            if hit(x, y, 254, 3, 9, 9) {
+            if hit(x, y, 253, 3, 11, 10) {
                 return Some(Shade);
             }
-            if hit(x, y, 264, 3, 9, 9) {
+            if hit(x, y, 264, 3, 10, 10) {
                 return Some(Close);
             }
             if hit(x, y, 61, 4, 97, 7) {
@@ -213,10 +218,11 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             Some(TitleBar)
         }
         ClassicWindow::Playlist => {
-            if hit(x, y, width - 11, 3, 9, 9) {
+            // probed in the VM at width 275: shade x 255..=264, close x 265..=274, y 3..=12
+            if hit(x, y, width - 10, 3, 10, 10) {
                 return Some(Close);
             }
-            if hit(x, y, width - 20, 3, 9, 9) {
+            if hit(x, y, width - 20, 3, 10, 10) {
                 return Some(Shade);
             }
             if y < 20 {
@@ -234,10 +240,10 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             None
         }
         ClassicWindow::PlaylistShade => {
-            if hit(x, y, width - 11, 3, 9, 9) {
+            if hit(x, y, width - 10, 3, 10, 10) {
                 return Some(Close);
             }
-            if hit(x, y, width - 20, 3, 9, 9) {
+            if hit(x, y, width - 20, 3, 10, 10) {
                 return Some(Shade);
             }
             Some(TitleBar)
