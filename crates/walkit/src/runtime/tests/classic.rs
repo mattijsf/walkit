@@ -599,10 +599,19 @@ fn a_press_on_the_time_shows_the_time_left() {
         nums.contains(&(20, 6, 5, 1, 38, 32)),
         "the minus sign: {nums:?}"
     );
-    rt.pointer_down(60, 30, 2);
-    rt.pointer_up(60, 30);
+    rt.pointer_down(97, 39, 2);
+    rt.pointer_up(97, 39);
     let cmds = rt.draw_main();
     assert!(!blits(&cmds, "numbers.bmp").contains(&(20, 6, 5, 1, 38, 32)));
+    rt.pointer_down(98, 32, 3);
+    rt.pointer_up(98, 32);
+    rt.pointer_down(60, 25, 4);
+    rt.pointer_up(60, 25);
+    let cmds = rt.draw_main();
+    assert!(
+        !blits(&cmds, "numbers.bmp").contains(&(20, 6, 5, 1, 38, 32)),
+        "presses just outside the time do nothing"
+    );
 }
 
 #[test]
@@ -688,9 +697,18 @@ fn a_press_on_the_vis_area_switches_to_the_oscilloscope() {
     let mut rt = classic();
     rt.ensure_layout();
     rt.player.play();
-    rt.pointer_down(60, 50, 1);
-    rt.pointer_up(60, 50);
+    rt.pointer_down(60, 40, 1);
+    rt.pointer_up(60, 40);
     assert_eq!(rt.classic_vis_mode, crate::classic::vis::VisMode::Scope);
+    rt.pointer_down(60, 39, 9);
+    rt.pointer_up(60, 39);
+    rt.pointer_down(60, 62, 9);
+    rt.pointer_up(60, 62);
+    assert_eq!(
+        rt.classic_vis_mode,
+        crate::classic::vis::VisMode::Scope,
+        "a press just outside the rect does nothing"
+    );
     rt.pointer_down(60, 50, 2);
     rt.pointer_up(60, 50);
     assert_eq!(rt.classic_vis_mode, crate::classic::vis::VisMode::Off);
