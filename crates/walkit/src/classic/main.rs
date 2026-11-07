@@ -210,9 +210,10 @@ impl SkinRuntime {
         p.blit("shufrep.bmp", 23 + pl_px, pl_y, 23, 12, 242, 58);
         let shuffle = self.player.shuffle();
         let repeat = self.player.repeat();
+        // shufrep.bmp stacks off, off pressed, on, on pressed
         let shuffle_y =
-            if pressed(Control::Shuffle) { 30 } else { 0 } + if shuffle { 15 } else { 0 };
-        let repeat_y = if pressed(Control::Repeat) { 30 } else { 0 } + if repeat { 15 } else { 0 };
+            if pressed(Control::Shuffle) { 15 } else { 0 } + if shuffle { 30 } else { 0 };
+        let repeat_y = if pressed(Control::Repeat) { 15 } else { 0 } + if repeat { 30 } else { 0 };
         p.blit("shufrep.bmp", 28, shuffle_y, 47, 15, 164, 89);
         p.blit("shufrep.bmp", 0, repeat_y, 28, 15, 210, 89);
         // the position bar while something plays, the control buttons and eject
