@@ -82,6 +82,38 @@ fn a_classic_skin_gets_a_main_window_of_275_by_116() {
 }
 
 #[test]
+fn stopped_a_nums_ex_skin_shows_blank_cells_and_a_dash() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    files.insert("nums_ex.bmp", &b"x"[..]);
+    files.insert("region.txt", REGION.as_bytes());
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(QuietHost),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    let cmds = rt.draw_main();
+    assert!(blits(&cmds, "numbers.bmp").is_empty(), "nums_ex.bmp wins");
+    assert_eq!(
+        blits(&cmds, "nums_ex.bmp"),
+        vec![
+            (90, 0, 9, 13, 36, 26),
+            (9, 6, 5, 1, 40, 32),
+            (90, 0, 9, 13, 48, 26),
+            (90, 0, 9, 13, 60, 26),
+            (90, 0, 9, 13, 78, 26),
+            (90, 0, 9, 13, 90, 26),
+        ]
+    );
+}
+
+#[test]
 fn stopped_the_main_window_shows_blank_time_and_no_rates() {
     let mut rt = classic();
     let cmds = rt.draw_main();
@@ -90,18 +122,9 @@ fn stopped_the_main_window_shows_blank_time_and_no_rates() {
     assert_eq!(bar[0], (27, 0, 275, 14, 0, 0), "the active title bar");
     assert!(bar.contains(&(304, 0, 8, 43, 10, 22)), "the clutter bar");
     assert_eq!(bar.len(), 2, "the strip's buttons until one is pressed");
-    let time = blits(&cmds, "numbers.bmp");
-    assert_eq!(
-        time,
-        vec![
-            (90, 0, 9, 13, 36, 26),
-            (9, 6, 5, 1, 40, 32),
-            (90, 0, 9, 13, 48, 26),
-            (90, 0, 9, 13, 60, 26),
-            (90, 0, 9, 13, 78, 26),
-            (90, 0, 9, 13, 90, 26),
-        ],
-        "five blank digits and no minus sign"
+    assert!(
+        blits(&cmds, "numbers.bmp").is_empty(),
+        "a numbers.bmp skin leaves main.bmp's time area stopped, as Winamp's base skin"
     );
     assert_eq!(
         blits(&cmds, "monoster.bmp"),
@@ -358,7 +381,7 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
         texts[0],
         (
             format!("1. {title}"),
-            Rect::new(12, 20, 243, 14),
+            Rect::new(12, 22, 243, 15),
             Align::Left
         )
     );
@@ -366,7 +389,7 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
         texts[1],
         (
             format!("{}:{:02}", length / 60, length % 60),
-            Rect::new(12, 20, 243, 14),
+            Rect::new(12, 22, 243, 15),
             Align::Right
         )
     );
@@ -579,12 +602,13 @@ fn the_volume_and_a_band_follow_the_finger() {
     rt.pointer_up(168, 63);
     assert!(rt.open_window("equalizer"));
     rt.ensure_layout();
-    // the first band at x 78 under the main window; the thumb's top at the finger less 5
+    // the first band at x 78 under the main window, taken beside its thumb: the band's step
+    // is (y - 5 - 39) * 64 / 52, 0 at y 44 and up, 63 at y 96 and down
     rt.pointer_down(85, 116 + 43, 2);
     assert_eq!(rt.player.eq_bands()[0], 255, "the top is full boost");
-    rt.pointer_move(85, 116 + 95);
+    rt.pointer_move(85, 116 + 96);
     assert_eq!(rt.player.eq_bands()[0], 0, "the bottom is full cut");
-    rt.pointer_up(85, 116 + 95);
+    rt.pointer_up(85, 116 + 96);
     assert_eq!(rt.player.eq_bands()[0], 0, "the release keeps the value");
 }
 
@@ -601,12 +625,12 @@ fn a_press_on_the_time_shows_the_time_left() {
         nums.contains(&(20, 6, 5, 1, 38, 32)),
         "the minus sign: {nums:?}"
     );
-    rt.pointer_down(97, 39, 2);
-    rt.pointer_up(97, 39);
+    rt.pointer_down(96, 39, 2);
+    rt.pointer_up(96, 39);
     let cmds = rt.draw_main();
     assert!(!blits(&cmds, "numbers.bmp").contains(&(20, 6, 5, 1, 38, 32)));
-    rt.pointer_down(98, 32, 3);
-    rt.pointer_up(98, 32);
+    rt.pointer_down(97, 32, 3);
+    rt.pointer_up(97, 32);
     rt.pointer_down(60, 25, 4);
     rt.pointer_up(60, 25);
     let cmds = rt.draw_main();
@@ -642,7 +666,7 @@ fn a_press_on_a_playlist_row_selects_it_and_a_double_tap_plays_it() {
         .find(|(r, _)| r.top == 116)
         .expect("the playlist window under the main one");
     let selected = cmds.iter().any(|c| match c {
-        DrawCmd::Fill { rect, .. } => rect.top == 34 && rect.height == 14,
+        DrawCmd::Fill { rect, .. } => rect.top == 37 && rect.height == 15,
         _ => false,
     });
     assert!(selected, "the row's background");
@@ -788,15 +812,16 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
     let mut rt = classic_with(player, clock);
     assert!(rt.open_window("pledit"));
     rt.ensure_layout();
-    // 116 tall: four rows show, sixteen lie past the window; the thumb starts at the top
-    assert_eq!(SkinRuntime::classic_pl_rows(116), 4);
+    // 116 tall: three rows show (as in the VM), seventeen lie past the window; the thumb starts
+    // at the top
+    assert_eq!(SkinRuntime::classic_pl_rows(116), 3);
     assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 0), 0);
-    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 16), 40);
-    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 8), 20);
+    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 17), 40);
+    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 8), 18);
     // a drag up on the rows by two rows scrolls two rows; the release picks nothing
     rt.pointer_down(60, 116 + 60, 1);
-    rt.pointer_move(60, 116 + 32);
-    rt.pointer_up(60, 116 + 32);
+    rt.pointer_move(60, 116 + 30);
+    rt.pointer_up(60, 116 + 30);
     assert_eq!(rt.classic_pl_scroll, 2);
     assert_eq!(rt.classic_selected_row, None);
     // the rows drawn start at the third song, the thumb a quarter of the way
@@ -813,8 +838,8 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
         })
         .collect();
     assert_eq!(texts.first().map(String::as_str), Some("3. Song 2"));
-    assert_eq!(texts.len(), 8, "four rows, each a title and a length");
-    assert!(blits(cmds, "pledit.bmp").contains(&(52, 53, 8, 18, 260, 25)));
+    assert_eq!(texts.len(), 6, "three rows, each a title and a length");
+    assert!(blits(cmds, "pledit.bmp").contains(&(52, 53, 8, 18, 260, 24)));
     // a tap on the second row picks the fourth song, whose length leads the bottom line
     rt.pointer_down(60, 116 + 40, 2);
     rt.pointer_up(60, 116 + 40);
@@ -868,7 +893,7 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
     );
     rt.pointer_move(262, 116 + 70);
     rt.pointer_up(262, 116 + 70);
-    assert_eq!(rt.classic_pl_scroll, 16);
+    assert_eq!(rt.classic_pl_scroll, 17);
 }
 
 #[test]
@@ -1052,8 +1077,8 @@ fn shuffle_and_repeat_take_presses_on_their_probed_boxes() {
     assert!(rt.player.shuffle(), "y 89 lies outside shuffle");
     tap(&mut rt, 209, 102, 4);
     assert!(!rt.player.shuffle());
-    tap(&mut rt, 239, 103, 5);
-    assert!(rt.player.repeat(), "repeat reaches x 239, y 103");
+    tap(&mut rt, 239, 102, 5);
+    assert!(rt.player.repeat(), "repeat reaches x 239, y 102");
     tap(&mut rt, 240, 96, 6);
     assert!(rt.player.repeat(), "x 240 lies outside repeat");
 }
@@ -1069,11 +1094,11 @@ fn the_control_buttons_and_toggles_take_presses_on_their_probed_boxes() {
     // play from its box's corners, nothing from a row above or below
     tap(&mut rt, 38, 87, 1);
     assert_eq!(rt.player.status(), Status::Playing);
-    tap(&mut rt, 83, 106, 2);
+    tap(&mut rt, 84, 106, 2);
     assert_eq!(
         rt.player.status(),
         Status::Stopped,
-        "x 83 is stop's first column"
+        "x 84 is stop's first column"
     );
     tap(&mut rt, 60, 86, 3);
     assert_eq!(
@@ -1081,19 +1106,23 @@ fn the_control_buttons_and_toggles_take_presses_on_their_probed_boxes() {
         Status::Stopped,
         "y 86 lies above the buttons"
     );
-    tap(&mut rt, 60, 106, 4);
-    assert_eq!(rt.player.status(), Status::Playing);
-    tap(&mut rt, 82, 107, 5);
+    tap(&mut rt, 59, 106, 4);
+    assert_eq!(
+        rt.player.status(),
+        Status::Playing,
+        "x 59 is play's last column"
+    );
+    tap(&mut rt, 83, 107, 5);
     assert_eq!(
         rt.player.status(),
         Status::Playing,
         "y 107 lies below the buttons"
     );
-    tap(&mut rt, 82, 97, 6);
+    tap(&mut rt, 83, 97, 6);
     assert_eq!(
         rt.player.status(),
         Status::Paused,
-        "x 82 is pause's last column"
+        "x 83 is pause's last column"
     );
     // the toggles: EQ to x 242, PL from 243, both to y 70
     tap(&mut rt, 242, 70, 7);
@@ -1250,8 +1279,8 @@ fn the_shade_bars_take_presses_on_their_probed_boxes() {
         "y 12 lies below the buttons"
     );
     tap(&mut rt, 181, 7, 4);
-    // the mini position bar from x 230; 229 is dead
-    tap(&mut rt, 229, 7, 5);
+    // the mini position bar from x 228; 227 is dead
+    tap(&mut rt, 227, 7, 5);
     assert_eq!(rt.player.position_ms(), 0);
     tap(&mut rt, 236, 12, 6);
     assert!(rt.player.position_ms() > 0, "x 236, y 12 seeks");
@@ -1291,10 +1320,10 @@ fn the_playlist_rows_take_presses_up_to_the_scrollbar() {
     assert_eq!(rt.classic_selected_row, None, "x 11 lies left of the rows");
     tap(&mut rt, 250, 116 + 20, 2);
     assert_eq!(rt.classic_selected_row, Some(0));
-    tap(&mut rt, 257, 116 + 40, 3);
+    tap(&mut rt, 255, 116 + 40, 3);
     assert_eq!(rt.classic_selected_row, Some(1));
-    tap(&mut rt, 259, 116 + 26, 4);
-    assert_eq!(rt.classic_selected_row, Some(1), "x 259 lies past the rows");
+    tap(&mut rt, 256, 116 + 26, 4);
+    assert_eq!(rt.classic_selected_row, Some(1), "x 256 lies past the rows");
     tap(&mut rt, 60, 116 + 19, 5);
     assert_eq!(rt.classic_selected_row, Some(1), "y 19 lies above the rows");
 }
@@ -1507,13 +1536,253 @@ fn a_band_near_the_middle_snaps_to_it() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));
     rt.ensure_layout();
-    // thumb tops 62..=64 give the steps 30..=32; all three land on the middle
-    for (seq, top) in [(1, 62), (2, 63), (3, 64)] {
-        rt.pointer_down(85, 116 + top + 6, seq);
-        rt.pointer_up(85, 116 + top + 6);
-        assert_eq!(rt.player.eq_bands()[0], 128, "thumb top {top}");
+    // with the band at the top, a press beside its thumb at y 69 or 70 gives the steps 30 or
+    // 32 and lands on the middle; at 68 or 71 (29 and 33) it does not
+    for (seq, y, snaps) in [(1, 69, true), (2, 70, true), (3, 68, false), (4, 71, false)] {
+        rt.player.set_eq_band(0, 255);
+        rt.pointer_down(85, 116 + y, seq);
+        rt.pointer_up(85, 116 + y);
+        assert_eq!(rt.player.eq_bands()[0] == 128, snaps, "y {y}");
     }
-    rt.pointer_down(85, 116 + 61 + 6, 4);
-    rt.pointer_up(85, 116 + 61 + 6);
-    assert_ne!(rt.player.eq_bands()[0], 128, "a step further does not snap");
+    // a press on the thumb keeps it where it is
+    rt.player.set_eq_band(0, 255);
+    rt.pointer_down(85, 116 + 42, 5);
+    rt.pointer_up(85, 116 + 42);
+    assert_eq!(rt.player.eq_bands()[0], 255);
+}
+
+#[test]
+fn the_control_buttons_hand_the_press_along_and_any_bare_place_moves_the_window() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    // pressed on play, slid to stop and let go there: stop it is
+    rt.player.play();
+    rt.pointer_down(45, 97, 1);
+    rt.pointer_move(70, 97);
+    let cmds = rt.draw_main();
+    assert!(
+        blits(&cmds, "cbuttons.bmp").contains(&(46, 18, 23, 18, 62, 88)),
+        "pause shows pressed under the finger"
+    );
+    rt.pointer_move(95, 97);
+    rt.pointer_up(95, 97);
+    assert_eq!(rt.player.status(), Status::Stopped);
+    // a press on a place without a control moves the window, as Winamp's easy move does
+    rt.pointer_down(200, 45, 2);
+    assert!(rt.move_target().is_some());
+    rt.pointer_up(200, 45);
+    // the vis area is such a place while nothing plays; playing, the press itself steps the mode
+    rt.pointer_down(60, 50, 3);
+    assert!(
+        rt.move_target().is_some(),
+        "stopped: the vis moves the window"
+    );
+    rt.pointer_up(60, 50);
+    assert_eq!(rt.classic_vis_mode, crate::classic::vis::VisMode::Analyzer);
+    rt.player.play();
+    rt.pointer_down(60, 50, 4);
+    assert_eq!(
+        rt.classic_vis_mode,
+        crate::classic::vis::VisMode::Scope,
+        "on the press"
+    );
+    rt.pointer_up(60, 50);
+    assert_eq!(rt.classic_vis_mode, crate::classic::vis::VisMode::Scope);
+}
+
+#[test]
+fn the_sliders_keep_their_grab_tell_their_value_and_the_balance_snaps() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    rt.player.set_volume(128);
+    // taken on the thumb (x 132..=146 at 128) the volume stays; beside it, the middle jumps there
+    rt.pointer_down(140, 63, 1);
+    assert!((rt.player.volume() - 128).abs() <= 5);
+    assert_eq!(rt.classic_status.as_deref(), Some("Volume: 49%"));
+    rt.pointer_up(140, 63);
+    assert_eq!(rt.classic_status, None, "the song's title comes back");
+    rt.pointer_down(170, 63, 2);
+    assert_eq!(rt.player.volume(), 255);
+    assert_eq!(rt.classic_status.as_deref(), Some("Volume: 100%"));
+    rt.pointer_up(170, 63);
+    // the balance: a step beside the middle snaps to it while dragging; let go within 26 of it,
+    // it goes to the middle
+    rt.pointer_down(196, 63, 3);
+    rt.pointer_move(197, 63);
+    assert_eq!(rt.player.pan(), 0);
+    assert_eq!(rt.classic_status.as_deref(), Some("Balance: Center"));
+    rt.pointer_move(194, 63);
+    assert!(rt.player.pan() < 0 && rt.player.pan() > -27);
+    assert_eq!(rt.classic_status.as_deref(), Some("Balance: 16% left"));
+    rt.pointer_up(194, 63);
+    assert_eq!(rt.player.pan(), 0, "let go near the middle");
+    rt.pointer_down(196, 63, 4);
+    rt.pointer_move(210, 63);
+    rt.pointer_up(210, 63);
+    assert!(rt.player.pan() > 26, "further out it stays");
+    // the position bar, pressed beside its thumb, takes the thumb's middle and tells the seek
+    rt.player.play();
+    rt.pointer_down(140, 77, 5);
+    // the fake player's song is 3:35; x 140 is step 109 of 218, half of it
+    assert_eq!(
+        rt.classic_status.as_deref(),
+        Some("Seek To: 01:47/03:35 (49%)")
+    );
+    rt.pointer_up(140, 77);
+    assert!((rt.player.position_ms() - 107_500).abs() < 1000);
+    // an equalizer band tells its dB, the preamp at the middle "+0.0"
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    rt.pointer_down(85, 116 + 45, 6);
+    assert_eq!(rt.classic_status.as_deref(), Some("EQ: 70Hz: +11.6 dB"));
+    rt.pointer_up(85, 116 + 45);
+    rt.pointer_down(27, 116 + 69, 7);
+    assert_eq!(rt.classic_status.as_deref(), Some("EQ: Preamp: +0.0 dB"));
+    rt.pointer_up(27, 116 + 69);
+}
+
+#[test]
+fn the_title_scrolls_by_hand_and_waits_two_seconds_after() {
+    use crate::classic::main::TITLE_STEP_MS;
+    let now = Rc::new(std::cell::Cell::new(0i64));
+    let at = now.clone();
+    let clock: Clock = Rc::new(move || at.get());
+    let mut player = FakePlayer::new(clock.clone());
+    Player::set_track(
+        &mut player,
+        "A rather long song title that scrolls across the window",
+        600_000,
+    );
+    let mut rt = classic_with(player, clock);
+    rt.ensure_layout();
+    let _ = rt.draw_main();
+    assert_eq!(rt.classic_title_scroll(), 0);
+    // dragged 20 px to the left: the title moves on 20 px and holds
+    rt.pointer_down(200, 30, 1);
+    rt.pointer_move(180, 30);
+    assert_eq!(rt.classic_title_scroll(), 20);
+    now.set(1000);
+    assert_eq!(rt.classic_title_scroll(), 20, "held under the finger");
+    rt.pointer_up(180, 30);
+    // two seconds of waiting, then a cell per step again
+    now.set(2900);
+    assert_eq!(rt.classic_title_scroll(), 20);
+    assert_eq!(rt.next_due_at(), Some(3000));
+    now.set(3000 + TITLE_STEP_MS);
+    assert_eq!(rt.classic_title_scroll(), 25);
+}
+
+#[test]
+fn the_logo_double_taps_and_the_shade_bar_reach_what_winamp_does() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 258, 98, 1);
+    rt.double_tap(150, 30, 2);
+    rt.player.play();
+    tap(&mut rt, 60, 50, 3);
+    rt.double_tap(60, 50, 4);
+    assert_eq!(
+        rt.classic_vis_mode,
+        crate::classic::vis::VisMode::Analyzer,
+        "back to before the taps"
+    );
+    assert_eq!(*actions.borrow(), vec!["ABOUT", "TRACKINFO", "VIS_FS"]);
+    // the shade bar: its vis steps the mode on the press, its buttons split at 176
+    let c = rt.container("main").expect("the main container");
+    rt.switch_to(c, "shade");
+    rt.ensure_layout();
+    rt.pointer_down(100, 7, 5);
+    assert_eq!(rt.classic_vis_mode, crate::classic::vis::VisMode::Scope);
+    rt.pointer_up(100, 7);
+    tap(&mut rt, 200, 7, 6);
+    assert_eq!(rt.player.status(), Status::Stopped);
+    tap(&mut rt, 176, 7, 7);
+    assert_eq!(rt.player.status(), Status::Playing, "x 176 is play's");
+}
+
+#[test]
+fn the_playlist_small_transport_time_arrows_and_button_double_taps() {
+    let now = Rc::new(std::cell::Cell::new(0i64));
+    let at = now.clone();
+    let clock: Clock = Rc::new(move || at.get());
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..20)
+        .map(|i| Track {
+            title: format!("Song {i}"),
+            length_ms: 600_000,
+        })
+        .collect();
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    files.insert("region.txt", REGION.as_bytes());
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RecordingHost(actions.clone())),
+        Box::new(player),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    // the small transport acts on the press: play (x w-137..=w-128), stop (w-117..=w-109)
+    rt.pointer_down(275 - 144 + 10, 116 + 104, 1);
+    assert_eq!(rt.player.status(), Status::Playing, "on the press");
+    rt.pointer_up(275 - 144 + 10, 116 + 104);
+    rt.pointer_down(275 - 144 + 30, 116 + 104, 2);
+    rt.pointer_up(275 - 144 + 30, 116 + 104);
+    assert_eq!(rt.player.status(), Status::Stopped);
+    rt.pointer_down(275 - 144 + 10, 116 + 104, 8);
+    rt.pointer_up(275 - 144 + 10, 116 + 104);
+    // the time shows what is left, with text.bmp's minus where the blank goes
+    rt.pointer_down(275 - 70, 116 + 101, 3);
+    rt.pointer_up(275 - 70, 116 + 101);
+    assert!(rt.classic_remaining);
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    assert!(blits(cmds, "text.bmp").contains(&(75, 6, 3, 6, 275 - 82, 116 - 15)));
+    // the arrows above the corner scroll a row: down at h-31..=h-27, up at h-36..=h-32
+    rt.pointer_down(264, 116 + 87, 4);
+    rt.pointer_up(264, 116 + 87);
+    assert_eq!(rt.classic_pl_scroll, 1);
+    rt.pointer_down(264, 116 + 82, 5);
+    rt.pointer_up(264, 116 + 82);
+    assert_eq!(rt.classic_pl_scroll, 0);
+    // a double tap on a bottom button picks its lowest item
+    rt.double_tap(20, 116 + 95, 6);
+    rt.double_tap(80, 116 + 95, 7);
+    assert_eq!(
+        *actions.borrow(),
+        vec!["PLAYLIST add_file", "PLAYLIST select_all"]
+    );
+}
+
+#[test]
+fn the_eq_texts_match_the_reference_vm_gestures() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    // the VM: band 1 at the middle taken on its thumb at y 63, dragged to 53: "+5.1 dB"
+    rt.pointer_down(85, 116 + 63, 1);
+    rt.pointer_move(85, 116 + 53);
+    assert_eq!(rt.classic_status.as_deref(), Some("EQ: 70Hz: +5.1 dB"));
+    rt.pointer_up(85, 116 + 53);
+    // the VM: the preamp at the middle taken beside its thumb at y 58, dragged to 69: "+0.0 dB"
+    rt.pointer_down(27, 116 + 58, 2);
+    rt.pointer_move(27, 116 + 69);
+    assert_eq!(rt.classic_status.as_deref(), Some("EQ: Preamp: +0.0 dB"));
+    rt.pointer_up(27, 116 + 69);
 }
