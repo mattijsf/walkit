@@ -13,6 +13,7 @@ use crate::files::SkinFiles;
 pub(crate) mod eq;
 pub mod font;
 pub(crate) mod gen;
+pub mod genex;
 pub(crate) mod main;
 mod pl;
 pub mod pledit;
