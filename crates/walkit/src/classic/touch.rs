@@ -71,6 +71,9 @@ pub enum Control {
     EqPresets,
     /// A band slider: 0 the preamp, 1..=10 the bands.
     EqSlider(usize),
+    /// One of the "+12", "0" and "-12" labels between the preamp and the bands, with the value
+    /// a release on it gives all ten bands (0..255 as the player keeps them).
+    EqLevel(i32),
     /// The shade bar's volume slider.
     ShadeVolume,
     /// The shade bar's balance slider.
@@ -316,6 +319,13 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             }
             if hit(x, y, 217, 18, 44, 12) {
                 return Some(EqPresets);
+            }
+            // the labels between the preamp and the bands: x 42..=67, "+12" on
+            // rows 33..=42, "0" on 65..=74, "-12" on 92..=101
+            for (top, level) in [(33, 255), (65, crate::runtime::EQ_FLAT), (92, 0)] {
+                if hit(x, y, 42, top, 26, 10) {
+                    return Some(EqLevel(level));
+                }
             }
             if hit(x, y, 21, 38, 13, 63) {
                 return Some(EqSlider(0));
@@ -564,7 +574,13 @@ impl SkinRuntime {
                 // with 0 at the top
                 let top = (py - 6).clamp(38, 89);
                 let step = ((top - 38) * 63 + 25) / 51;
-                let v = (63 - step) * 255 / 63;
+                // a value a step either side of the middle snaps to it (Winamp does so
+                // unless Shift is held, which a touch never is)
+                let v = if (30..=32).contains(&step) {
+                    crate::runtime::EQ_FLAT
+                } else {
+                    (63 - step) * 255 / 63
+                };
                 if n == 0 {
                     self.player.set_eq_preamp(v);
                 } else {
@@ -628,6 +644,11 @@ impl SkinRuntime {
             Control::ClutterD => self.action(o, "DOUBLESIZE", None, None),
             Control::ClutterV => self.action(o, "VIS_MENU", None, None),
             Control::EqPresets => self.action(o, "EQ_PRESETS", None, None),
+            Control::EqLevel(level) => {
+                for band in 0..10 {
+                    self.player.set_eq_band(band, level);
+                }
+            }
             Control::PlButton(b) => {
                 if let Some(choice) = press.hover.and_then(|i| b.choice(i)) {
                     if choice == "select_none" {

@@ -1473,3 +1473,47 @@ fn the_menu_button_the_clutter_bar_and_presets_reach_the_host() {
         ]
     );
 }
+
+#[test]
+fn the_labels_between_preamp_and_bands_set_all_ten_bands() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    rt.player.set_eq_preamp(200);
+    // "+12" sends every band to the top, "-12" to the bottom, "0" back to the middle
+    tap(&mut rt, 55, 116 + 37, 1);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v == 255));
+    tap(&mut rt, 42, 116 + 101, 2);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v == 0));
+    tap(&mut rt, 67, 116 + 65, 3);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v == 128));
+    assert_eq!(rt.player.eq_preamp(), 200, "the preamp stays");
+    // a press on a label that lets go elsewhere changes nothing, nor does a press beside it
+    tap(&mut rt, 55, 116 + 37, 4);
+    rt.pointer_down(55, 116 + 70, 5);
+    rt.pointer_up(55, 116 + 80);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v == 255));
+    tap(&mut rt, 68, 116 + 70, 6);
+    tap(&mut rt, 55, 116 + 64, 7);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v == 255));
+}
+
+#[test]
+fn a_band_near_the_middle_snaps_to_it() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    // thumb tops 62..=64 give the steps 30..=32; all three land on the middle
+    for (seq, top) in [(1, 62), (2, 63), (3, 64)] {
+        rt.pointer_down(85, 116 + top + 6, seq);
+        rt.pointer_up(85, 116 + top + 6);
+        assert_eq!(rt.player.eq_bands()[0], 128, "thumb top {top}");
+    }
+    rt.pointer_down(85, 116 + 61 + 6, 4);
+    rt.pointer_up(85, 116 + 61 + 6);
+    assert_ne!(rt.player.eq_bands()[0], 128, "a step further does not snap");
+}
