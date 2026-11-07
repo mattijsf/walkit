@@ -56,7 +56,9 @@ impl SkinRuntime {
                 // clicks pass through transparent pixels, as in Winamp
                 let image = l.image.clone();
                 let rect = self.objects[o].base.rect;
-                if self.takes_touch_at(o, px, py) && self.opaque_at(image.as_deref(), rect, px, py)
+                if self.takes_touch_at(o, px, py)
+                    && self.opaque_at(image.as_deref(), rect, px, py)
+                    && self.classic_grip_takes(o, px, py)
                 {
                     Some(o)
                 } else {

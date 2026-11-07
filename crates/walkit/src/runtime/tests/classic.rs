@@ -687,7 +687,74 @@ fn the_grip_at_the_playlist_corner_sizes_it() {
     let pl = rt.container("pledit").expect("the playlist");
     let l = rt.container_layout(pl, "normal").expect("its layout");
     let size = rt.layout_size(l);
-    assert_eq!(size, (295, 146), "grown by the drag");
+    assert_eq!(
+        size,
+        (300, 174),
+        "grown by the drag, rounded up to 25 by 29 steps"
+    );
+}
+
+/// The playlist's size after a drag from `from` to `to`, points of its window.
+fn pl_drag(rt: &mut SkinRuntime, from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
+    rt.ensure_layout();
+    let pl = rt.container("pledit").expect("the playlist");
+    let l = rt.container_layout(pl, "normal").expect("its layout");
+    let top = rt
+        .window_rect(rt.window_of("pledit").expect("its window"))
+        .top;
+    rt.pointer_down(from.0, top + from.1, 1);
+    rt.pointer_move(to.0, top + to.1);
+    rt.pointer_up(to.0, top + to.1);
+    rt.ensure_layout();
+    rt.layout_size(l)
+}
+
+#[test]
+fn the_playlist_sizes_in_winamps_steps() {
+    // the drags of the reference VM (Winamp 5.666, base skin), points in the playlist window
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    assert_eq!(
+        pl_drag(&mut rt, (270, 111), (271, 111)),
+        (300, 116),
+        "one pixel wider is a step"
+    );
+    assert_eq!(pl_drag(&mut rt, (295, 111), (296, 112)), (325, 145));
+    assert_eq!(
+        pl_drag(&mut rt, (320, 140), (270, 94)),
+        (275, 116),
+        "not under 275 by 116"
+    );
+}
+
+#[test]
+fn the_playlist_grip_is_the_corners_triangle() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    // 19 from the right and 10 from the bottom: 29, inside
+    assert_eq!(pl_drag(&mut rt, (256, 106), (281, 106)), (300, 116));
+    // 19 and 12: 31, outside; the press lands on the window
+    assert_eq!(pl_drag(&mut rt, (281, 104), (306, 104)), (300, 116));
+}
+
+#[test]
+fn the_playlist_shade_bar_sizes_its_width() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let pl = rt.container("pledit").expect("the playlist");
+    rt.switch_to(pl, "shade");
+    rt.ensure_layout();
+    let shade = rt.container_layout(pl, "shade").expect("its shade");
+    let top = rt
+        .window_rect(rt.window_of("pledit").expect("its window"))
+        .top;
+    // x 247..254 of the bar (w-28..w-21) is the grip
+    rt.pointer_down(250, top + 7, 1);
+    rt.pointer_move(260, top + 9);
+    rt.pointer_up(260, top + 9);
+    rt.ensure_layout();
+    assert_eq!(rt.layout_size(shade), (300, 14));
 }
 
 #[test]
