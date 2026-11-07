@@ -1736,6 +1736,22 @@ fn the_menu_button_the_clutter_bar_and_presets_reach_the_host() {
 }
 
 #[test]
+fn a_finger_wobbling_within_the_touch_slop_keeps_its_clutter_letter() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    // I is 40..47; the finger lands low on it and wobbles 3 px down onto D, within the slop
+    rt.pointer_down(15, 46, 1);
+    rt.pointer_move(15, 48);
+    rt.pointer_move(15, 49);
+    rt.pointer_up(15, 49);
+    // further than the slop the press has left its letter, as a mouse leaves it
+    rt.pointer_down(15, 42, 2);
+    rt.pointer_move(15, 52);
+    rt.pointer_up(15, 52);
+    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+}
+
+#[test]
 fn the_labels_between_preamp_and_bands_set_all_ten_bands() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));

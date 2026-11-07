@@ -628,9 +628,12 @@ impl SkinRuntime {
         let rect = self.objects[o].base.rect;
         press.at = (px, py);
         let under = control_at(w, rect.width, rect.height, px, py);
-        press.inside = under == Some(press.control);
+        // a finger that wobbles within the touch slop of where it went down stays on its
+        // control, where a mouse would have left a box this small
+        let near = self.classic_near(&press, px, py);
+        press.inside = under == Some(press.control) || near;
         // the control buttons hand the press to the one under the finger
-        if let Some(c) = under.filter(|c| Self::hands_along(press.control, *c)) {
+        if let Some(c) = under.filter(|c| !near && Self::hands_along(press.control, *c)) {
             press.control = c;
             press.inside = true;
         }
@@ -664,6 +667,13 @@ impl SkinRuntime {
         self.repaint();
     }
 
+    /// Whether the finger at `px`, `py` is still within the touch slop of where `press` went
+    /// down.
+    fn classic_near(&self, press: &ClassicPress, px: i32, py: i32) -> bool {
+        let (dx, dy) = (px - press.from.0, py - press.from.1);
+        dx * dx + dy * dy <= self.touch_slop * self.touch_slop
+    }
+
     pub(crate) fn classic_pointer_up(&mut self, o: ObjId, px: i32, py: i32, inside: bool) {
         let Some(mut press) = self.classic_press_on(o) else {
             return;
@@ -677,10 +687,11 @@ impl SkinRuntime {
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
         let under = control_at(w, rect.width, rect.height, px, py);
-        if let Some(c) = under.filter(|c| Self::hands_along(press.control, *c)) {
+        let near = self.classic_near(&press, px, py);
+        if let Some(c) = under.filter(|c| !near && Self::hands_along(press.control, *c)) {
             press.control = c;
         }
-        let over = inside && under == Some(press.control);
+        let over = inside && (under == Some(press.control) || near);
         // a bottom button's menu is picked by the picture under the finger, above the button
         let seeks = matches!(press.control, Control::Position | Control::ShadePosition);
         let picks = matches!(press.control, Control::PlButton(_)) && press.hover.is_some();
