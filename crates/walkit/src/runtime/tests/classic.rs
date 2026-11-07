@@ -5,11 +5,13 @@
 use std::rc::Rc;
 
 use super::QuietHost;
+use crate::draw::FontDef;
 use crate::draw::{Align, DrawCmd, Rect, Region};
 use crate::files::MemoryFiles;
-use crate::host::{Clock, SkinSetup};
+use crate::host::{Clock, SkinHost, SkinSetup};
 use crate::player::{FakePlayer, Player, Status, Track};
 use crate::runtime::SkinRuntime;
+use std::cell::RefCell;
 
 const SHEETS: [&str; 15] = [
     "main.bmp",
@@ -1316,4 +1318,158 @@ fn a_playing_classic_window_is_due_again_every_frame() {
     rt.player.stop();
     assert_ne!(rt.next_due_at(), Some(25));
     assert!(!rt.frames_wanted());
+}
+
+/// A host that keeps the actions the skin sends it.
+struct RecordingHost(Rc<RefCell<Vec<String>>>);
+
+impl SkinHost for RecordingHost {
+    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
+        None
+    }
+
+    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, bold: bool) -> i32 {
+        text.chars().count() as i32 * size * if bold { 7 } else { 6 } / 10
+    }
+
+    fn log(&mut self, _message: &str) {}
+
+    fn invalidate(&mut self) {}
+
+    fn host_action(&mut self, action: &str, param: Option<&str>) {
+        self.0.borrow_mut().push(
+            format!("{action} {}", param.unwrap_or(""))
+                .trim_end()
+                .to_string(),
+        );
+    }
+}
+
+fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    files.insert("region.txt", REGION.as_bytes());
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RecordingHost(actions.clone())),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    (rt, actions)
+}
+
+#[test]
+fn the_playlist_buttons_pop_their_menus_and_the_pick_goes_to_the_host() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    // ADD held: the bar and three pictures stack over it, the one under the finger pressed
+    rt.pointer_down(20, 116 + 95, 1);
+    rt.pointer_move(20, 116 + 55);
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    let pl = blits(cmds, "pledit.bmp");
+    assert!(pl.contains(&(48, 111, 3, 54, 11, 50)), "the bar: {pl:?}");
+    assert!(
+        pl.contains(&(23, 111, 22, 18, 14, 50)),
+        "the top picture pressed"
+    );
+    assert!(
+        pl.contains(&(0, 130, 22, 18, 14, 68)),
+        "the middle picture at rest"
+    );
+    assert!(pl.contains(&(0, 149, 22, 18, 14, 86)));
+    rt.pointer_up(20, 116 + 55);
+    assert_eq!(
+        actions.borrow().last().map(String::as_str),
+        Some("PLAYLIST add_url")
+    );
+    // REM has four pictures; a release beside them picks nothing
+    rt.pointer_down(50, 116 + 95, 2);
+    rt.pointer_move(50, 116 + 40);
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    let pl = blits(cmds, "pledit.bmp");
+    assert!(pl.contains(&(100, 111, 3, 72, 40, 32)), "the taller bar");
+    assert!(
+        pl.contains(&(77, 168, 22, 18, 43, 32)),
+        "the top picture pressed"
+    );
+    rt.pointer_move(120, 116 + 40);
+    rt.pointer_up(120, 116 + 40);
+    assert_eq!(actions.borrow().len(), 1, "nothing picked");
+    // REM's pictures top to bottom: misc, all, crop, the selected songs
+    for (y, pick) in [
+        (40, "remove_misc"),
+        (58, "remove_all"),
+        (76, "crop"),
+        (94, "remove_selected"),
+    ] {
+        rt.pointer_down(50, 116 + 95, 5);
+        rt.pointer_move(50, 116 + y);
+        rt.pointer_up(50, 116 + y);
+        assert_eq!(
+            actions.borrow().last().map(String::as_str),
+            Some(&*format!("PLAYLIST {pick}"))
+        );
+    }
+    // LIST sits at the right; its lowest picture loads a list
+    rt.pointer_down(240, 116 + 95, 3);
+    rt.pointer_move(240, 116 + 92);
+    rt.pointer_up(240, 116 + 92);
+    assert_eq!(
+        actions.borrow().last().map(String::as_str),
+        Some("PLAYLIST list_load")
+    );
+    // SEL's middle picture clears the selection here and tells the host
+    rt.classic_selected_row = Some(0);
+    rt.pointer_down(80, 116 + 95, 4);
+    rt.pointer_move(80, 116 + 72);
+    rt.pointer_up(80, 116 + 72);
+    assert_eq!(rt.classic_selected_row, None);
+    assert_eq!(
+        actions.borrow().last().map(String::as_str),
+        Some("PLAYLIST select_none")
+    );
+}
+
+#[test]
+fn the_menu_button_the_clutter_bar_and_presets_reach_the_host() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 10, 7, 1);
+    tap(&mut rt, 13, 25, 2);
+    tap(&mut rt, 13, 41, 3);
+    tap(&mut rt, 13, 58, 4);
+    tap(&mut rt, 240, 116 + 24, 5);
+    assert_eq!(
+        *actions.borrow(),
+        vec![
+            "MENU",
+            "MENU wa5:options",
+            "TRACKINFO",
+            "VIS_MENU",
+            "EQ_PRESETS"
+        ]
+    );
 }

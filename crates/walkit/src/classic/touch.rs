@@ -48,8 +48,17 @@ pub enum Control {
     Volume,
     /// The balance slider.
     Balance,
-    /// The clutter bar's letters.
-    Clutter,
+    /// The clutter bar's letters: O for the options menu, A for always on top, I for the file
+    /// info, D for double size, V for the visualization menu.
+    ClutterO,
+    /// The clutter bar's A.
+    ClutterA,
+    /// The clutter bar's I.
+    ClutterI,
+    /// The clutter bar's D.
+    ClutterD,
+    /// The clutter bar's V.
+    ClutterV,
     /// The time display: a press switches elapsed and remaining.
     Time,
     /// The visualizer area.
@@ -72,8 +81,106 @@ pub enum Control {
     PlRow(i32),
     /// The playlist's scrollbar.
     PlScroll,
-    /// The playlist's button row.
-    PlButtons,
+    /// One of the playlist's bottom buttons, whose press pops its menu of pictures.
+    PlButton(PlMenu),
+}
+
+/// The playlist's bottom buttons, each with a menu of stacked pictures from `pledit.bmp`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlMenu {
+    /// ADD: a URL, a folder, files.
+    Add,
+    /// REM, top to bottom: miscellaneous, all, crop, the selected songs (Winamp's base skin
+    /// letters them misc, all, crop, sel).
+    Remove,
+    /// SEL: invert, none, all.
+    Select,
+    /// MISC: sort, file info, options.
+    Misc,
+    /// LIST: new, save, load.
+    List,
+}
+
+impl PlMenu {
+    /// How many pictures its menu stacks.
+    pub(crate) fn items(self) -> i32 {
+        if self == PlMenu::Remove {
+            4
+        } else {
+            3
+        }
+    }
+
+    /// The menu's left edge for a playlist `width` wide: the bar's column, the pictures 3 on.
+    pub(crate) fn menu_left(self, width: i32) -> i32 {
+        match self {
+            PlMenu::Add => 11,
+            PlMenu::Remove => 40,
+            PlMenu::Select => 69,
+            PlMenu::Misc => 98,
+            PlMenu::List => width - 47,
+        }
+    }
+
+    /// The `pledit.bmp` column of the bar beside the menu.
+    pub(crate) fn bar_source(self) -> i32 {
+        match self {
+            PlMenu::Add => 48,
+            PlMenu::Remove => 100,
+            PlMenu::Select => 150,
+            PlMenu::Misc => 200,
+            PlMenu::List => 250,
+        }
+    }
+
+    /// The `pledit.bmp` column of its pictures at rest; the pressed ones sit 23 to the right.
+    pub(crate) fn picture_source(self) -> i32 {
+        match self {
+            PlMenu::Add => 0,
+            PlMenu::Remove => 54,
+            PlMenu::Select => 104,
+            PlMenu::Misc => 154,
+            PlMenu::List => 204,
+        }
+    }
+
+    /// What the host hears for item `index` (0 the lowest picture, as Winamp counts them).
+    fn choice(self, index: i32) -> Option<&'static str> {
+        Some(match (self, index) {
+            (PlMenu::Add, 2) => "add_url",
+            (PlMenu::Add, 1) => "add_dir",
+            (PlMenu::Add, 0) => "add_file",
+            (PlMenu::Remove, 3) => "remove_misc",
+            (PlMenu::Remove, 2) => "remove_all",
+            (PlMenu::Remove, 1) => "crop",
+            (PlMenu::Remove, 0) => "remove_selected",
+            (PlMenu::Select, 2) => "select_invert",
+            (PlMenu::Select, 1) => "select_none",
+            (PlMenu::Select, 0) => "select_all",
+            (PlMenu::Misc, 2) => "sort",
+            (PlMenu::Misc, 1) => "file_info",
+            (PlMenu::Misc, 0) => "misc_options",
+            (PlMenu::List, 2) => "list_new",
+            (PlMenu::List, 1) => "list_save",
+            (PlMenu::List, 0) => "list_load",
+            _ => return None,
+        })
+    }
+}
+
+/// The menu picture under `x`, `y` of a playlist `width` by `height`, for button `b`: the
+/// pictures are 22 wide and 18 tall, the lowest at `height - 30`, each next one 18 above.
+fn pl_menu_item_at(b: PlMenu, width: i32, height: i32, x: i32, y: i32) -> Option<i32> {
+    let left = b.menu_left(width) + 3;
+    if x < left || x >= left + 22 {
+        return None;
+    }
+    let from_bottom = height - 12 - y;
+    if from_bottom < 0 {
+        return None;
+    }
+    let index = from_bottom / 18;
+    (index < b.items()).then_some(index)
 }
 
 /// A press on a classic window that has not ended.
@@ -89,6 +196,8 @@ pub struct ClassicPress {
     pub inside: bool,
     /// The position bar's value while it is dragged, 0..255.
     pub position: i32,
+    /// The playlist menu picture the finger is over, 0 the lowest, while a bottom button is held.
+    pub hover: Option<i32>,
     /// Where the press began, in the window.
     pub from: (i32, i32),
     /// The playlist's scroll when the press began.
@@ -112,7 +221,7 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
     use Control::*;
     match w {
         ClassicWindow::Main => {
-            let boxes: [(Control, i32, i32, i32, i32); 20] = [
+            let boxes: [(Control, i32, i32, i32, i32); 24] = [
                 // the title buttons answer a row below their pictures and, at the right, a
                 // column beyond; the VM showed minimize reaching x 253 and the equalizer's
                 // shade and close boxes at x 253..=263 and 264..=273, y 3..=12
@@ -120,7 +229,11 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
                 (Minimize, 244, 3, 10, 10),
                 (Shade, 254, 3, 10, 10),
                 (Close, 264, 3, 10, 10),
-                (Clutter, 10, 22, 8, 43),
+                (ClutterO, 10, 22, 8, 8),
+                (ClutterA, 10, 30, 8, 8),
+                (ClutterI, 10, 38, 8, 8),
+                (ClutterD, 10, 46, 8, 8),
+                (ClutterV, 10, 54, 8, 11),
                 // the time's press box as probed in the VM: x 36..=97, y 26..=39
                 (Time, 36, 26, 62, 14),
                 // the vis area answers presses from 3 rows above its picture to 3 below
@@ -252,8 +365,19 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             if hit(x, y, 12, 20, width - 29, height - 58) {
                 return Some(PlRow((y - 20) / 14));
             }
-            if y >= height - 38 {
-                return Some(PlButtons);
+            // the bottom buttons, 25 by 18 from the bottom-left piece and the right one
+            if y >= height - 30 && y < height - 12 {
+                for (b, left) in [
+                    (PlMenu::Add, 11),
+                    (PlMenu::Remove, 40),
+                    (PlMenu::Select, 69),
+                    (PlMenu::Misc, 98),
+                    (PlMenu::List, width - 46),
+                ] {
+                    if x >= left && x < left + 25 {
+                        return Some(PlButton(b));
+                    }
+                }
             }
             None
         }
@@ -303,6 +427,7 @@ impl SkinRuntime {
             at: (px, py),
             inside: true,
             position: 0,
+            hover: None,
             from: (px, py),
             scroll_from: self.classic_pl_scroll,
             dragged: false,
@@ -343,9 +468,11 @@ impl SkinRuntime {
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
         let over = inside && control_at(w, rect.width, rect.height, px, py) == Some(press.control);
+        // a bottom button's menu is picked by the picture under the finger, above the button
         let seeks = matches!(press.control, Control::Position | Control::ShadePosition);
+        let picks = matches!(press.control, Control::PlButton(_)) && press.hover.is_some();
         self.classic_press = None;
-        if (over || seeks) && !press.dragged {
+        if (over || seeks || picks) && !press.dragged {
             self.classic_act(o, w, press);
         }
         self.repaint();
@@ -356,6 +483,11 @@ impl SkinRuntime {
             self.classic_press = None;
             self.repaint();
         }
+    }
+
+    /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
+    pub(crate) fn classic_right_click(&mut self, o: ObjId) {
+        self.action(o, "MENU", None, None);
     }
 
     /// A double tap: on a title bar it toggles the shade bar; on a playlist row it plays the song.
@@ -402,6 +534,10 @@ impl SkinRuntime {
             Control::ShadeBalance => {
                 let b = ((px - 165) * 255 / 39 - 128).clamp(-127, 127);
                 self.player.set_pan(b);
+            }
+            Control::PlButton(b) => {
+                let rect = self.objects[press.object].base.rect;
+                press.hover = pl_menu_item_at(b, rect.width, rect.height, px, py);
             }
             Control::PlRow(_) if press.dragged => {
                 // the rows scroll with the finger, a row per row height
@@ -483,6 +619,21 @@ impl SkinRuntime {
                 if self.player.status() != Status::Stopped && length > 0 {
                     let ms = (i64::from(press.position) * i64::from(length) / 255) as i32;
                     self.player.seek_to(ms);
+                }
+            }
+            Control::Menu => self.action(o, "MENU", None, None),
+            Control::ClutterO => self.action(o, "MENU", Some("wa5:options"), None),
+            Control::ClutterA => self.action(o, "ALWAYS_ON_TOP", None, None),
+            Control::ClutterI => self.action(o, "TRACKINFO", None, None),
+            Control::ClutterD => self.action(o, "DOUBLESIZE", None, None),
+            Control::ClutterV => self.action(o, "VIS_MENU", None, None),
+            Control::EqPresets => self.action(o, "EQ_PRESETS", None, None),
+            Control::PlButton(b) => {
+                if let Some(choice) = press.hover.and_then(|i| b.choice(i)) {
+                    if choice == "select_none" {
+                        self.classic_selected_row = None;
+                    }
+                    self.action(o, "PLAYLIST", Some(choice), None);
                 }
             }
             Control::Time => self.classic_remaining = !self.classic_remaining,
