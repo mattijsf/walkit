@@ -8,7 +8,7 @@ use super::QuietHost;
 use crate::draw::{Align, DrawCmd, Rect, Region};
 use crate::files::MemoryFiles;
 use crate::host::{Clock, SkinSetup};
-use crate::player::{FakePlayer, Status, Track};
+use crate::player::{FakePlayer, Player, Status, Track};
 use crate::runtime::SkinRuntime;
 
 const SHEETS: [&str; 15] = [
@@ -881,4 +881,59 @@ fn the_equalizer_buttons_light_and_press() {
         eq_cmds(&mut rt).contains(&(35, 119, 33, 12, 39, 18)),
         "AUTO out"
     );
+}
+
+#[test]
+fn the_title_scrolls_a_cell_every_step_and_the_time_blinks_while_paused() {
+    use crate::classic::main::{PAUSE_BLINK_MS, TITLE_STEP_MS};
+    let now = Rc::new(std::cell::Cell::new(0i64));
+    let at = now.clone();
+    let clock: Clock = Rc::new(move || at.get());
+    let mut player = FakePlayer::new(clock.clone());
+    Player::set_track(
+        &mut player,
+        "A rather long song title that scrolls across the window",
+        600_000,
+    );
+    let mut rt = classic_with(player, clock);
+    rt.ensure_layout();
+    assert!(rt.classic_title_scrolls());
+    // the first cell of the row is the title's "1" at step 0, the "." at step 1 (5 px on)
+    let first_cell = |rt: &mut SkinRuntime| {
+        let cmds = rt.draw_main();
+        blits(&cmds, "text.bmp")
+            .into_iter()
+            .find(|b| b.4 == 111 && b.5 == 27)
+            .map(|b| (b.0, b.1))
+    };
+    assert_eq!(first_cell(&mut rt), Some(crate::classic::font::cell('1')));
+    assert_eq!(rt.next_due_at(), Some(TITLE_STEP_MS));
+    now.set(TITLE_STEP_MS);
+    assert_eq!(first_cell(&mut rt), Some(crate::classic::font::cell('.')));
+    now.set(TITLE_STEP_MS * 2);
+    assert_eq!(first_cell(&mut rt), Some(crate::classic::font::cell(' ')));
+    // paused, the digits show in one turn and go dark in the next
+    rt.player.play();
+    rt.player.pause();
+    now.set(0);
+    let digits = |rt: &mut SkinRuntime| {
+        let cmds = rt.draw_main();
+        blits(&cmds, "numbers.bmp")
+            .into_iter()
+            .filter(|b| b.0 != 90 && b.3 == 13)
+            .count()
+    };
+    assert_eq!(digits(&mut rt), 4, "minutes and seconds lit");
+    assert_eq!(rt.next_due_at(), Some(TITLE_STEP_MS));
+    now.set(PAUSE_BLINK_MS);
+    assert_eq!(digits(&mut rt), 0, "dark");
+    now.set(PAUSE_BLINK_MS * 2);
+    assert_eq!(digits(&mut rt), 4, "lit again");
+    // a short title does not scroll, and playing, the time stays lit
+    rt.player.set_track("Short", 600_000);
+    rt.player.play();
+    now.set(PAUSE_BLINK_MS);
+    assert!(!rt.classic_title_scrolls());
+    assert_eq!(digits(&mut rt), 4);
+    assert_eq!(rt.next_due_at(), None);
 }
