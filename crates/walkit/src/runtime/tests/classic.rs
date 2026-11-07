@@ -2341,3 +2341,23 @@ fn the_stack_names_winamps_cursor_under_the_pointer() {
     let slot = rt.classic_cursor_at(100, 5).expect("a slot");
     assert!(rt.classic_cursor(slot).is_none());
 }
+
+#[test]
+fn stacked_in_a_tall_view_the_classic_playlist_stretches_down_in_whole_steps() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.set_presentation(&crate::host::Presentation {
+        view_size: Some((275, 400)),
+        stretch_last: true,
+        ..rt.presentation()
+    });
+    rt.ensure_layout();
+    let windows = rt.draw_windows();
+    let pl = windows
+        .iter()
+        .map(|(r, _)| *r)
+        .find(|r| r.top == 116)
+        .expect("the playlist under the main window");
+    // 284 left under the main window: 116 and five steps of 29
+    assert_eq!(pl.height, 116 + 5 * 29);
+}
