@@ -18,6 +18,7 @@ mod pl;
 pub mod pledit;
 pub mod region;
 pub mod touch;
+pub(crate) mod video;
 pub mod vis;
 pub mod viscolor;
 
@@ -39,6 +40,8 @@ pub enum ClassicWindow {
     /// A window framed with `gen.bmp` (the media library, a plug-in's window), 275 x 116 at
     /// least; what it holds is the host's.
     Gen,
+    /// The video window, framed with `video.bmp`, 275 x 116 at least; what it shows is the host's.
+    Video,
 }
 
 impl ClassicWindow {
@@ -52,6 +55,7 @@ impl ClassicWindow {
             "playlist" => Some(ClassicWindow::Playlist),
             "playlistshade" => Some(ClassicWindow::PlaylistShade),
             "gen" => Some(ClassicWindow::Gen),
+            "video" => Some(ClassicWindow::Video),
             _ => None,
         }
     }
@@ -62,7 +66,8 @@ impl ClassicWindow {
             ClassicWindow::Main
             | ClassicWindow::Equalizer
             | ClassicWindow::Playlist
-            | ClassicWindow::Gen => (275, 116),
+            | ClassicWindow::Gen
+            | ClassicWindow::Video => (275, 116),
             ClassicWindow::MainShade
             | ClassicWindow::EqualizerShade
             | ClassicWindow::PlaylistShade => (275, 14),
@@ -76,7 +81,10 @@ impl ClassicWindow {
             ClassicWindow::MainShade => "windowshade",
             ClassicWindow::Equalizer => "equalizer",
             ClassicWindow::EqualizerShade => "equalizerws",
-            ClassicWindow::Playlist | ClassicWindow::PlaylistShade | ClassicWindow::Gen => "",
+            ClassicWindow::Playlist
+            | ClassicWindow::PlaylistShade
+            | ClassicWindow::Gen
+            | ClassicWindow::Video => "",
         }
     }
 }
@@ -124,6 +132,11 @@ fn generated_xml() -> String {
             r#"<layout id="normal" w="{w}" h="{h}" minimum_w="{w}" minimum_h="{h}">"#,
             r#"<classicwindow id="classic.library" window="gen" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
             r#"<layer id="classic.gen.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
+            r#"</layout></container>"#,
+            r#"<container id="video" name="Winamp Video" default_visible="0" default_x="0" default_y="{h}">"#,
+            r#"<layout id="normal" w="{w}" h="{h2}" minimum_w="{w}" minimum_h="{h}">"#,
+            r#"<classicwindow id="classic.video" window="video" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
+            r#"<layer id="classic.video.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
             r#"</layout></container>"#,
             r#"</WinampAbstractionLayer>"#
         ),

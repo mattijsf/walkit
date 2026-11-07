@@ -998,11 +998,11 @@ impl SkinRuntime {
                     self.close_container(c);
                 }
             }
-            // the last four are a classic skin's: its presets button, its playlist's bottom
-            // buttons, and the clutter bar's A and D
+            // VID_1X..VID_MISC and the last four are a classic skin's: its video window's
+            // buttons, its presets button, its playlist's bottom buttons, the clutter bar's A and D
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
-            | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "EQ_PRESETS" | "PLAYLIST"
-            | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" => {
+            | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "VID_1X" | "VID_2X" | "VID_TV"
+            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" => {
                 if self.host_actions {
                     self.host.host_action(&a, param);
                 }

@@ -17,6 +17,8 @@ use crate::runtime::SkinRuntime;
 pub enum Control {
     /// The bar a drag moves the window by.
     TitleBar,
+    /// One of the video window's bottom buttons, 0 the leftmost; a press slides along them.
+    VideoButton(i32),
     /// A place without a control: a drag there moves the window too (Winamp's "easy move").
     Background,
     /// The song title's row: a drag scrolls it by hand.
@@ -426,6 +428,21 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             }
             Some(TitleBar)
         }
+        ClassicWindow::Video => {
+            use crate::classic::video as v;
+            // close: x w-10..=w-1, y 3..=12
+            if hit(x, y, width - 10, 3, 10, 10) {
+                return Some(Close);
+            }
+            if hit(x, y, v::BUTTONS_X, height - 29, 81, 19) {
+                return Some(VideoButton((x - v::BUTTONS_X) / v::BUTTON_W));
+            }
+            if y < v::TITLE_H {
+                return Some(TitleBar);
+            }
+            let client = x >= v::LEFT && x < width - v::RIGHT && y < height - v::BOTTOM;
+            (!client).then_some(Background)
+        }
         ClassicWindow::Gen => {
             // close: x w-10..=w-1, y 3..=12, acting on release inside
             if hit(x, y, width - 10, 3, 10, 10) {
@@ -470,7 +487,10 @@ impl SkinRuntime {
     /// has it; the rest of the 20 by 20 square goes to the window.
     pub(crate) fn classic_grip_takes(&self, o: ObjId, px: i32, py: i32) -> bool {
         let id = self.objects[o].base.id.as_str();
-        if id != "classic.pl.sizer" && id != "classic.gen.sizer" {
+        if !matches!(
+            id,
+            "classic.pl.sizer" | "classic.gen.sizer" | "classic.video.sizer"
+        ) {
             return true;
         }
         let r = self.objects[o].base.rect;
@@ -484,6 +504,13 @@ impl SkinRuntime {
             c,
             Control::Previous | Control::Play | Control::Pause | Control::Stop | Control::Next
         )
+    }
+
+    /// Whether a press on `from` slides to `to` under the finger: the main window's control
+    /// buttons hand it along, and so do the video window's.
+    fn hands_along(from: Control, to: Control) -> bool {
+        (Self::is_cbutton(from) && Self::is_cbutton(to))
+            || (matches!(from, Control::VideoButton(_)) && matches!(to, Control::VideoButton(_)))
     }
 
     pub(crate) fn classic_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
@@ -600,11 +627,9 @@ impl SkinRuntime {
         let under = control_at(w, rect.width, rect.height, px, py);
         press.inside = under == Some(press.control);
         // the control buttons hand the press to the one under the finger
-        if w == ClassicWindow::Main && Self::is_cbutton(press.control) {
-            if let Some(c) = under.filter(|c| Self::is_cbutton(*c)) {
-                press.control = c;
-                press.inside = true;
-            }
+        if let Some(c) = under.filter(|c| Self::hands_along(press.control, *c)) {
+            press.control = c;
+            press.inside = true;
         }
         if matches!(press.control, Control::PlRow(_)) && (py - press.from.1).abs() >= DRAG_SLOP {
             press.dragged = true;
@@ -627,10 +652,8 @@ impl SkinRuntime {
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
         let under = control_at(w, rect.width, rect.height, px, py);
-        if w == ClassicWindow::Main && Self::is_cbutton(press.control) {
-            if let Some(c) = under.filter(|c| Self::is_cbutton(*c)) {
-                press.control = c;
-            }
+        if let Some(c) = under.filter(|c| Self::hands_along(press.control, *c)) {
+            press.control = c;
         }
         let over = inside && under == Some(press.control);
         // a bottom button's menu is picked by the picture under the finger, above the button
@@ -917,6 +940,14 @@ impl SkinRuntime {
                 }
             }
             Control::Logo => self.action(o, "ABOUT", None, None),
+            Control::VideoButton(i) => {
+                if let Some(a) = usize::try_from(i)
+                    .ok()
+                    .and_then(|i| crate::classic::video::ACTIONS.get(i))
+                {
+                    self.action(o, a, None, None);
+                }
+            }
             Control::ShadeVis => self.classic_vis_step(),
             Control::PlMini(i) => match i {
                 0 => self.player.previous(),
