@@ -172,6 +172,9 @@ impl SkinRuntime {
 
     /// A right click at a point of `o`'s window: the right button goes down and up.
     pub(crate) fn object_right_click(&mut self, o: ObjId, px: i32, py: i32) {
+        if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
+            return self.classic_right_click(o);
+        }
         self.dispatch(
             Handle::Gui(o),
             "onrightbuttondown",
