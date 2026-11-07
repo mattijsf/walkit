@@ -576,6 +576,18 @@ impl SkinRuntime {
             self.drag_grip(&r, x, y);
         }
         if let Some(c) = self.captured {
+            if let Some(next) = self.eq_band_reached(c, sx, sy) {
+                // the band lets go and the one the finger reached takes the drag, as pressed there
+                self.object_pointer_up(c, x, y, true);
+                self.leave_area(c);
+                self.captured = Some(next);
+                self.object_pointer_down(next, x, y);
+                if self.captured == Some(next) {
+                    self.pointer.entered = true;
+                    self.dispatch(Handle::Gui(next), "onenterarea", &[]);
+                }
+                return;
+            }
             self.object_pointer_move(c, x, y);
         }
     }
