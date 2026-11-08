@@ -214,6 +214,7 @@ public class SkinRuntime(
                 touchSlop = p[8],
                 freeWindows = p[9] != 0,
                 touch = p[10] != 0,
+                skinListFont = p[11] != 0,
             )
         }
         set(value) =
@@ -230,6 +231,7 @@ public class SkinRuntime(
                 value.touchSlop,
                 value.freeWindows,
                 value.touch,
+                value.skinListFont,
             )
 
     // ---- loading and themes --------------------------------------------------------------------

@@ -160,6 +160,7 @@ internal object Native {
         touchSlop: Int,
         freeWindows: Boolean,
         touch: Boolean,
+        skinListFont: Boolean,
     )
 
     @JvmStatic

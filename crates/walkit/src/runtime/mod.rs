@@ -152,6 +152,12 @@ pub struct SkinRuntime {
     pub(crate) classic_open_menu: Option<(ObjId, crate::classic::touch::PlMenu)>,
     /// Whether the classic time display counts down.
     pub(crate) classic_remaining: bool,
+    /// Whether the classic playlist's rows are in the skin's letters (`Presentation::skin_list_font`).
+    pub(crate) skin_list_font: bool,
+    /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
+    /// was read: once a skin.
+    pub(crate) classic_list_ink: Option<std::rc::Rc<crate::classic::listfont::ListInk>>,
+    pub(crate) classic_list_ink_read: bool,
     /// The classic playlist's selected row.
     pub(crate) classic_selected_row: Option<i32>,
     pub(crate) host: Box<dyn SkinHost>,
@@ -406,6 +412,9 @@ impl SkinRuntime {
             stretch_last: true,
             touch_slop: 6,
             touch: false,
+            skin_list_font: false,
+            classic_list_ink: None,
+            classic_list_ink_read: false,
             last_pointer: (0, 0),
             dirty: true,
             needs_layout: true,

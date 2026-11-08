@@ -4,6 +4,7 @@
 //! tiled down, and the bottom bar with its buttons, the list's background between them.
 
 use crate::classic::font;
+use crate::classic::listfont::{self, ListInk};
 use crate::classic::main::Painter;
 use crate::classic::touch::Control;
 use crate::draw::{Align, DrawCmd, Rect};
@@ -32,6 +33,11 @@ pub(super) const ROW_FONT: i32 = 12;
 pub(crate) const ROW_HEIGHT: i32 = 15;
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
+/// In the skin's letters: the room left of a row's number and right of its length, and the
+/// least between the title and the length, as Andamp's playlist sets them.
+const LIST_LEFT: i32 = 2;
+const LIST_RIGHT: i32 = 3;
+const LIST_GAP: i32 = 4;
 
 impl SkinRuntime {
     /// The playlist's shade bar (14 high): the left piece, tiles, a stretched
@@ -112,6 +118,52 @@ impl SkinRuntime {
         ((h - 76) * scroll.min(past) / past).max(0)
     }
 
+    /// The ink of the skin's `text.bmp` for the playlist's rows, read from the host once.
+    fn classic_list_ink(&mut self) -> Option<std::rc::Rc<ListInk>> {
+        if !self.classic_list_ink_read {
+            self.classic_list_ink_read = true;
+            self.classic_list_ink = self
+                .host
+                .image_size("text.bmp")
+                .and_then(|(w, h)| {
+                    let px = self.host.pixels("text.bmp", 0, 0, w, h)?;
+                    ListInk::of(&px, w, h)
+                })
+                .map(std::rc::Rc::new);
+        }
+        self.classic_list_ink.clone()
+    }
+
+    /// One row in the skin's letters, its letters' tops at `top` of `block` (`width` wide):
+    /// "n. " and the title from the left, the length against the right, a title too long for
+    /// the room between ending on the ellipsis.
+    #[allow(clippy::too_many_arguments)]
+    fn letter_row(
+        ink: &ListInk,
+        block: &mut [u32],
+        width: i32,
+        top: i32,
+        number: usize,
+        title: &str,
+        time: &str,
+        rgb: u32,
+    ) {
+        let number = format!("{number}. ");
+        ink.write(&number, (LIST_LEFT, top), rgb, block, width, width);
+        let left = LIST_LEFT + number.chars().count() as i32 * listfont::CELL_W;
+        let time_x = width - LIST_RIGHT - time.chars().count() as i32 * listfont::CELL_W;
+        ink.write(time, (time_x, top), rgb, block, width, width);
+        let room = (time_x - LIST_GAP - left) / listfont::CELL_W;
+        ink.write(
+            &listfont::fitted(title, room),
+            (left, top),
+            rgb,
+            block,
+            width,
+            time_x,
+        );
+    }
+
     pub(crate) fn draw_classic_pl(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let (w, h) = (at.width, at.height);
         let active = self
@@ -125,6 +177,17 @@ impl SkinRuntime {
         // length at the right, the current song in the current color
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
         let rows = Self::classic_pl_rows(h);
+        // in the skin's letters, the rows go into one block of pixels over the list
+        let ink = if self.skin_list_font {
+            self.classic_list_ink()
+        } else {
+            None
+        };
+        let block_w = w - 32;
+        let mut block = ink
+            .as_ref()
+            .map(|_| vec![0u32; (block_w.max(0) * rows.max(0) * ROW_HEIGHT) as usize]);
+        let mut lettered = false;
         let selected = self.classic_selected_row;
         let scroll = self.classic_pl_scroll(h).max(0) as usize;
         for (i, t) in tracks
@@ -143,6 +206,15 @@ impl SkinRuntime {
                 style.normal
             };
             let time = time_text(t.length_ms / 1000);
+            if let (Some(ink), Some(block)) = (ink.as_deref(), block.as_mut()) {
+                if listfont::covers(&t.title) {
+                    let top =
+                        (i - scroll) as i32 * ROW_HEIGHT + (ROW_HEIGHT - listfont::CELL_H) / 2;
+                    Self::letter_row(ink, block, block_w, top, i + 1, &t.title, &time, color.0);
+                    lettered = true;
+                    continue;
+                }
+            }
             let font = Some(&style.font);
             p.text(
                 &format!("{}. {}", i + 1, t.title),
@@ -158,6 +230,16 @@ impl SkinRuntime {
                 color,
                 Align::Right,
             );
+        }
+        if let Some(block) = block.filter(|_| lettered) {
+            p.out.push(DrawCmd::Pixels {
+                rect: Rect::new(at.left + 12, at.top + ROW_TOP, block_w, rows * ROW_HEIGHT),
+                w: block_w,
+                h: rows * ROW_HEIGHT,
+                argb: std::rc::Rc::from(block.into_boxed_slice()),
+                alpha: 255,
+                stable: false,
+            });
         }
         // the title bar: the left corner, tiles either side of the title, the right corner
         let y1 = if active { 0 } else { 21 };

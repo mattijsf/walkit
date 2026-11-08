@@ -226,6 +226,10 @@ pub struct Presentation {
     /// button leaves its menu open for a second tap, where a mouse holds the button and lets go
     /// over a picture.
     pub touch: bool,
+    /// Whether a classic playlist spells its rows in the skin's `text.bmp` letters, in the colors
+    /// `pledit.txt` gives them, rather than in the font `pledit.txt` names; a row the letters
+    /// cannot spell keeps that font.
+    pub skin_list_font: bool,
 }
 
 impl Default for Presentation {
@@ -239,6 +243,7 @@ impl Default for Presentation {
             touch_slop: 6,
             free_windows: false,
             touch: false,
+            skin_list_font: false,
         }
     }
 }
