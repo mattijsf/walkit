@@ -83,7 +83,17 @@ class Embed {
     this.skinFiles = new Map();
     this.families = new Map([["", "Arial"]]);
     this.registered = new Set();
+    this.measures = new Map();
     this.measure = document.createElement("canvas").getContext("2d");
+  }
+
+  // the engine measures the same text on every redraw; the browser would lay it out again each time
+  measured(key, measure) {
+    if (this.measures.has(key)) return this.measures.get(key);
+    if (this.measures.size > 20000) this.measures.clear();
+    const value = measure();
+    this.measures.set(key, value);
+    return value;
   }
 
   /** Replaces the page's handlers, as when another part of the page takes the engine over. */
@@ -101,6 +111,7 @@ class Embed {
       await face.load();
       document.fonts.add(face);
       this.families.set(key, key);
+      this.measures.clear();
     } catch {
       this.registered.delete(key);
     }
@@ -119,6 +130,7 @@ class Embed {
       if (this.families.has(file)) this.families.set(`id:${id}`, file);
     }
     if (this.families.has(STAND_INS.arial)) this.families.set("", STAND_INS.arial);
+    this.measures.clear();
   }
 
   cssFont(name, size, bold) {
@@ -134,15 +146,17 @@ class Embed {
     this.w = await Walkit.load(wasm, {
       imageSize: (f) => this.pictures?.size(f) ?? null,
       pixels: (f, x, y, w, ht) => this.pictures?.pixels(f, x, y, w, ht) ?? null,
-      textWidth: (text, font, size, bold) => {
-        this.measure.font = this.cssFont(font, size, bold);
-        return Math.round(this.measure.measureText(text).width);
-      },
-      lineMetrics: (font, size, bold) => {
-        this.measure.font = this.cssFont(font, size, bold);
-        const m = this.measure.measureText("Hg");
-        return m.fontBoundingBoxAscent ? [m.fontBoundingBoxAscent, m.fontBoundingBoxDescent] : null;
-      },
+      textWidth: (text, font, size, bold) =>
+        this.measured(`w${font}|${size}|${bold}|${text}`, () => {
+          this.measure.font = this.cssFont(font, size, bold);
+          return Math.round(this.measure.measureText(text).width);
+        }),
+      lineMetrics: (font, size, bold) =>
+        this.measured(`m${font}|${size}|${bold}`, () => {
+          this.measure.font = this.cssFont(font, size, bold);
+          const m = this.measure.measureText("Hg");
+          return m.fontBoundingBoxAscent ? [m.fontBoundingBoxAscent, m.fontBoundingBoxDescent] : null;
+        }),
       fontFile: (file) => this.skinFiles.get(normalize(file)) ?? this.fonts.get(normalize(file)) ?? null,
       log: (line) => h().log?.(line),
       invalidate: () => h().invalidate?.(),
@@ -169,6 +183,7 @@ class Embed {
     for (const layer of [entries, defaults || new Map()]) await pictures.add(layer, inflate);
     this.pictures = pictures;
     this.classic = isClassic(names);
+    this.measures.clear();
     this.skinFiles = new Map([...entries].map(([path, bytes]) => [normalize(path), bytes]));
     for (const [path, bytes] of entries) {
       if (/\.ttf$/i.test(path)) await this.registerFont(path, bytes);
@@ -194,6 +209,7 @@ export class Skin {
     this.classic = classic;
     this.renderer = renderer;
     this.reader = new FrameReader();
+    this.painted = new WeakMap();
     this.shown = [];
     this.dirty = true;
   }
@@ -217,8 +233,16 @@ export class Skin {
     this.dirty = true;
   }
 
-  /** Paints `window` on `canvas` at `scale` device pixels per skin pixel, its corner at the canvas's. */
+  /**
+   * Paints `window` on `canvas` at `scale` device pixels per skin pixel, its corner at the
+   * canvas's; nothing when the canvas already shows that drawing.
+   */
   paint(canvas, window, scale = 1) {
+    const last = this.painted.get(canvas);
+    if (last && last.cmds === window.cmds && last.scale === scale && last.w === canvas.width && last.h === canvas.height) {
+      return;
+    }
+    this.painted.set(canvas, { cmds: window.cmds, scale, w: canvas.width, h: canvas.height });
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const rect = { ...window.rect, left: 0, top: 0 };
