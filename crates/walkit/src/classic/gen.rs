@@ -102,7 +102,7 @@ impl SkinRuntime {
         if let Some(f) = &self.classic_gen_font {
             return f.clone();
         }
-        let width = self.host.image_size(SHEET).map_or(0, |s| s.0);
+        let width = self.image_size(SHEET).map_or(0, |s| s.0);
         let letters = self.host.pixels(SHEET, 0, 90, width, 1);
         let digits = self.host.pixels(SHEET, 0, 74, width, 1);
         let font = std::rc::Rc::new(GenFont {

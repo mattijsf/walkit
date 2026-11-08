@@ -307,6 +307,7 @@ impl SkinRuntime {
                         node.get("gammagroup").map(|g| g.to_lowercase()).as_deref(),
                     );
                     self.bitmaps.insert(key, def);
+                    self.bitmap_lookups.clear();
                 }
             }
             "bitmapfont" => {
@@ -395,6 +396,7 @@ impl SkinRuntime {
                 if let (Some(id), Some(target)) = (node.get("id"), node.get("target")) {
                     self.aliases
                         .insert(id.to_lowercase(), target.to_lowercase());
+                    self.bitmap_lookups.clear();
                 }
             }
             "groupdef" => {

@@ -132,7 +132,6 @@ impl SkinRuntime {
         if !self.classic_list_ink_read {
             self.classic_list_ink_read = true;
             self.classic_list_ink = self
-                .host
                 .image_size("text.bmp")
                 .and_then(|(w, h)| {
                     let px = self.host.pixels("text.bmp", 0, 0, w, h)?;

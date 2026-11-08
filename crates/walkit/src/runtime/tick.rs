@@ -143,10 +143,12 @@ impl SkinRuntime {
             }
         }
         self.classic_clock(t, status);
+        // a size that changed with what moved may move other things: everything draws again
         if self.needs_layout {
+            self.dirty = true;
             self.do_layout();
         }
-        self.dirty || self.clock_dirty
+        self.dirty || self.moved_dirty
     }
 
     /// A classic window paints its title, time, vis and position bar straight from the player
@@ -170,14 +172,9 @@ impl SkinRuntime {
         let second_changed = second != self.clock_second;
         self.clock_second = second;
         for o in self.classic_shown() {
-            if !self.classic_moved_by_clock(o, second_changed) {
-                continue;
+            if self.classic_moved_by_clock(o, second_changed) {
+                self.moved(o);
             }
-            self.tick_changed.push(o);
-            if let Some(l) = self.layout_object(o) {
-                self.clock_windows.insert(l);
-            }
-            self.clock_dirty = true;
         }
     }
 
@@ -213,9 +210,16 @@ impl SkinRuntime {
         main && self.classic_title_scrolls()
     }
 
+    /// Object `o` moved by itself: its window draws again.
     fn moved(&mut self, o: ObjId) {
-        self.dirty = true;
         self.tick_changed.push(o);
+        match self.layout_object(o) {
+            Some(l) => {
+                self.moved_windows.insert(l);
+                self.moved_dirty = true;
+            }
+            None => self.dirty = true,
+        }
     }
 
     /// Refills every script's step budget, then moves animations and target slides and fires

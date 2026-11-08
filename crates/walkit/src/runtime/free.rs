@@ -626,7 +626,8 @@ impl SkinRuntime {
         if let Some(d) = self.free.drag.as_mut() {
             d.moved = true;
         }
-        self.repaint();
+        // every window keeps its drawing; only where it shows changed
+        self.moved_dirty = true;
         for (l, _) in &drag.group {
             self.dispatch(Handle::Gui(*l), "onmove", &[]);
         }

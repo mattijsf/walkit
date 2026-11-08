@@ -10,6 +10,27 @@ use super::{
 impl SkinRuntime {
     /// The bitmap element `id` names, through aliases; a plain file name used as an image.
     pub(crate) fn bitmap(&mut self, id: &str) -> Option<BitmapDef> {
+        if let Some(found) = self.bitmap_lookups.get(id) {
+            return found.clone();
+        }
+        let found = self.find_bitmap(id);
+        self.bitmap_lookups.insert(id.to_string(), found.clone());
+        found
+    }
+
+    /// The size of picture `file`, as the host decoded it; asked once.
+    pub(crate) fn image_size(&mut self, file: &str) -> Option<(i32, i32)> {
+        if let Some(size) = self.image_sizes.get(file) {
+            return Some(*size);
+        }
+        let size = self.host.image_size(file)?;
+        self.image_sizes.insert(file.to_string(), size);
+        Some(size)
+    }
+
+    /// [`SkinRuntime::bitmap`] worked out: the element `id` names, through its aliases and
+    /// old-style twin, a skin's own before the base's, else a file of that name.
+    fn find_bitmap(&mut self, id: &str) -> Option<BitmapDef> {
         let mut from_base: Option<BitmapDef> = None;
         for name in names_for(id) {
             let Some((key, def)) = self.aliased_bitmap(&name) else {
@@ -59,7 +80,7 @@ impl SkinRuntime {
         if let (Some(w), Some(h)) = (def.w, def.h) {
             return Some((w, h));
         }
-        let full = self.host.image_size(&def.file)?;
+        let full = self.image_size(&def.file)?;
         Some((
             def.w.unwrap_or(full.0 - def.x),
             def.h.unwrap_or(full.1 - def.y),
@@ -93,7 +114,7 @@ impl SkinRuntime {
         if dst.width <= 0 {
             return dst.left;
         }
-        let Some(full) = self.host.image_size(&image.file) else {
+        let Some(full) = self.image_size(&image.file) else {
             return dst.right();
         };
         let sw = image.w.unwrap_or(full.0 - image.x);

@@ -170,6 +170,10 @@ pub struct SkinRuntime {
     clock: Clock,
     // ---- resources
     pub(crate) bitmaps: HashMap<String, BitmapDef>,
+    /// What [`SkinRuntime::bitmap`] found for each id asked, until the elements change.
+    bitmap_lookups: crate::fasthash::FastMap<String, Option<BitmapDef>>,
+    /// The size of each picture the host has measured: a skin's pictures do not change.
+    image_sizes: crate::fasthash::FastMap<String, (i32, i32)>,
     bitmap_fonts: HashMap<String, BitmapFontDef>,
     fonts: HashMap<String, FontDef>,
     colors: HashMap<String, Rgb>,
@@ -192,7 +196,7 @@ pub struct SkinRuntime {
     /// What of the default element set this skin used so far.
     pub(crate) base_usage: BTreeSet<String>,
     resolved_fonts: HashMap<String, Option<Rc<BitmapFontDef>>>,
-    fits: HashMap<BitmapDef, Fit>,
+    fits: crate::fasthash::FastMap<BitmapDef, Fit>,
     opaque_columns: HashMap<String, i32>,
     gdi_lines: HashMap<String, Option<crate::gdi::GdiLineMetrics>>,
     /// A window's shape as `window_start` last gave it: the change it was worked out at, and the command.
@@ -260,13 +264,14 @@ pub struct SkinRuntime {
     pub(crate) touch: bool,
     pub(crate) last_pointer: (i32, i32),
     dirty: bool,
-    /// The clock alone moved a classic window (its title, time, vis): the next draw redraws only
-    /// the windows that read the clock and keeps the others' last drawing.
-    clock_dirty: bool,
+    /// Only objects that move by themselves changed (a vis, a ticker, the time, a classic
+    /// window's clock): the next draw redraws only their windows and keeps the others' last
+    /// drawing.
+    moved_dirty: bool,
     /// When a classic window next changes by itself; 0 for at once.
     classic_next_at: i64,
-    /// The windows the clock alone moved since the last draw.
-    clock_windows: HashSet<ObjId>,
+    /// The windows of the objects that moved by themselves since the last draw.
+    moved_windows: HashSet<ObjId>,
     /// The second a classic playlist's time showed when it last drew, and whether it counted down.
     clock_second: (i32, bool),
     /// Each window's last drawing, for the windows a clock-only draw keeps.
@@ -368,6 +373,8 @@ impl SkinRuntime {
             player,
             clock,
             bitmaps: HashMap::new(),
+            bitmap_lookups: crate::fasthash::FastMap::default(),
+            image_sizes: crate::fasthash::FastMap::default(),
             bitmap_fonts: HashMap::new(),
             fonts: HashMap::new(),
             colors: HashMap::new(),
@@ -387,7 +394,7 @@ impl SkinRuntime {
             collecting_base: false,
             base_usage: BTreeSet::new(),
             resolved_fonts: HashMap::new(),
-            fits: HashMap::new(),
+            fits: crate::fasthash::FastMap::default(),
             opaque_columns: HashMap::new(),
             gdi_lines: HashMap::new(),
             shaped: HashMap::new(),
@@ -445,9 +452,9 @@ impl SkinRuntime {
             classic_list_ink_read: false,
             last_pointer: (0, 0),
             dirty: true,
-            clock_dirty: false,
+            moved_dirty: false,
             classic_next_at: 0,
-            clock_windows: HashSet::new(),
+            moved_windows: HashSet::new(),
             clock_second: (-1, false),
             window_drawings: HashMap::new(),
             needs_layout: true,

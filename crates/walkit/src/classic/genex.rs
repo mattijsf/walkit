@@ -107,7 +107,7 @@ impl SkinRuntime {
     /// media library's lists, a plug-in's controls), indexed by [`GenexColor`]. A skin without
     /// the sheet gets the media library's own colors.
     pub fn classic_genex_colors(&mut self) -> [Rgb; GENEX_COLORS] {
-        let width = self.host.image_size(SHEET).map_or(0, |s| s.0);
+        let width = self.image_size(SHEET).map_or(0, |s| s.0);
         let row = (width > 0)
             .then(|| self.host.pixels(SHEET, 0, 0, width, 1))
             .flatten();
