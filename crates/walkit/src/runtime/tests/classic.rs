@@ -2567,13 +2567,15 @@ fn the_stack_names_winamps_cursor_under_the_pointer() {
 }
 
 #[test]
-fn a_cursor_the_skin_lacks_is_its_cursor_of_the_same_kind() {
+fn a_cursor_the_skin_lacks_is_winamps_own_of_its_kind_from_the_base_skin() {
     use crate::classic::cursor::{tests::cur, CURSOR_FILES};
     let mut files = MemoryFiles::new();
     for s in SHEETS {
         files.insert(s, &b"x"[..]);
     }
-    files.insert("close.cur", cur((1, 0)));
+    // the skin's own close cursor does not stand in for the equalizer's; Winamp's does
+    files.insert("close.cur", cur((0, 1)));
+    files.insert("wasabi-base/close.cur", cur((1, 0)));
     let clock: Clock = Rc::new(|| 0);
     let mut rt = SkinRuntime::new(
         Box::new(files),
@@ -2584,14 +2586,13 @@ fn a_cursor_the_skin_lacks_is_its_cursor_of_the_same_kind() {
     );
     rt.load();
     let slot = |file| CURSOR_FILES.iter().position(|(f, _)| *f == file).unwrap();
-    let eq_close = rt
-        .classic_cursor(slot("eqclose.cur"))
-        .expect("close.cur stands in");
-    assert_eq!(eq_close.frames[0].hot_x, 1);
-    assert!(
-        rt.classic_cursor(slot("normal.cur")).is_none(),
-        "nothing of its kind"
-    );
+    let hot = |rt: &mut SkinRuntime, file| {
+        rt.classic_cursor(slot(file))
+            .map(|c| (c.frames[0].hot_x, c.frames[0].hot_y))
+    };
+    assert_eq!(hot(&mut rt, "eqclose.cur"), Some((1, 0)), "the base skin's");
+    assert_eq!(hot(&mut rt, "close.cur"), Some((0, 1)), "the skin's own");
+    assert_eq!(hot(&mut rt, "normal.cur"), None, "no arrow in either");
 }
 
 #[test]

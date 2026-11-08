@@ -8,7 +8,8 @@
 use super::ClassicWindow;
 
 /// What a skin's cursor stands for, and what the host shows when the skin has no file for it
-/// (Winamp then shows its own arrow with a small sign).
+/// and no base skin is behind it (Winamp then shows its own arrow with a small sign: resources
+/// 205 to 210).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorKind {
     /// The plain arrow.
@@ -26,15 +27,16 @@ pub enum CursorKind {
 }
 
 impl CursorKind {
-    /// The file whose cursor stands for this kind: the base skin's look like Winamp's own.
-    fn stand_in(self) -> &'static str {
+    /// The base skin's file (under [`crate::files::BASE_PREFIX`]) that holds Winamp's own cursor
+    /// of this kind: base 2.91's look exactly like Winamp's own.
+    fn winamps_own(self) -> &'static str {
         match self {
-            CursorKind::Arrow => "normal.cur",
-            CursorKind::Move => "titlebar.cur",
-            CursorKind::HorizontalSlide => "posbar.cur",
-            CursorKind::VerticalSlide => "eqslid.cur",
-            CursorKind::Close => "close.cur",
-            CursorKind::Resize => "psize.cur",
+            CursorKind::Move => "wasabi-base/titlebar.cur",
+            CursorKind::HorizontalSlide => "wasabi-base/posbar.cur",
+            CursorKind::Close => "wasabi-base/close.cur",
+            CursorKind::Arrow => "wasabi-base/normal.cur",
+            CursorKind::VerticalSlide => "wasabi-base/eqslid.cur",
+            CursorKind::Resize => "wasabi-base/psize.cur",
         }
     }
 }
@@ -414,14 +416,13 @@ impl crate::runtime::SkinRuntime {
         slot_at(kind, r.width, r.height, x - r.left, y - r.top)
     }
 
-    /// The skin's picture for cursor `slot`, decoded once. Without that file, the skin's (or
-    /// the base skin's) cursor of the same kind, as Winamp then shows its own arrow of that
-    /// kind; `None` when neither can be read, and the host shows its own for the slot's
-    /// [`CursorKind`].
+    /// The skin's picture for cursor `slot`, decoded once. Without that file, Winamp's own
+    /// cursor of the slot's kind, from the base skin behind the skin; `None` without either,
+    /// and the host shows its own for the [`CursorKind`].
     pub fn classic_cursor(&mut self, slot: usize) -> Option<std::rc::Rc<SkinCursor>> {
         let &(file, kind) = CURSOR_FILES.get(slot)?;
         self.cursor_file(file)
-            .or_else(|| self.cursor_file(kind.stand_in()))
+            .or_else(|| self.cursor_file(kind.winamps_own()))
     }
 
     fn cursor_file(&mut self, file: &'static str) -> Option<std::rc::Rc<SkinCursor>> {
