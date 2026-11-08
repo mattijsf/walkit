@@ -620,6 +620,10 @@ impl SkinRuntime {
     }
 
     fn pointer_up_at(&mut self, sx: i32, sy: i32) {
+        // the browser may fold the last move into the release
+        if self.free_dragging() {
+            self.free_drag_to(sx, sy);
+        }
         self.free_drag_end();
         self.send_deferred();
         let (x, y) = self.captured_local(sx, sy);

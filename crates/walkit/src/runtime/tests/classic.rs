@@ -2639,6 +2639,22 @@ fn a_window_at_any_scale_keeps_its_drag_and_its_grip() {
 }
 
 #[test]
+fn a_drag_ends_where_the_finger_lifts_even_with_no_move_there() {
+    let mut rt = classic();
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    rt.place_window(main, 300, 200);
+    rt.ensure_layout();
+    // the title bar, clear of its buttons
+    rt.pointer_down(360, 206, 1);
+    rt.pointer_move(400, 226);
+    rt.pointer_up(402, 227);
+    rt.ensure_layout();
+    let r = rt.window_rect(main);
+    assert_eq!((r.left, r.top), (342, 221));
+}
+
+#[test]
 fn the_visualizer_window_holds_the_hosts_visualizer_in_its_frame() {
     let mut rt = classic();
     apart(&mut rt);
