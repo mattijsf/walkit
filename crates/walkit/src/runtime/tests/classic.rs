@@ -171,10 +171,10 @@ fn the_title_row_spells_the_track_in_the_bitmap_font_across_the_row() {
             "cell {i} is {c:?}"
         );
     }
-    // the row is covered from 111 to 269 and no further
+    // the row is covered from 111 up to 265 and no further: Winamp leaves the box's corner be
     let covered: i32 = text.iter().map(|b| b.2).sum();
-    assert_eq!(covered, 269 - 111);
-    assert_eq!(text.last().map(|b| b.4 + b.2), Some(269));
+    assert_eq!(covered, 265 - 111);
+    assert_eq!(text.last().map(|b| b.4 + b.2), Some(265));
 }
 
 #[test]

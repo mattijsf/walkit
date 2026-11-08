@@ -10,7 +10,7 @@ use crate::gui::{Kind, ObjId};
 use crate::player::Status;
 use crate::runtime::SkinRuntime;
 
-/// The title row: from x 111 to 265, 6 rows high at y 27.
+/// The title row: from x 111 up to 265, 6 rows high at y 27.
 const TITLE_LEFT: i32 = 111;
 const TITLE_RIGHT: i32 = 265;
 const TITLE_TOP: i32 = 27;
@@ -441,13 +441,13 @@ impl SkinRuntime {
         let mut x = TITLE_LEFT;
         let mut skip = offset % 5;
         let mut chars = text.chars().skip((offset / 5) as usize);
-        while x < TITLE_RIGHT + 4 {
+        while x < TITLE_RIGHT {
             let Some(c) = chars.next() else {
                 break;
             };
             let (cx, cy) = font::cell(c);
-            if x > TITLE_RIGHT - 6 {
-                p.blit("text.bmp", cx, cy, TITLE_RIGHT + 4 - x, 6, x, TITLE_TOP);
+            if x > TITLE_RIGHT - 5 {
+                p.blit("text.bmp", cx, cy, TITLE_RIGHT - x, 6, x, TITLE_TOP);
                 return;
             }
             p.blit("text.bmp", cx + skip, cy, 5 - skip, 6, x, TITLE_TOP);
@@ -455,7 +455,7 @@ impl SkinRuntime {
             skip = 0;
         }
         // the row's rest: the blank column at the end of the first cell
-        while x < TITLE_RIGHT + 4 {
+        while x < TITLE_RIGHT {
             p.blit("text.bmp", 4, 0, 1, 6, x, TITLE_TOP);
             x += 1;
         }
