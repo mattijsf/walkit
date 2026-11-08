@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! A modern skin's playlist buttons (Winamp Modern's Add, Rem, Sel, Misc and Manage Playlist),
-//! whose menus the app shows above the button.
+//! What the app's playlist menus need from a modern skin: its playlist buttons (Winamp Modern's
+//! Add, Rem, Sel, Misc and Manage Playlist) asking for their menus, and the entry the list has
+//! selected for their items to act on.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,16 +11,18 @@ use super::{Froms, RecordingHost, SKIN_XML};
 use crate::draw::Rect;
 use crate::files::MemoryFiles;
 use crate::host::{ActionFrom, Clock, SkinSetup};
-use crate::player::FakePlayer;
+use crate::player::{FakePlayer, Track};
 use crate::runtime::SkinRuntime;
 
 const PLAYER_XML: &str = concat!(
-    r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="200" h="40">"#,
+    r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="200" h="120">"#,
     r#"<button id="pl.add" action="PE_Add" x="3" y="4" w="30" h="12"/>"#,
     r#"<button id="pl.rem" action="PE_Rem" x="46" y="4" w="30" h="12"/>"#,
     r#"<button id="pl.sel" action="PE_Sel" x="90" y="4" w="30" h="12"/>"#,
     r#"<button id="pl.misc" action="PE_Misc" x="127" y="4" w="30" h="12"/>"#,
     r#"<button id="pl.list" action="PE_List" x="160" y="4" w="30" h="12"/>"#,
+    r#"<component id="list" param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}" "#,
+    r#"x="0" y="20" w="200" h="100"/>"#,
     r#"</layout></container>"#,
 );
 
@@ -30,10 +33,17 @@ fn recording(host_actions: bool) -> (SkinRuntime, Rc<RefCell<Vec<String>>>, From
     files.insert("skin.xml", SKIN_XML.as_bytes());
     files.insert("player.xml", PLAYER_XML.as_bytes());
     let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = ["One", "Two", "Three"]
+        .map(|title| Track {
+            title: title.into(),
+            length_ms: 60_000,
+        })
+        .into();
     let mut rt = SkinRuntime::new(
         Box::new(files),
         Box::new(RecordingHost(actions.clone(), froms.clone())),
-        Box::new(FakePlayer::new(clock.clone())),
+        Box::new(player),
         SkinSetup {
             host_actions,
             ..SkinSetup::default()
@@ -74,4 +84,15 @@ fn without_host_actions_the_playlist_buttons_send_nothing() {
     let (mut rt, actions, _) = recording(false);
     tap_each(&mut rt);
     assert!(actions.borrow().is_empty());
+}
+
+#[test]
+fn the_list_tells_the_host_the_entry_it_selects_once() {
+    let (mut rt, actions, _) = recording(true);
+    // the list's rows start 3 px into it, 15 px each: the second is at y 38..53 of the window
+    for seq in 1..=2 {
+        rt.pointer_down(50, 45, seq);
+        rt.pointer_up(50, 45);
+    }
+    assert_eq!(*actions.borrow(), vec!["PLAYLIST_SELECT 1"]);
 }

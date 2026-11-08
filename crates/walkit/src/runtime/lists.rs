@@ -745,7 +745,7 @@ impl SkinRuntime {
         if index == self.pl(o).selected {
             self.player.play_track(index);
         } else {
-            self.pl_mut(o).selected = index;
+            self.pl_select(o, index);
         }
         self.pl_selection_changed(o);
     }
@@ -763,9 +763,19 @@ impl SkinRuntime {
         let Some(index) = self.pl_row_at(o, py) else {
             return;
         };
-        self.pl_mut(o).selected = index;
+        self.pl_select(o, index);
         self.player.play_track(index);
         self.pl_selection_changed(o);
+    }
+
+    /// Selects entry `index` and tells the host, which keeps the selection its playlist menus act
+    /// on, as a classic skin's playlist does (`PLAYLIST_SELECT` with the entry).
+    fn pl_select(&mut self, o: ObjId, index: i32) {
+        if self.pl(o).selected == index {
+            return;
+        }
+        self.pl_mut(o).selected = index;
+        self.action(o, "PLAYLIST_SELECT", Some(&index.to_string()), None);
     }
 
     /// The entry whose row is at `py`, a point of the window, or `None` past the last one.

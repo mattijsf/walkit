@@ -6,7 +6,7 @@
 mod classic;
 mod free;
 mod options;
-mod playlist_buttons;
+mod playlist_menus;
 mod presentation;
 mod settings;
 mod skin_name;
