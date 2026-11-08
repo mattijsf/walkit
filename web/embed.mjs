@@ -20,8 +20,7 @@
 
 import { Walkit } from "./walkit.mjs";
 import { FrameReader } from "./frame.mjs";
-import { Pictures, Renderer, normalize, inSkinFolder, familyOf } from "./render.mjs";
-import { decodePicture } from "./pictures.mjs";
+import { Pictures, Renderer, normalize, inSkinFolder, familyOf, cmdRect } from "./render.mjs";
 import { unzipAsync } from "./zip.mjs";
 
 async function inflateWith(format, bytes) {
@@ -64,6 +63,39 @@ class PointRenderer extends Renderer {
   }
 }
 
+// the commands that only mark out the drawing: when one of them changes, everything is drawn again
+const FRAMING = new Set(["clip", "unclip", "shape", "endshape"]);
+const NOTHING = Object.freeze({ left: 0, top: 0, width: 0, height: 0 });
+
+/**
+ * The box (layout pixels) covering what changed between two drawings of a window: NOTHING
+ * when nothing did, null when the whole window should be drawn again (the commands differ in
+ * number or in framing, or the change covers most of it).
+ */
+function changedPart(before, after, rect) {
+  if (before.length !== after.length) return null;
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (let i = 0; i < after.length; i++) {
+    const a = before[i];
+    const b = after[i];
+    if (a === b) continue;
+    if (a.k !== b.k || FRAMING.has(b.k)) return null;
+    for (const r of [cmdRect(a), cmdRect(b)]) {
+      if (!r) return null;
+      left = Math.min(left, r.left, r.left + r.width);
+      top = Math.min(top, r.top, r.top + r.height);
+      right = Math.max(right, r.left, r.left + r.width);
+      bottom = Math.max(bottom, r.top, r.top + r.height);
+    }
+  }
+  if (left === Infinity) return NOTHING;
+  const part = { left, top, width: right - left, height: bottom - top };
+  return part.width * part.height > rect.width * rect.height * 0.6 ? null : part;
+}
+
 /**
  * Loads the engine with the page's `handlers`, from `walkit.wasm` next to this file unless
  * `wasm` names another URL or gives the module's bytes.
@@ -84,6 +116,7 @@ class Embed {
     this.families = new Map([["", "Arial"]]);
     this.registered = new Set();
     this.measures = new Map();
+    this.defaults = new Map();
     this.measure = document.createElement("canvas").getContext("2d");
   }
 
@@ -94,6 +127,22 @@ class Embed {
     const value = measure();
     this.measures.set(key, value);
     return value;
+  }
+
+  /**
+   * A default set, opened once: its files in the engine, its pictures decoded. An archive is
+   * kept by its source; path -> bytes is opened each time.
+   */
+  defaultSet(source) {
+    const open = async () => {
+      const entries = source instanceof Map ? source : inSkinFolder(await unzipAsync(await bytesOf(source), inflateRaw));
+      const pictures = new Pictures();
+      await pictures.add(entries, inflate);
+      return { pics: pictures.pics, id: this.w.filesFrom(entries) };
+    };
+    if (source instanceof Map) return open();
+    if (!this.defaults.has(source)) this.defaults.set(source, open());
+    return this.defaults.get(source);
   }
 
   /** Replaces the page's handlers, as when another part of the page takes the engine over. */
@@ -169,27 +218,31 @@ class Embed {
   }
 
   /**
-   * Opens a skin archive (a URL, an ArrayBuffer or bytes): a classic .wsz on its own, a modern
-   * .wal over `defaults` (Winamp's default element set: an archive like the skin, or path ->
-   * bytes) with the fonts given to `addFonts`. On the page's player unless `demoPlayer`.
+   * Opens a skin archive (a URL, an ArrayBuffer or bytes) over `defaults`, an archive like the
+   * skin (kept once opened) or path -> bytes: for a classic .wsz the base skin its missing
+   * bitmaps come from, as Winamp takes them from its own; for a modern .wal Winamp's default
+   * element set, with the fonts given to `addFonts`. On the page's player unless `demoPlayer`.
    */
   async openSkin(source, { name = "skin", defaults = null, demoPlayer = false } = {}) {
-    const entries = inSkinFolder(await unzipAsync(await bytesOf(source), inflateRaw));
-    if (defaults && !(defaults instanceof Map)) {
-      defaults = await unzipAsync(await bytesOf(defaults), inflateRaw);
-    }
+    const [entries, base] = await Promise.all([
+      bytesOf(source).then((b) => unzipAsync(b, inflateRaw)).then(inSkinFolder),
+      defaults ? this.defaultSet(defaults) : null,
+    ]);
     const names = new Set([...entries.keys()].map(normalize));
     const pictures = new Pictures();
-    for (const layer of [entries, defaults || new Map()]) await pictures.add(layer, inflate);
+    await pictures.add(entries, inflate);
+    for (const [key, pic] of base?.pics ?? []) if (!pictures.pics.has(key)) pictures.pics.set(key, pic);
     this.pictures = pictures;
     this.classic = isClassic(names);
     this.measures.clear();
-    this.skinFiles = new Map([...entries].map(([path, bytes]) => [normalize(path), bytes]));
+    // the engine has the archive; the page keeps only the fonts it may ask for again
+    this.skinFiles = new Map(
+      [...entries].filter(([path]) => /\.(ttf|otf)$/i.test(path)).map(([path, bytes]) => [normalize(path), bytes]),
+    );
     for (const [path, bytes] of entries) {
       if (/\.ttf$/i.test(path)) await this.registerFont(path, bytes);
     }
-    const defaultsId = defaults ? this.w.filesFrom(defaults) : -1;
-    const stack = this.w.stack(this.w.filesFrom(entries), defaultsId);
+    const stack = this.w.stack(this.w.filesFrom(entries), base ? base.id : -1);
     const make = demoPlayer ? "runtime" : "hostedRuntime";
     const rt = this.w[make](stack, name, false, performance.now());
     rt.load();
@@ -203,23 +256,44 @@ class Embed {
  * An open skin: its runtime (`rt`, see `Runtime` in walkit.mjs), whether it is a classic
  * skin, and its windows to paint.
  */
+// the runtime's calls that change what the skin shows: each wakes the next `tick`
+const CHANGES = [
+  "setPlayerState", "setPlaylist", "setVis", "pointerDown", "pointerMove", "pointerUp", "doubleTap",
+  "rightClick", "openWindow", "closeWindow", "placeWindow", "resizeWindow", "setWindowLayout",
+  "setWindowScale", "setWindowTitle", "setFree", "setView", "setTimeRemaining", "setEqAuto",
+  "scrollPlaylist", "selectTheme", "player",
+];
+
 export class Skin {
   constructor(rt, renderer, classic) {
+    for (const name of CHANGES) {
+      const call = rt[name].bind(rt);
+      rt[name] = (...args) => {
+        this.dirty = true;
+        return call(...args);
+      };
+    }
     this.rt = rt;
     this.classic = classic;
     this.renderer = renderer;
     this.reader = new FrameReader();
     this.painted = new WeakMap();
+    this.dueAt = 0;
     this.shown = [];
     this.dirty = true;
   }
 
-  /** Steps the clock to `now` (ms); whether the windows need painting again. */
+  /**
+   * Steps the clock to `now` (ms); whether the windows need painting again. Until the engine
+   * has something due, or `invalidate` says the page changed something, it costs nothing.
+   */
   tick(now) {
+    if (!this.dirty && now < this.dueAt) return false;
     this.rt.setNow(now);
     const changed = this.rt.tick() || this.dirty;
     this.dirty = false;
     if (changed) this.shown = this.reader.decode(this.rt.drawFrame(now)).windows;
+    this.dueAt = this.rt.nextDueAt() ?? Infinity;
     return changed;
   }
 
@@ -228,25 +302,24 @@ export class Skin {
     return this.shown;
   }
 
-  /** Asks for the windows again on the next `tick`. */
+  /** Asks for the windows again on the next `tick`: after the page changed the player, a window or the input. */
   invalidate() {
     this.dirty = true;
   }
 
   /**
    * Paints `window` on `canvas` at `scale` device pixels per skin pixel, its corner at the
-   * canvas's; nothing when the canvas already shows that drawing.
+   * canvas's: only the part whose drawing changed since the canvas last showed this window.
    */
   paint(canvas, window, scale = 1) {
     const last = this.painted.get(canvas);
-    if (last && last.cmds === window.cmds && last.scale === scale && last.w === canvas.width && last.h === canvas.height) {
-      return;
-    }
+    const same = last && last.scale === scale && last.w === canvas.width && last.h === canvas.height;
+    if (same && last.cmds === window.cmds) return;
+    const part = same ? changedPart(last.cmds, window.cmds, window.rect) : null;
     this.painted.set(canvas, { cmds: window.cmds, scale, w: canvas.width, h: canvas.height });
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const rect = { ...window.rect, left: 0, top: 0 };
-    this.renderer.draw(ctx, { windows: [{ ...window, rect }] }, scale);
+    if (part === NOTHING) return;
+    // a window's own canvas is its layer: drawn straight into, nothing to copy
+    this.renderer.drawWindow(canvas, window.cmds, window.rect.width, window.rect.height, scale, part);
   }
 
   free() {

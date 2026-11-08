@@ -86,6 +86,8 @@ export interface Runtime {
   /** Where the page draws its visualizer, or null when no window shows a place for it. */
   visRect(): Rect | null;
   mainWindow(): number | null;
+  /** When (clock ms) something on the skin next changes by itself, or null. */
+  nextDueAt(): number | null;
   focusedWindow(): number | null;
   timeRemaining(): boolean;
   setTimeRemaining(on: boolean): void;
@@ -106,10 +108,15 @@ export interface Skin {
   rt: Runtime;
   /** A classic .wsz skin rather than a modern .wal one. */
   classic: boolean;
-  /** Steps the clock to `now` (ms); whether the windows need painting again. */
+  /** When (in `tick`'s clock) the skin next changes by itself; Infinity when nothing will until the page changes something. */
+  readonly dueAt: number;
+  /**
+   * Steps the clock to `now` (ms); whether the windows need painting again. Does nothing until
+   * the engine has something due or `invalidate` was called.
+   */
   tick(now: number): boolean;
   windows(): SkinWindow[];
-  /** Asks for the windows again on the next `tick`. */
+  /** Asks for the windows again on the next `tick`: call it after changing the player, a window or the input. */
   invalidate(): void;
   /** Paints `window` on `canvas`, its corner at the canvas's, `scale` device pixels per pixel. */
   paint(canvas: HTMLCanvasElement, window: SkinWindow, scale?: number): void;

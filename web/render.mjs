@@ -88,11 +88,47 @@ function surface(w, h) {
   return c;
 }
 
+/** The box a drawing command paints in, or null for one that paints nothing itself (a clip, a shape's ends). */
+export function cmdRect(c) {
+  switch (c.k) {
+    case "image":
+      return c.dst;
+    case "fill":
+    case "text":
+    case "pixels":
+    case "bitmaptext":
+      return c.rect;
+    default:
+      return null;
+  }
+}
+
+/** Whether box `r` (or a command with no box) reaches into `part`. */
+function meets(r, part) {
+  if (!r) return true;
+  const left = Math.min(r.left, r.left + r.width);
+  const top = Math.min(r.top, r.top + r.height);
+  return (
+    left < part.left + part.width &&
+    part.left < left + Math.abs(r.width) &&
+    top < part.top + part.height &&
+    part.top < top + Math.abs(r.height)
+  );
+}
+
 /** A canvas holding `argb` (`w` x `h`, rows top first), optionally only where a pixel is opaque. */
 function canvasOf(w, h, argb, hard = false) {
-  const c = surface(w, h);
+  return fillCanvas(surface(w, h), argb, hard);
+}
+
+/** Writes `argb` into canvas `c`, which is as large as the picture. */
+function fillCanvas(c, argb, hard = false) {
+  const w = c.width;
+  const h = c.height;
   const ctx = c.getContext("2d");
-  const img = ctx.createImageData(w, h);
+  // a canvas filled again and again keeps its pixel buffer
+  const img = c.pixelBuffer ?? ctx.createImageData(w, h);
+  c.pixelBuffer = img;
   const d = img.data;
   for (let i = 0, j = 0; i < argb.length; i++, j += 4) {
     const v = argb[i];
@@ -120,13 +156,12 @@ export class Pictures {
 
   /** Decodes every picture in `entries` (path -> bytes) that an earlier layer did not give. */
   async add(entries, inflate) {
-    for (const [name, data] of entries) {
-      if (!/\.(png|bmp|gif)$/i.test(name)) continue;
+    const wanted = [...entries].filter(([name]) => /\.(png|bmp|gif)$/i.test(name) && !this.pics.has(normalize(name)));
+    const pics = await Promise.all(wanted.map(([, data]) => decodePicture(data, inflate)));
+    wanted.forEach(([name], i) => {
       const key = normalize(name);
-      if (this.pics.has(key)) continue;
-      const pic = await decodePicture(data, inflate);
-      if (pic) this.pics.set(key, pic);
-    }
+      if (pics[i] && !this.pics.has(key)) this.pics.set(key, pics[i]);
+    });
   }
 
   get(file) {
@@ -195,6 +230,10 @@ export class Renderer {
     this.layers = new Map();
     // the commands each layer was drawn from
     this.drawn = new Map();
+    // a window's shape as a mask, by the region it was made from and its size
+    this.masks = new WeakMap();
+    // the canvas each size of changing pixels (a vis) is written into, frame after frame
+    this.scratch = new Map();
   }
 
   fontOf(cmd) {
@@ -237,18 +276,32 @@ export class Renderer {
   }
 
   /** One window's commands into `layer`, a canvas of its size at `scale`. */
-  drawWindow(layer, cmds, w, h, scale) {
+  drawWindow(layer, cmds, w, h, scale, part = null) {
     const ctx = layer.getContext("2d");
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    ctx.clearRect(0, 0, layer.width, layer.height);
+    // only `part` (layout pixels) drawn again: everything else on the layer stays
+    ctx.save();
+    if (part) {
+      const x0 = Math.max(0, Math.floor(part.left * scale) - 1);
+      const y0 = Math.max(0, Math.floor(part.top * scale) - 1);
+      const x1 = Math.min(layer.width, Math.ceil((part.left + part.width) * scale) + 1);
+      const y1 = Math.min(layer.height, Math.ceil((part.top + part.height) * scale) + 1);
+      ctx.beginPath();
+      ctx.rect(x0, y0, x1 - x0, y1 - y0);
+      ctx.clip();
+      ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
+    } else {
+      ctx.clearRect(0, 0, layer.width, layer.height);
+    }
     ctx.save();
     ctx.scale(scale, scale);
     ctx.imageSmoothingEnabled = false;
     let depth = 0;
     let shape = null;
     for (const c of cmds) {
+      if (part && !meets(cmdRect(c), part)) continue;
       switch (c.k) {
         case "shape":
           // what follows is masked by the region at the end
@@ -298,6 +351,7 @@ export class Renderer {
       ctx.drawImage(mask, 0, 0);
       ctx.restore();
     }
+    ctx.restore();
   }
 
   image(ctx, c) {
@@ -338,9 +392,13 @@ export class Renderer {
   pixels(ctx, c) {
     if (c.rect.width <= 0 || c.rect.height <= 0 || c.w <= 0 || c.h <= 0) return;
     let src = c.stable ? c.canvas : null;
-    if (!src) {
-      src = canvasOf(c.w, c.h, c.argb);
-      if (c.stable) c.canvas = src;
+    if (!src && c.stable) {
+      src = c.canvas = canvasOf(c.w, c.h, c.argb);
+    } else if (!src) {
+      const key = `${c.w}x${c.h}`;
+      src = this.scratch.get(key);
+      if (!src) this.scratch.set(key, (src = surface(c.w, c.h)));
+      fillCanvas(src, c.argb);
     }
     ctx.globalAlpha = c.alpha / 255;
     ctx.imageSmoothingEnabled = false;
@@ -350,7 +408,11 @@ export class Renderer {
 
   /** A window's shape as a mask canvas: opaque where the window shows. */
   mask(region, w, h, scale) {
+    const key = `${w}x${h}@${scale}`;
+    const kept = this.masks.get(region);
+    if (kept && kept.key === key) return kept.mask;
     const m = surface(Math.ceil(w * scale), Math.ceil(h * scale));
+    this.masks.set(region, { key, mask: m });
     const ctx = m.getContext("2d");
     ctx.scale(scale, scale);
     ctx.imageSmoothingEnabled = false;
