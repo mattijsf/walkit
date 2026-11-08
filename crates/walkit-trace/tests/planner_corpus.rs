@@ -64,8 +64,9 @@ impl SkinFiles for Shared {
 fn corpus() -> Option<PathBuf> {
     let dir = match std::env::var_os("WALKIT_CORPUS_SKINS") {
         Some(d) => PathBuf::from(d),
-        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../andamp/modernskin/src/test/resources"),
+        None => {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../andamp/app/src/test/corpus")
+        }
     };
     if dir.is_dir() {
         Some(dir)

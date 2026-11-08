@@ -438,7 +438,7 @@ export class Renderer {
     return m;
   }
 
-  /** Draws `region` into `ctx` as the reference engine's renderer evaluates it. */
+  /** Draws `region` into `ctx`. */
   region(ctx, region, hard, w, h, scale) {
     switch (region.k) {
       case "pic": {

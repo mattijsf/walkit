@@ -74,7 +74,7 @@ fn ordinal(a: &Value, b: &Value) -> std::cmp::Ordering {
     }
 }
 
-/// A value as Kotlin's `toString` of the Kotlin engine's values writes it, for a log line.
+/// A value as a log line writes it, in the form of Kotlin's `toString`.
 fn value_text(rt: &SkinRuntime, v: &Value) -> String {
     match v {
         Value::Obj(h) => format!("Obj({})", rt.kotlin_name(*h)),

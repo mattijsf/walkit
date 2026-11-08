@@ -391,7 +391,7 @@ impl SkinRuntime {
         dx * dx + dy * dy
     }
 
-    /// What a finger at a point means, in the order of the reference engine's `touchTarget`.
+    /// What a finger at a point means, in the order the checks below run.
     pub(crate) fn touch_target(&mut self, sx: i32, sy: i32) -> Option<ObjId> {
         let window = self.window_at(sx, sy)?;
         let (x, y) = self.layout_point(window, sx, sy);

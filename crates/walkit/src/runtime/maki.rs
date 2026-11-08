@@ -227,7 +227,7 @@ impl SkinRuntime {
         }
     }
 
-    /// The class name the reference engine's objects carry, for log lines that name a receiver.
+    /// The class name a log line gives a receiver.
     pub(crate) fn kotlin_name(&self, h: Handle) -> String {
         match h {
             Handle::Gui(o) => {

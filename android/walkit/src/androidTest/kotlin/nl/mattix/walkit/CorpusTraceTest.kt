@@ -13,8 +13,8 @@ import java.io.File
 
 /**
  * Every scenario of the reference set, run through the AAR on the device and written as a trace,
- * for the byte compare with the reference engine's traces: the proof that the binding carries
- * everything the engine does. The inputs are pushed to `/data/local/tmp/walkit` beforehand
+ * for the byte compare with the traces the same commit writes on a desktop: the proof that the
+ * binding carries everything the engine does. The inputs are pushed to `/data/local/tmp/walkit` beforehand
  * (`scenarios.json`, the corpus skins in `skins/`, the small set in `small/` with
  * `scenarios-small.json`, `wasabi-defaults.zip`, the stand-in fonts in `fonts/`; see README.md);
  * the traces land in the test app's external files dir, to be pulled and diffed with

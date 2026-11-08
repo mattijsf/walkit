@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! How the planner keeps a window's moving objects apart from the rest, and when each version
-//! moves; the reference engine's planner tests, on frames written in place.
+//! moves, on frames written in place.
 
 use std::rc::Rc;
 

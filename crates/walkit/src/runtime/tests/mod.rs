@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! The runtime on small skins written in place, checked against what the reference engine does
-//! on the same skins: the tests of Andamp's `:modernskin` module that the trace cannot show.
+//! The runtime on small skins written in place: what the engine does that a trace cannot show.
 
 mod classic;
 mod free;

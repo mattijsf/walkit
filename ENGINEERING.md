@@ -6,7 +6,7 @@
 tools/gate.sh            # the push gate: fmt, clippy -D warnings, tests
 cargo test --workspace   # the tests alone
 tools/web-build.sh       # the wasm modules into web/dist/, with their sizes
-tools/trace-diff.sh      # compare traces/ with the reference engine's traces
+tools/trace-diff.sh      # compare traces/ with the last release's traces
 ```
 
 The Android library builds with Gradle; [android/README.md](android/README.md) lists the
@@ -25,34 +25,34 @@ add wasm32-unknown-unknown`). `wasm-opt` (from binaryen) is optional.
 | `web/` | The JS host: the embedding package, the player page and the trace runners. |
 | `tools/` | The gate, the trace diff and the web build. |
 
-## Trace parity
+## Traces
 
-walkit is a port of the Kotlin engine in the `:modernskin` module of
-[Andamp](https://github.com/mattijsf/andamp). Both engines write a text trace of a scripted run:
-each step, the skin's log lines, menus and host actions, each tick's work, and the draw list of
-every frame that changed.
+`walkit-trace` writes a text trace of a scripted run: each step, the skin's log lines, menus
+and host actions, each tick's work, and the draw list of every frame that changed. Text is
+measured by a fixed rule and the clock is stepped, so a trace depends on no platform. A change
+to the trace format changes the `trace v1` header.
 
-A scenario passes when both traces are identical. A change to the trace format changes the
-`trace v1` header on both sides.
+How a skin should look and answer is Winamp 5.666's: a rule is settled by a screenshot or a
+probe of Winamp in a virtual machine, and a test then holds it. The traces catch everything
+else a change moves. Before a release:
 
-To check parity:
-
-1. In an Andamp checkout, run `EngineTraceTest`. It writes the reference traces to
-   `modernskin/build/traces`.
-2. Record the same scenarios with walkit:
+1. Record the scenarios at the release's commit:
 
    ```bash
    cargo run --release -p walkit-trace -- <scenarios.json> traces \
      --skins <skins dir> --defaults <wasabi-defaults.zip> --fonts <fonts dir>
    ```
 
-3. Compare them: `WALKIT_REFERENCE_TRACES=<andamp>/modernskin/build/traces tools/trace-diff.sh`.
+2. Compare them with the traces of the last release:
+   `WALKIT_REFERENCE_TRACES=<last release's traces> tools/trace-diff.sh`. Every scenario that
+   differs must differ because of a change the release means to make.
+3. Keep the new traces as the set the next release is compared with.
 
 The inputs stay outside the repository: the skins are other people's work, and the traces are
 tens of megabytes per run.
 
 `--defaults` takes a zip of Winamp's `wasabi` folder. `--fonts` must be Andamp's default-set
-fonts folder (`modernskin/src/main/resources/nl/mattix/andamp/modernskin/defaultset/fonts`). It
+fonts folder (`app/src/main/resources/nl/mattix/andamp/wal/defaultset/fonts`). It
 holds DejaVu Sans Condensed and Liberation Sans, which stand in for Windows' system fonts.
 Without Liberation Sans, text set in Arial lands on different baselines.
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! What a renderer may keep of each window between frames, as the reference engine's planner
-//! works it out: the objects that change from frame to frame, kept apart as live runs, and the
+//! What a renderer may keep of each window between frames: the objects that change from frame to frame, kept apart as live runs, and the
 //! rest of the window, each with a version that moves when its drawing does.
 //!
 //! Each object's drawing is compared, command by command ([`DrawCmd::draws_same_as`]), with
