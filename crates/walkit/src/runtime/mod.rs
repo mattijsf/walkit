@@ -138,6 +138,8 @@ pub struct SkinRuntime {
     pub(crate) classic_vis_tapped_at: i64,
     /// What the title row shows in place of the song while a slider is dragged.
     pub(crate) classic_status: Option<String>,
+    /// When the title row's text gives the title back by itself (5.666's one-second timer).
+    pub(crate) classic_status_until: i64,
     /// The title's scroll in pixels when it last stopped or started, the clock time from which
     /// it moves on (later than now while held), and the title it belongs to.
     pub(crate) classic_title_base: i32,
@@ -373,6 +375,7 @@ impl SkinRuntime {
             classic_vis_before: crate::classic::vis::VisMode::default(),
             classic_vis_tapped_at: i64::MIN / 2,
             classic_status: None,
+            classic_status_until: i64::MAX,
             classic_title_base: 0,
             classic_title_epoch: 0,
             classic_title_key: String::new(),

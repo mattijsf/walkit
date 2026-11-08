@@ -119,6 +119,9 @@ impl SkinRuntime {
             self.do_layout();
         }
         self.settle_holders();
+        if t >= self.classic_status_until {
+            self.classic_status_end();
+        }
         for o in self.sliders.clone() {
             self.slider_sync(o);
         }
@@ -451,6 +454,10 @@ impl SkinRuntime {
         let mut due = None;
         if shown.contains(&ClassicWindow::Main) && self.classic_title_scrolls() {
             due = self.classic_title_next_step(now);
+        }
+        if self.classic_status.is_some() && self.classic_status_until < i64::MAX {
+            let until = self.classic_status_until;
+            due = Some(due.map_or(until, |d: i64| d.min(until)));
         }
         if !shown.is_empty() && self.player.status() == Status::Paused {
             let blink = (now / PAUSE_BLINK_MS + 1) * PAUSE_BLINK_MS;

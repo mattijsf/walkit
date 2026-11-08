@@ -27,6 +27,18 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
+/// `seconds` as a row or the shade bar writes it: m:ss, the minutes unbounded ("75:00").
+fn minutes_text(seconds: i32) -> String {
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Entry `n` (1 the first) of `count` as the list numbers it, padded with spaces to the
+/// count's digits ("%2d. " from 10 entries).
+fn numbered(n: usize, count: usize, title: &str) -> String {
+    let width = count.max(1).to_string().len();
+    format!("{n:>width$}. {title}")
+}
+
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
@@ -98,15 +110,26 @@ impl SkinRuntime {
             .and_then(|i| self.player.tracks().into_iter().nth(i))
             .map_or((String::new(), 0), |t| (t.title, t.length_ms / 1000));
         if self.classic_style == ClassicStyle::Winamp291 {
-            Self::shade_line_291(&mut p, w, &format!("{}. {}", index + 1, title), length);
+            let count = self.player.tracks().len();
+            let line = numbered(index as usize + 1, count, &title);
+            Self::shade_line_291(&mut p, w, &line, length);
             return;
         }
-        let time = time_text(length);
+        let time = minutes_text(length);
         let time_cells = time.chars().count() as i32;
         let room = (w - 29 - 4) / 5 - time_cells - 1;
         let mut x = 4;
-        let line = format!("{}. {}", index + 1, title);
-        for c in line.chars().take(room.max(0) as usize) {
+        let line: Vec<char> = numbered(index as usize + 1, self.player.tracks().len(), &title)
+            .chars()
+            .collect();
+        let room = room.max(0) as usize;
+        for (i, &c) in line.iter().take(room).enumerate() {
+            // a title cut short ends on the ellipsis cell
+            let c = if i + 1 == room && line.len() > room {
+                '\u{1}'
+            } else {
+                c
+            };
             let (cx, cy) = font::cell(c);
             p.blit("text.bmp", cx, cy, 5, 6, x, 4);
             x += 5;
@@ -307,13 +330,14 @@ impl SkinRuntime {
                     continue;
                 }
             }
-            // the title ends, cut short on "...", before the length (Winamp's ellipsis)
+            // " m:ss " right-aligned at the row's end, and the title up to it, cut short on "..."
+            // (as Windows ends a cut line with an ellipsis)
             let face = Some(&style.font);
             let def = Self::classic_pl_font(&style.font);
+            let time = format!(" {} ", minutes_text(t.length_ms / 1000));
             let time_w = self.host.text_width(&time, def.as_ref(), font_size, false);
-            let room = block_w - LIST_RIGHT - time_w - LIST_GAP;
-            let title =
-                self.classic_pl_fitted(&format!("{}. {}", i + 1, t.title), def.as_ref(), room);
+            let line = numbered(i + 1, tracks.len(), &t.title);
+            let title = self.classic_pl_fitted(&line, def.as_ref(), block_w - time_w);
             p.text(
                 &title,
                 face,

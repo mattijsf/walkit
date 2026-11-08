@@ -102,10 +102,14 @@ impl ClassicStyle {
         self == Self::Winamp5666
     }
 
-    /// Whether the analyzer, clicked off while playing, leaves its dot grid: 2.91 blits the
-    /// grid; 5.666 lets `main.bmp` show.
-    pub(crate) fn vis_off_grid(self) -> bool {
-        self == Self::Winamp291
+    /// How long the title row's text ("Volume: 50%") stays after it last changed: 5.666
+    /// keeps it for a second after each change and
+    /// keeps it past the release; 2.91 has no timer and gives the title back on release.
+    pub(crate) fn status_hold_ms(self) -> Option<i64> {
+        match self {
+            Self::Winamp291 => None,
+            Self::Winamp5666 => Some(1000),
+        }
     }
 
     /// The title row's text while equalizer slider `n` (0 the preamp) is dragged to step

@@ -39,6 +39,14 @@ fn classic() -> SkinRuntime {
     classic_with(FakePlayer::new(clock.clone()), clock)
 }
 
+/// A classic runtime on a clock the test moves.
+fn classic_clocked() -> (SkinRuntime, Rc<std::cell::Cell<i64>>) {
+    let now = Rc::new(std::cell::Cell::new(0));
+    let read = now.clone();
+    let clock: Clock = Rc::new(move || read.get());
+    (classic_with(FakePlayer::new(clock.clone()), clock), now)
+}
+
 fn classic_with(player: FakePlayer, clock: Clock) -> SkinRuntime {
     let mut files = MemoryFiles::new();
     for s in SHEETS {
@@ -380,12 +388,12 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
     let title = rt.player.title();
     let length = rt.player.length_ms() / 1000;
     assert_eq!(texts.len(), 2);
-    // at this host's 9.6 px a letter, the title ends on "..." 4 px before the length
+    // at this host's 9.6 px a letter, the title ends on "..." where " 3:35 " starts
     assert_eq!(title, "Andamp - Modern skin demo");
     assert_eq!(
         texts[0],
         (
-            "1. Andamp - Moder...".to_string(),
+            "1. Andamp - Mode...".to_string(),
             Rect::new(12, 22, 243, 15),
             Align::Left
         )
@@ -393,7 +401,7 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
     assert_eq!(
         texts[1],
         (
-            format!("{}:{:02}", length / 60, length % 60),
+            format!(" {}:{:02} ", length / 60, length % 60),
             Rect::new(12, 22, 243, 15),
             Align::Right
         )
@@ -936,7 +944,8 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
             _ => None,
         })
         .collect();
-    assert_eq!(texts.first().map(String::as_str), Some("3. Song 2"));
+    // twenty songs: the numbers padded to two places
+    assert_eq!(texts.first().map(String::as_str), Some(" 3. Song 2"));
     assert_eq!(texts.len(), 6, "three rows, each a title and a length");
     assert!(blits(cmds, "pledit.bmp").contains(&(52, 53, 8, 18, 260, 24)));
     // a tap on the second row picks the fourth song, whose length leads the bottom line
@@ -2152,7 +2161,7 @@ fn the_control_buttons_hand_the_press_along_and_any_bare_place_moves_the_window(
 
 #[test]
 fn the_sliders_keep_their_grab_tell_their_value_and_the_balance_snaps() {
-    let mut rt = classic();
+    let (mut rt, now) = classic_clocked();
     rt.ensure_layout();
     rt.player.set_volume(128);
     // taken on the thumb (x 132..=146 at 128) the volume stays; beside it, the middle jumps there
@@ -2160,7 +2169,18 @@ fn the_sliders_keep_their_grab_tell_their_value_and_the_balance_snaps() {
     assert!((rt.player.volume() - 128).abs() <= 5);
     assert_eq!(rt.classic_status.as_deref(), Some("Volume: 49%"));
     rt.pointer_up(140, 63);
+    assert!(rt.classic_status.is_some(), "5.666 keeps it a second");
+    now.set(999);
+    rt.tick();
+    assert!(rt.classic_status.is_some());
+    now.set(1000);
+    rt.tick();
     assert_eq!(rt.classic_status, None, "the song's title comes back");
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp291);
+    rt.pointer_down(140, 63, 9);
+    rt.pointer_up(140, 63);
+    assert_eq!(rt.classic_status, None, "2.91 gives it back on release");
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp5666);
     rt.pointer_down(170, 63, 2);
     assert_eq!(rt.player.volume(), 255);
     assert_eq!(rt.classic_status.as_deref(), Some("Volume: 100%"));
@@ -2233,6 +2253,25 @@ fn the_title_scrolls_by_hand_and_waits_two_seconds_after() {
 }
 
 #[test]
+fn a_held_clutter_letter_names_what_it_does_on_the_title_row() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    let title = |rt: &mut SkinRuntime| rt.classic_status.clone();
+    rt.pointer_down(15, 27, 1);
+    assert_eq!(title(&mut rt).as_deref(), Some("Options Menu"));
+    rt.pointer_move(15, 51);
+    assert_eq!(title(&mut rt).as_deref(), Some("Enable Doublesize Mode"));
+    rt.pointer_move(15, 59);
+    assert_eq!(title(&mut rt).as_deref(), Some("Visualization Menu"));
+    rt.pointer_up(60, 90);
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp291);
+    rt.pointer_down(15, 43, 2);
+    assert_eq!(title(&mut rt).as_deref(), Some("File Info Box"));
+    rt.pointer_up(60, 90);
+    assert_eq!(title(&mut rt), None, "2.91 gives the title back on release");
+}
+
+#[test]
 fn the_logo_double_taps_and_the_shade_bar_reach_what_winamp_does() {
     let (mut rt, actions) = classic_recording();
     rt.ensure_layout();
@@ -2262,6 +2301,18 @@ fn the_logo_double_taps_and_the_shade_bar_reach_what_winamp_does() {
     assert_eq!(rt.player.status(), Status::Stopped);
     tap(&mut rt, 176, 7, 7);
     assert_eq!(rt.player.status(), Status::Playing, "x 176 is play's");
+    // a double tap on its stop button is a second press, the bar stays
+    tap(&mut rt, 200, 7, 8);
+    rt.double_tap(200, 7, 8);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 14));
+    assert_eq!(rt.player.status(), Status::Stopped);
+    // on the bar's empty title it toggles the shade
+    rt.double_tap(40, 7, 9);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 116));
 }
 
 #[test]

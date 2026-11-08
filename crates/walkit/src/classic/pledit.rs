@@ -76,13 +76,19 @@ pub fn parse(text: &str) -> PleditStyle {
     s
 }
 
-/// `#rrggbb`, as the file writes a color.
+/// A color as Winamp reads one: an optional '#', then the hex digits, of any
+/// count (`#fff` is 0x000fff; past 0x7fffffff it stops there), the low 24 bits as RGB.
 fn color(value: &str) -> Option<Rgb> {
-    let hex = value.trim().trim_start_matches('#');
-    if hex.len() != 6 {
+    let hex = value.trim();
+    let hex = hex.strip_prefix('#').unwrap_or(hex);
+    let digits = hex.chars().take_while(char::is_ascii_hexdigit).count();
+    if digits == 0 {
         return None;
     }
-    u32::from_str_radix(hex, 16).ok().map(Rgb)
+    let v = hex[..digits].chars().fold(0u64, |v, c| {
+        (v * 16 + u64::from(c.to_digit(16).unwrap_or(0))).min(0x7fff_ffff)
+    });
+    Some(Rgb(v as u32 & 0x00ff_ffff))
 }
 
 #[cfg(test)]
@@ -107,6 +113,29 @@ mod tests {
         assert!(
             !parse("[Text]\nUseGenNums=1\n").use_gen_nums,
             "only under [Misc]"
+        );
+    }
+
+    #[test]
+    fn a_color_is_read_as_winamp_reads_hex() {
+        let normal = |v: &str| parse(&format!("[Text]\nNormal={v}\n")).normal;
+        assert_eq!(normal("#1a2b3c"), Rgb(0x1a2b3c));
+        assert_eq!(normal("1a2b3c"), Rgb(0x1a2b3c), "the '#' may be left out");
+        assert_eq!(normal("#fff"), Rgb(0x000fff), "fewer digits");
+        assert_eq!(
+            normal("#00ff00 // green"),
+            Rgb(0x00ff00),
+            "up to the first non-digit"
+        );
+        assert_eq!(
+            normal("#123456789"),
+            Rgb(0xffffff),
+            "past 0x7fffffff it stops there"
+        );
+        assert_eq!(
+            normal("green"),
+            PleditStyle::default().normal,
+            "no digits: the default"
         );
     }
 }

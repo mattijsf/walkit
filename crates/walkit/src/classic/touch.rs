@@ -735,9 +735,7 @@ impl SkinRuntime {
             {
                 press.control = Control::EqSweep;
                 press.inside = false;
-                if self.classic_status.take().is_some() {
-                    self.classic_title_resume(0);
-                }
+                self.classic_status_end();
             }
         }
         // a press that moves its window shows nothing new: the window only goes along
@@ -818,8 +816,8 @@ impl SkinRuntime {
     /// What ends with any press: the title row's text and its scroll come back, a balance near
     /// the middle snaps to it (within 26 either side).
     fn classic_release(&mut self, press: ClassicPress) {
-        if self.classic_status.take().is_some() {
-            self.classic_title_resume(0);
+        if self.classic_style.status_hold_ms().is_none() {
+            self.classic_status_end();
         }
         match press.control {
             Control::Balance => {
@@ -839,6 +837,19 @@ impl SkinRuntime {
             self.classic_title_hold();
         }
         self.classic_status = Some(text);
+        self.classic_status_until = self
+            .classic_style
+            .status_hold_ms()
+            .map_or(i64::MAX, |ms| self.now() + ms);
+    }
+
+    /// Gives the title row back to the song, its scroll going on.
+    pub(crate) fn classic_status_end(&mut self) {
+        if self.classic_status.take().is_some() {
+            self.classic_title_resume(0);
+            self.repaint();
+        }
+        self.classic_status_until = i64::MAX;
     }
 
     /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
@@ -858,20 +869,22 @@ impl SkinRuntime {
             return;
         };
         let rect = self.objects[o].base.rect;
+        let at = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
+        // the shade bar is all title row: its buttons, time and vis take a double tap as
+        // another press (or the vis's revert) rather than a toggle of the shade
         let title_row = py < 15
             && px
                 < match w {
                     ClassicWindow::Main | ClassicWindow::MainShade => 244,
                     ClassicWindow::Equalizer | ClassicWindow::EqualizerShade => 252,
                     _ => rect.width - 20,
-                };
+                }
+            && (w != ClassicWindow::MainShade
+                || matches!(at, Some(Control::TitleBar | Control::Menu)));
         if title_row {
             return self.classic_toggle_shade(o, w);
         }
-        match (
-            w,
-            control_at(w, rect.width, rect.height, self.classic_row(), px, py),
-        ) {
+        match (w, at) {
             (ClassicWindow::Main, Some(Control::TitleText)) if (25..35).contains(&py) => {
                 self.action(o, "TRACKINFO", None, None);
             }
@@ -907,6 +920,16 @@ impl SkinRuntime {
     /// position bar only notes where it is; the title row scrolls with the finger.
     fn classic_follow(&mut self, press: &mut ClassicPress, px: i32, py: i32) {
         match press.control {
+            Control::ClutterO
+            | Control::ClutterA
+            | Control::ClutterI
+            | Control::ClutterD
+            | Control::ClutterV => {
+                // the letter under the held finger names what it does on the title row
+                if let Some(text) = self.classic_clutter_text(px, py) {
+                    self.classic_say(text);
+                }
+            }
             Control::Volume => {
                 let v = ((px - press.grab - 107) * 255 / 51).clamp(0, 255);
                 self.player.set_volume(v);
@@ -1025,6 +1048,24 @@ impl SkinRuntime {
             of / 60,
             of % 60
         ));
+    }
+
+    /// What the clutter bar's letter at `px`, `py` says while held (Winamp's own texts,
+    /// as the VM shows them), the always-on-top and double size ones by what a press would do.
+    fn classic_clutter_text(&mut self, px: i32, py: i32) -> Option<String> {
+        let row = self.classic_row();
+        let on = |rt: &mut Self, kind| rt.host.window_open(kind) == Some(true);
+        let text = match control_at(ClassicWindow::Main, 275, 116, row, px, py)? {
+            Control::ClutterO => "Options Menu",
+            Control::ClutterA if on(self, "ontop") => "Disable Always-On-Top",
+            Control::ClutterA => "Enable Always-On-Top",
+            Control::ClutterI => "File Info Box",
+            Control::ClutterD if on(self, "doublesize") => "Disable Doublesize Mode",
+            Control::ClutterD => "Enable Doublesize Mode",
+            Control::ClutterV => "Visualization Menu",
+            _ => return None,
+        };
+        Some(text.to_string())
     }
 
     /// The title row's text for equalizer slider `n` (0 the preamp) at step `step`.

@@ -74,8 +74,8 @@ impl SkinRuntime {
 
     fn draw_classic_main(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let status = self.player.status();
-        // the vis picture first: the analyzer reads the player and steps the clock; off while
-        // something plays, the area shows the palette's background, or 2.91's dot grid
+        // the vis picture first: the analyzer reads the player and steps the clock; off, the
+        // area shows the palette's background while something plays (the VM, sa=0)
         let vis = match (status, self.classic_vis_mode) {
             (Status::Playing, VisMode::Analyzer) => {
                 let levels = self.player.spectrum();
@@ -87,9 +87,6 @@ impl SkinRuntime {
                 &self.player.waveform(),
                 self.classic_vis_style.scope,
             )),
-            (Status::Playing, VisMode::Off) if self.classic_style.vis_off_grid() => {
-                Some(vis::grid())
-            }
             (Status::Playing, VisMode::Off) => Some([vis::OFF; vis::WIDTH * vis::HEIGHT]),
             _ => None,
         };
@@ -246,11 +243,13 @@ impl SkinRuntime {
         if status != Status::Stopped {
             let length = self.player.length_ms();
             let dragging = press.filter(|(c, _, _)| *c == Control::Position);
-            // the thumb at the bar's 0..=218: the song's place, or where the finger holds it
+            // the thumb at the bar's 0..=219: the song's place out of 256 times 219 / 256
+            // or where the finger holds it
             let x = match dragging {
                 Some((_, _, p)) => p,
                 None if length > 0 => {
-                    (self.player.position_ms() as i64 * 218 / length as i64).clamp(0, 218) as i32
+                    let at = self.player.position_ms() as i64 * 256 / length as i64;
+                    ((at * 219) >> 8).clamp(0, 219) as i32
                 }
                 None => 0,
             };
@@ -530,12 +529,24 @@ impl SkinRuntime {
             |p: &mut Painter, n: i32, x: i32| p.blit("text.bmp", (n % 10) * 5, 6, 5, 6, x, 43);
         let blank = |p: &mut Painter, x: i32| p.blit("text.bmp", 100, 12, 5, 6, x, 43);
         let kbps = self.player.bitrate_kbps().max(0);
-        if kbps >= 1000 {
-            // four digits: the thousands and hundreds, then the tens as a letter cell
+        let letter = |p: &mut Painter, c: char| {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, 121, 43);
+        };
+        if kbps >= 10000 {
+            // the hundred thousands (or a blank) and the ten thousands, then 'C'
+            if kbps / 100_000 == 0 {
+                blank(p, 111);
+            } else {
+                digit(p, kbps / 100_000, 111);
+            }
+            digit(p, kbps / 10000, 116);
+            letter(p, 'C');
+        } else if kbps >= 1000 {
+            // the thousands and the hundreds, then 'H'
             digit(p, kbps / 1000, 111);
             digit(p, kbps / 100, 116);
-            let (cx, cy) = font::cell(char::from(b'0' + ((kbps / 10) % 10) as u8));
-            p.blit("text.bmp", cx, cy, 5, 6, 121, 43);
+            letter(p, 'H');
         } else {
             if kbps / 100 == 0 {
                 blank(p, 111);
