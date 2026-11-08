@@ -104,6 +104,18 @@ export function cmdRect(c) {
 }
 
 /** Whether box `r` (or a command with no box) reaches into `part`. */
+/**
+ * `r` (layout pixels, either way round) with its edges on whole device pixels at `scale`: an
+ * edge between pixels takes in a sliver of the bitmap next to the one drawn.
+ */
+function onPixels(r, scale) {
+  const x0 = Math.round(Math.min(r.left, r.left + r.width) * scale);
+  const y0 = Math.round(Math.min(r.top, r.top + r.height) * scale);
+  const x1 = Math.round(Math.max(r.left, r.left + r.width) * scale);
+  const y1 = Math.round(Math.max(r.top, r.top + r.height) * scale);
+  return [x0 / scale, y0 / scale, (x1 - x0) / scale, (y1 - y0) / scale];
+}
+
 function meets(r, part) {
   if (!r) return true;
   const left = Math.min(r.left, r.left + r.width);
@@ -313,7 +325,7 @@ export class Renderer {
           ctx.save();
           depth++;
           ctx.beginPath();
-          ctx.rect(Math.min(c.rect.left, c.rect.left + c.rect.width), Math.min(c.rect.top, c.rect.top + c.rect.height), Math.abs(c.rect.width), Math.abs(c.rect.height));
+          ctx.rect(...onPixels(c.rect, scale));
           ctx.clip();
           break;
         case "unclip":
@@ -323,19 +335,19 @@ export class Renderer {
           }
           break;
         case "image":
-          this.image(ctx, c);
+          this.image(ctx, c, scale);
           break;
         case "fill":
           ctx.globalAlpha = c.alpha / 255;
           ctx.fillStyle = colorOf(c.color);
-          ctx.fillRect(Math.min(c.rect.left, c.rect.left + c.rect.width), Math.min(c.rect.top, c.rect.top + c.rect.height), Math.abs(c.rect.width), Math.abs(c.rect.height));
+          ctx.fillRect(...onPixels(c.rect, scale));
           ctx.globalAlpha = 1;
           break;
         case "text":
-          this.text(ctx, c);
+          this.text(ctx, c, scale);
           break;
         case "pixels":
-          this.pixels(ctx, c);
+          this.pixels(ctx, c, scale);
           break;
         default:
           break;
@@ -354,7 +366,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  image(ctx, c) {
+  image(ctx, c, scale) {
     const d = c.dst;
     if (d.width <= 0 || d.height <= 0) return;
     const src = this.pictures.canvas(c.bitmap.file, c.gamma);
@@ -365,16 +377,16 @@ export class Renderer {
     if (sw <= 0 || sh <= 0) return;
     ctx.globalAlpha = c.alpha / 255;
     ctx.imageSmoothingEnabled = !!c.smooth;
-    ctx.drawImage(src, b.x, b.y, sw, sh, d.left, d.top, d.width, d.height);
+    ctx.drawImage(src, b.x, b.y, sw, sh, ...onPixels(d, scale));
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
   }
 
-  text(ctx, c) {
+  text(ctx, c, scale) {
     const r = c.rect;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(Math.min(r.left, r.left + r.width), Math.min(r.top, r.top + r.height), Math.abs(r.width), Math.abs(r.height));
+    ctx.rect(...onPixels(r, scale));
     ctx.clip();
     ctx.font = this.fontOf(c);
     ctx.textBaseline = "alphabetic";
@@ -389,7 +401,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  pixels(ctx, c) {
+  pixels(ctx, c, scale) {
     if (c.rect.width <= 0 || c.rect.height <= 0 || c.w <= 0 || c.h <= 0) return;
     let src = c.stable ? c.canvas : null;
     if (!src && c.stable) {
@@ -402,7 +414,7 @@ export class Renderer {
     }
     ctx.globalAlpha = c.alpha / 255;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(src, 0, 0, c.w, c.h, c.rect.left, c.rect.top, c.rect.width, c.rect.height);
+    ctx.drawImage(src, 0, 0, c.w, c.h, ...onPixels(c.rect, scale));
     ctx.globalAlpha = 1;
   }
 
@@ -431,12 +443,12 @@ export class Renderer {
         const sw = b.w === null ? src.width - b.x : b.w;
         const sh = b.h === null ? src.height - b.y : b.h;
         if (sw <= 0 || sh <= 0 || img.dst.width <= 0 || img.dst.height <= 0) return;
-        ctx.drawImage(src, b.x, b.y, sw, sh, img.dst.left, img.dst.top, img.dst.width, img.dst.height);
+        ctx.drawImage(src, b.x, b.y, sw, sh, ...onPixels(img.dst, scale));
         return;
       }
       case "box":
         ctx.fillStyle = "#000";
-        ctx.fillRect(region.rect.left, region.rect.top, region.rect.width, region.rect.height);
+        ctx.fillRect(...onPixels(region.rect, scale));
         return;
       case "op": {
         if (region.base) this.region(ctx, region.base, hard, w, h, scale);
