@@ -499,7 +499,12 @@ impl SkinRuntime {
         self.last_pointer = (x, y);
         self.captured = Some(target);
         if let Some(window) = self.layout_object(target) {
-            if self.is_grip(target) {
+            // a classic stack stretched to fill the view keeps its size: its grip sizes nothing
+            let filled = self.stretch_last
+                && self.view_size.is_some()
+                && !self.free_windows()
+                && self.objects[target].base.id.starts_with("classic.");
+            if self.is_grip(target) && !filled {
                 let edges = self.objects[target]
                     .base
                     .attr("resize")

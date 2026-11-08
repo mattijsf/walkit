@@ -697,6 +697,18 @@ fn the_grip_at_the_playlist_corner_sizes_it() {
     );
 }
 
+#[test]
+fn stacked_to_fill_the_view_the_playlist_grip_sizes_nothing() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.set_presentation(&crate::host::Presentation {
+        view_size: Some((275, 400)),
+        stretch_last: true,
+        ..rt.presentation()
+    });
+    assert_eq!(pl_drag(&mut rt, (270, 280), (320, 300)), (275, 284));
+}
+
 /// The playlist's size after a drag from `from` to `to`, points of its window.
 fn pl_drag(rt: &mut SkinRuntime, from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
     rt.ensure_layout();
@@ -2343,7 +2355,7 @@ fn the_stack_names_winamps_cursor_under_the_pointer() {
 }
 
 #[test]
-fn stacked_in_a_tall_view_the_classic_playlist_stretches_down_in_whole_steps() {
+fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));
     rt.set_presentation(&crate::host::Presentation {
@@ -2358,6 +2370,6 @@ fn stacked_in_a_tall_view_the_classic_playlist_stretches_down_in_whole_steps() {
         .map(|(r, _)| *r)
         .find(|r| r.top == 116)
         .expect("the playlist under the main window");
-    // 284 left under the main window: 116 and five steps of 29
-    assert_eq!(pl.height, 116 + 5 * 29);
+    // all 284 left under the main window
+    assert_eq!(pl.height, 284);
 }
