@@ -449,3 +449,27 @@ fn a_window_the_host_sizes_apart_keeps_that_size() {
     assert!(rt.open_window("eq"));
     assert_eq!(rect_of(&mut rt, "pl"), Rect::new(20, 300, 360, 140));
 }
+
+#[test]
+fn a_mouse_press_beside_a_grip_moves_the_window_where_a_finger_takes_the_grip() {
+    for (touch_slop, moved) in [(6, false), (0, true)] {
+        let mut rt = free();
+        rt.set_presentation(&Presentation {
+            touch_slop,
+            ..rt.presentation()
+        });
+        assert!(rt.open_window("pl"));
+        let r = rect_of(&mut rt, "pl");
+        // 5 px left of the playlist's corner grip
+        let (x, y) = (r.left + 285, r.top + 95);
+        rt.pointer_down(x, y, 1);
+        rt.pointer_move(x + 20, y + 30);
+        rt.pointer_up(x + 20, y + 30);
+        let after = rect_of(&mut rt, "pl");
+        assert_eq!(
+            (after.left != r.left, after.width == r.width),
+            (moved, moved),
+            "slop {touch_slop}: {r:?} to {after:?}"
+        );
+    }
+}

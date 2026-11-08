@@ -645,6 +645,23 @@ pub extern "C" fn wk_rt_resize_window(id: i32, window: i32, w: i32, h: i32) -> i
     .unwrap_or(0)
 }
 
+/// Whether a finger (1) or a mouse (0) drives the skin: a finger's press takes the nearest
+/// control a few pixels off, a mouse's only the one under it, as in Winamp.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_touch(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| {
+        let finger = walkit::host::Presentation::default().touch_slop;
+        let p = r.engine.presentation();
+        r.engine.set_presentation(&walkit::host::Presentation {
+            touch: on != 0,
+            touch_slop: if on != 0 { finger } else { 0 },
+            ..p
+        });
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
 /// A right click, or a long press, at the last pointer position; `seq` names the touch.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_right_click(id: i32, seq: i32) -> i32 {

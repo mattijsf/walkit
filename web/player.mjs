@@ -438,6 +438,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (!state.rt || e.button !== 0) return;
   canvas.setPointerCapture(e.pointerId);
   const [x, y] = skinPoint(e);
+  state.rt.setTouch(e.pointerType !== "mouse");
   state.down = true;
   state.seq++;
   state.rt.pointerDown(x, y, state.seq);

@@ -96,6 +96,8 @@ export interface Runtime {
   eqAuto(): boolean;
   setEqAuto(on: boolean): void;
   scrollPlaylist(rows: number): void;
+  /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
+  setTouch(on: boolean): void;
   /** Scrolls a classic playlist for notches of the mouse wheel, as far as the classic style's Winamp does. */
   wheelPlaylist(notches: number): void;
   /** Shows the classic windows as that Winamp does: "5.666" at first, or "2.91" (webamp's). */

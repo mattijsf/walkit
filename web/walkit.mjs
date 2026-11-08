@@ -392,6 +392,11 @@ export class Runtime {
     this.w.x.wk_rt_set_list_font_size(this.id, px);
   }
 
+  /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
+  setTouch(on) {
+    this.w.x.wk_rt_set_touch(this.id, on ? 1 : 0);
+  }
+
   /** Scrolls a classic playlist for notches of the mouse wheel, down for more than 0, as far as the classic style's Winamp does. */
   wheelPlaylist(notches) {
     this.w.x.wk_rt_wheel_playlist(this.id, notches);
