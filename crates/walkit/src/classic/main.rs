@@ -74,8 +74,8 @@ impl SkinRuntime {
 
     fn draw_classic_main(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let status = self.player.status();
-        // the vis picture first: the analyzer reads the player and steps the clock; off, the
-        // area shows the palette's background while something plays
+        // the vis picture first: the analyzer reads the player and steps the clock; off while
+        // something plays, the area shows the palette's background, or 2.91's dot grid
         let vis = match (status, self.classic_vis_mode) {
             (Status::Playing, VisMode::Analyzer) => {
                 let levels = self.player.spectrum();
@@ -87,6 +87,9 @@ impl SkinRuntime {
                 &self.player.waveform(),
                 self.classic_vis_style.scope,
             )),
+            (Status::Playing, VisMode::Off) if self.classic_style.vis_off_grid() => {
+                Some(vis::grid())
+            }
             (Status::Playing, VisMode::Off) => Some([vis::OFF; vis::WIDTH * vis::HEIGHT]),
             _ => None,
         };

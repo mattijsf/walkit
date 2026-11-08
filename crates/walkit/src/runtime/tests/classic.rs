@@ -2539,6 +2539,27 @@ fn the_2_91_style_has_its_name_and_smaller_playlist_rows() {
 }
 
 #[test]
+fn a_wheel_notch_scrolls_as_far_as_each_winamp_does() {
+    use crate::classic::style::ClassicStyle;
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..40)
+        .map(|i| Track {
+            title: format!("Song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt.wheel_classic_playlist(1);
+    assert_eq!(rt.classic_pl_scroll, 2);
+    rt.set_classic_style(ClassicStyle::Winamp291);
+    rt.wheel_classic_playlist(1);
+    assert_eq!(rt.classic_pl_scroll, 10);
+}
+
+#[test]
 fn a_smaller_playlist_font_draws_smaller_text_in_shorter_rows() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));

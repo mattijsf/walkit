@@ -6,6 +6,7 @@
 use crate::classic::font;
 use crate::classic::listfont::{self, ListInk};
 use crate::classic::main::Painter;
+use crate::classic::style::ClassicStyle;
 use crate::classic::touch::Control;
 use crate::draw::{Align, DrawCmd, Rect};
 use crate::gui::ObjId;
@@ -96,6 +97,10 @@ impl SkinRuntime {
             .ok()
             .and_then(|i| self.player.tracks().into_iter().nth(i))
             .map_or((String::new(), 0), |t| (t.title, t.length_ms / 1000));
+        if self.classic_style == ClassicStyle::Winamp291 {
+            Self::shade_line_291(&mut p, w, &format!("{}. {}", index + 1, title), length);
+            return;
+        }
         let time = time_text(length);
         let time_cells = time.chars().count() as i32;
         let room = (w - 29 - 4) / 5 - time_cells - 1;
@@ -122,6 +127,42 @@ impl SkinRuntime {
         if x < w - 30 {
             let (cx, cy) = font::cell(' ');
             p.blit("text.bmp", cx, cy, (w - 30 - x).min(5), 6, x, 4);
+        }
+    }
+
+    /// 2.91's song line (in cells): `(w - 40) / 5` cells from x 5 less the
+    /// length's and one, a cut title ending on the ellipsis; when the title fits, blanks fill
+    /// those cells and one more; then a blank, and "m:ss" from `w - 29` less its cells.
+    fn shade_line_291(p: &mut Painter, w: i32, line: &str, secs: i32) {
+        let time = format!("{}:{:02}", secs / 60, secs % 60);
+        let time_cells = time.chars().count() as i32;
+        let cells = ((w - 40) / 5 - time_cells - 1).max(0) as usize;
+        let chars: Vec<char> = line.chars().collect();
+        let cell = |p: &mut Painter, c: char, x: i32| {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, x, 4);
+        };
+        let mut x = 5;
+        for (i, &c) in chars.iter().take(cells).enumerate() {
+            let cut = i + 1 == cells && i + 1 < chars.len();
+            cell(p, if cut { '\u{1}' } else { c }, x);
+            x += 5;
+        }
+        if chars.len() <= cells {
+            for _ in chars.len()..=cells {
+                cell(p, ' ', x);
+                x += 5;
+            }
+        }
+        cell(p, ' ', x);
+        x = w - 29 - time_cells * 5;
+        for c in time.chars() {
+            cell(p, c, x);
+            x += 5;
+        }
+        if x < w - 30 {
+            let (cx, cy) = font::cell(' ');
+            p.blit("text.bmp", cx, cy, w - 30 - x, 6, x, 4);
         }
     }
 
@@ -464,5 +505,54 @@ impl SkinRuntime {
             digit(&mut p, seconds / 10, w - 64);
             digit(&mut p, seconds, w - 59);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::classic::main::Painter;
+    use crate::draw::{DrawCmd, Rect};
+    use crate::runtime::SkinRuntime;
+
+    #[test]
+    fn the_2_91_shade_line_starts_at_5_and_leaves_a_column_before_the_length() {
+        let mut out = Vec::new();
+        let mut p = Painter {
+            at: Rect::new(0, 0, 275, 14),
+            out: &mut out,
+        };
+        SkinRuntime::shade_line_291(&mut p, 275, "1. Andamp", 600);
+        let xs: Vec<i32> = out
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Image { dst, .. } => Some(dst.left),
+                _ => None,
+            })
+            .collect();
+        // 41 cells of title and blanks, one more blank, then "10:00" from 275 - 29 - 25
+        let mut want: Vec<i32> = (0..43).map(|i| 5 + 5 * i).collect();
+        want.extend([221, 226, 231, 236, 241]);
+        assert_eq!(xs, want);
+    }
+
+    #[test]
+    fn a_cut_2_91_shade_line_ends_on_the_ellipsis() {
+        let mut out = Vec::new();
+        let mut p = Painter {
+            at: Rect::new(0, 0, 275, 14),
+            out: &mut out,
+        };
+        SkinRuntime::shade_line_291(&mut p, 275, &"x".repeat(60), 61);
+        let cells: Vec<(i32, i32)> = out
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Image { bitmap, dst, .. } => Some((dst.left, bitmap.x)),
+                _ => None,
+            })
+            .collect();
+        // 47 cells less "1:01" and one leave 42: the last of them is the ellipsis
+        assert_eq!(cells[41], (210, crate::classic::font::cell('\u{1}').0));
+        assert_eq!(cells[42].0, 215, "the blank after it");
+        assert_eq!(cells[43].0, 275 - 29 - 20, "the length");
     }
 }

@@ -113,7 +113,7 @@ impl Default for VisStyle {
 }
 
 /// The dot grid alone.
-fn grid() -> [u8; WIDTH * HEIGHT] {
+pub(crate) fn grid() -> [u8; WIDTH * HEIGHT] {
     let mut px = [0u8; WIDTH * HEIGHT];
     for y in (1..HEIGHT).step_by(2) {
         for x in (0..WIDTH).step_by(2) {

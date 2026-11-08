@@ -139,7 +139,7 @@ impl SkinRuntime {
             .classic_press_on(o)
             .is_some_and(|p| p.control == super::touch::Control::Close && p.inside);
         let font = self.classic_gen_font();
-        let digits = self.classic_pledit.use_gen_nums;
+        let digits = self.classic_pledit.use_gen_nums && self.classic_style.gen_digits();
         let title: String = self
             .classic_gen_title(o)
             .chars()

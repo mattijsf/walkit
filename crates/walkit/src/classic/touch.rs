@@ -915,7 +915,7 @@ impl SkinRuntime {
             Control::Balance => {
                 // the thumb's place 0..=24; a step either side of the middle snaps to it
                 let at = (px - press.grab - 177).clamp(0, 24);
-                let b = if (11..=13).contains(&at) {
+                let b = if self.classic_style.balance_snap().contains(&at) {
                     0
                 } else {
                     (at - 12) * 127 / 12
@@ -938,11 +938,10 @@ impl SkinRuntime {
                 self.classic_say_volume();
             }
             Control::ShadeBalance => {
-                // 42 columns from x 164, no grab; 8 either side of the middle
-                // snaps to it while dragged (unless Shift, which a touch never holds), and the
-                // release keeps what the drag gave
-                let b = ((px - 164).clamp(0, 42) * 255 / 42 - 127).min(127);
-                let b = if (-8..=8).contains(&b) { 0 } else { b };
+                // 42 columns from x 164, no grab; near the middle snaps to it while dragged
+                // (5.666 skips that with Shift, which a touch never holds), and the release
+                // keeps what the drag gave
+                let b = self.classic_style.shade_balance((px - 164).clamp(0, 42));
                 self.player.set_pan(b);
                 self.classic_say_balance();
             }
@@ -1028,20 +1027,9 @@ impl SkinRuntime {
         ));
     }
 
-    /// "EQ: 70Hz: +3.0 dB" for slider `n` (0 the preamp) at step `step` 0..=63
-    /// ((step - 31.5) / 31.5 * -12 dB, within 0.32 of zero shown as zero).
+    /// The title row's text for equalizer slider `n` (0 the preamp) at step `step`.
     fn classic_say_eq(&mut self, n: usize, step: i32) {
-        const BANDS: [&str; 10] = ["70", "180", "320", "600", "1", "3", "6", "12", "14", "16"];
-        let db = (f64::from(step) - 31.5) / 31.5 * -12.0;
-        let db = if (-0.32..0.32).contains(&db) { 0.0 } else { db };
-        let sign = if db < 0.0 { "" } else { "+" };
-        let name = if n == 0 {
-            "Preamp".to_string()
-        } else {
-            let unit = if n >= 5 { "KHz" } else { "Hz" };
-            format!("{}{unit}", BANDS[n - 1])
-        };
-        self.classic_say(format!("EQ: {name}: {sign}{db:.1} dB"));
+        self.classic_say(self.classic_style.eq_text(n, step));
     }
 
     /// What a release over the pressed control does.
@@ -1126,10 +1114,11 @@ impl SkinRuntime {
             Control::PlScrollUp | Control::PlScrollDown => {
                 let h = self.objects[o].base.rect.height;
                 let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+                let rows = self.classic_style.arrow_rows();
                 let step = if press.control == Control::PlScrollUp {
-                    -1
+                    -rows
                 } else {
-                    1
+                    rows
                 };
                 self.classic_pl_scroll = (self.classic_pl_scroll(h) + step).clamp(0, past.max(0));
             }

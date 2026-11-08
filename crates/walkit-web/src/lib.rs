@@ -879,6 +879,15 @@ pub extern "C" fn wk_rt_set_list_font_size(id: i32, px: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// Scrolls a classic playlist for `notches` of the mouse wheel, down for more than 0, as many
+/// rows a notch as the classic style's Winamp.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_wheel_playlist(id: i32, notches: i32) -> i32 {
+    with_rt(id, |r| r.engine.wheel_classic_playlist(notches))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
 /// Scrolls a classic playlist by `rows`, down for more than 0.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {

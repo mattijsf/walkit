@@ -5,6 +5,7 @@
 //! part of the main window, the equalizer, the playlist,
 //! the video window and the gen windows.
 
+use super::style::ClassicStyle;
 use super::ClassicWindow;
 
 /// What a skin's cursor stands for, and what the host shows when the skin has no file for it
@@ -96,8 +97,15 @@ fn first(boxes: &[Box4], w: i32, h: i32, x: i32, y: i32) -> usize {
 }
 
 /// The cursor slot (an index into [`CURSOR_FILES`]) at `x`, `y` of classic window `win`,
-/// `w` x `h`.
-pub fn slot_at(win: ClassicWindow, w: i32, h: i32, x: i32, y: i32) -> Option<usize> {
+/// `w` x `h`, as `style`'s Winamp picks it.
+pub fn slot_at(
+    win: ClassicWindow,
+    style: ClassicStyle,
+    w: i32,
+    h: i32,
+    x: i32,
+    y: i32,
+) -> Option<usize> {
     Some(match win {
         // volume and balance share one cursor file
         ClassicWindow::Main => first(
@@ -174,8 +182,10 @@ pub fn slot_at(win: ClassicWindow, w: i32, h: i32, x: i32, y: i32) -> Option<usi
             y,
         )],
         ClassicWindow::Gen => {
-            // the boxes stop a pixel short on the right and bottom (probed in the VM)
-            let held = |b: Box4| within((b.0, b.1, b.2 - 1, b.3 - 1), w, h, x, y);
+            // 5.666's boxes stop a pixel short on the right and bottom (probed in the VM); 2.91's
+            // take their edges, as the other windows' do
+            let edge = i32::from(style == ClassicStyle::Winamp5666);
+            let held = |b: Box4| within((b.0, b.1, b.2 - edge, b.3 - edge), w, h, x, y);
             if held((-11, 3, -3, 12)) {
                 16
             } else if held((0, 0, -1, 13)) {
@@ -413,7 +423,14 @@ impl crate::runtime::SkinRuntime {
         };
         let (x, y) = self.layout_point(l, sx, sy);
         let r = self.objects[win].base.rect;
-        slot_at(kind, r.width, r.height, x - r.left, y - r.top)
+        slot_at(
+            kind,
+            self.classic_style,
+            r.width,
+            r.height,
+            x - r.left,
+            y - r.top,
+        )
     }
 
     /// The skin's picture for cursor `slot`, decoded once. Without that file, Winamp's own
@@ -441,7 +458,7 @@ impl crate::runtime::SkinRuntime {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{decode, slot_at, CURSOR_FILES};
+    use super::{decode, slot_at, ClassicStyle, CURSOR_FILES};
     use crate::classic::ClassicWindow;
 
     /// A 2 x 2 cursor, 24 bits: red, green / blue, white; the mask keeps the white one out.
@@ -519,7 +536,17 @@ pub(crate) mod tests {
 
     #[test]
     fn the_main_window_picks_winamps_cursors() {
-        let at = |x, y| slot_at(ClassicWindow::Main, 275, 116, x, y).map(|s| CURSOR_FILES[s].0);
+        let at = |x, y| {
+            slot_at(
+                ClassicWindow::Main,
+                ClassicStyle::Winamp5666,
+                275,
+                116,
+                x,
+                y,
+            )
+            .map(|s| CURSOR_FILES[s].0)
+        };
         assert_eq!(
             at(180, 60),
             Some("volbal.cur"),
@@ -534,7 +561,9 @@ pub(crate) mod tests {
 
     #[test]
     fn the_other_windows_pick_theirs() {
-        let s = |w, ww, hh, x, y| slot_at(w, ww, hh, x, y).map(|s| CURSOR_FILES[s].0);
+        let s = |w, ww, hh, x, y| {
+            slot_at(w, ClassicStyle::Winamp5666, ww, hh, x, y).map(|s| CURSOR_FILES[s].0)
+        };
         assert_eq!(
             s(ClassicWindow::Equalizer, 275, 116, 25, 60),
             Some("eqslid.cur")
@@ -583,5 +612,17 @@ pub(crate) mod tests {
             Some("pnormal.cur")
         );
         assert_eq!(s(ClassicWindow::Gen, 275, 116, 270, 110), Some("psize.cur"));
+    }
+
+    #[test]
+    fn a_2_91_gen_window_takes_its_boxes_edges() {
+        let at = |style, x, y| {
+            slot_at(ClassicWindow::Gen, style, 275, 116, x, y).map(|s| CURSOR_FILES[s].0)
+        };
+        // the close box's right edge, w - 3, and the title's bottom row, 13
+        assert_eq!(at(ClassicStyle::Winamp5666, 272, 5), Some("ptbar.cur"));
+        assert_eq!(at(ClassicStyle::Winamp291, 272, 5), Some("pclose.cur"));
+        assert_eq!(at(ClassicStyle::Winamp5666, 100, 13), Some("pnormal.cur"));
+        assert_eq!(at(ClassicStyle::Winamp291, 100, 13), Some("ptbar.cur"));
     }
 }

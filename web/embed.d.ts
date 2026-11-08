@@ -96,6 +96,8 @@ export interface Runtime {
   eqAuto(): boolean;
   setEqAuto(on: boolean): void;
   scrollPlaylist(rows: number): void;
+  /** Scrolls a classic playlist for notches of the mouse wheel, as far as the classic style's Winamp does. */
+  wheelPlaylist(notches: number): void;
   /** Shows the classic windows as that Winamp does: "5.666" at first, or "2.91" (webamp's). */
   setClassicStyle(version: "2.91" | "5.666"): boolean;
   /** A classic playlist's font size, pixels to the em (the style's own at first); its rows follow. */
