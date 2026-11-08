@@ -25,6 +25,20 @@ pub enum CursorKind {
     Resize,
 }
 
+impl CursorKind {
+    /// The file whose cursor stands for this kind: the base skin's look like Winamp's own.
+    fn stand_in(self) -> &'static str {
+        match self {
+            CursorKind::Arrow => "normal.cur",
+            CursorKind::Move => "titlebar.cur",
+            CursorKind::HorizontalSlide => "posbar.cur",
+            CursorKind::VerticalSlide => "eqslid.cur",
+            CursorKind::Close => "close.cur",
+            CursorKind::Resize => "psize.cur",
+        }
+    }
+}
+
 /// The cursor files Winamp loads, in its slot order, each with what it stands for.
 pub const CURSOR_FILES: [(&str, CursorKind); 29] = {
     use CursorKind::{Arrow, Close, HorizontalSlide, Move, Resize, VerticalSlide};
@@ -400,10 +414,17 @@ impl crate::runtime::SkinRuntime {
         slot_at(kind, r.width, r.height, x - r.left, y - r.top)
     }
 
-    /// The skin's picture for cursor `slot`, decoded once; `None` when the skin has no such
-    /// file or it cannot be read, and the host shows its own for the slot's [`CursorKind`].
+    /// The skin's picture for cursor `slot`, decoded once. Without that file, the skin's (or
+    /// the base skin's) cursor of the same kind, as Winamp then shows its own arrow of that
+    /// kind; `None` when neither can be read, and the host shows its own for the slot's
+    /// [`CursorKind`].
     pub fn classic_cursor(&mut self, slot: usize) -> Option<std::rc::Rc<SkinCursor>> {
-        let (file, _) = CURSOR_FILES.get(slot)?;
+        let &(file, kind) = CURSOR_FILES.get(slot)?;
+        self.cursor_file(file)
+            .or_else(|| self.cursor_file(kind.stand_in()))
+    }
+
+    fn cursor_file(&mut self, file: &'static str) -> Option<std::rc::Rc<SkinCursor>> {
         if let Some(c) = self.classic_cursors.get(file) {
             return c.clone();
         }
@@ -418,12 +439,12 @@ impl crate::runtime::SkinRuntime {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{decode, slot_at, CURSOR_FILES};
     use crate::classic::ClassicWindow;
 
     /// A 2 x 2 cursor, 24 bits: red, green / blue, white; the mask keeps the white one out.
-    fn cur(hot: (u16, u16)) -> Vec<u8> {
+    pub(crate) fn cur(hot: (u16, u16)) -> Vec<u8> {
         let mut dib = Vec::new();
         dib.extend(40u32.to_le_bytes());
         dib.extend(2i32.to_le_bytes());

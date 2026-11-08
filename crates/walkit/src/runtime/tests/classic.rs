@@ -2543,6 +2543,34 @@ fn the_stack_names_winamps_cursor_under_the_pointer() {
 }
 
 #[test]
+fn a_cursor_the_skin_lacks_is_its_cursor_of_the_same_kind() {
+    use crate::classic::cursor::{tests::cur, CURSOR_FILES};
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    files.insert("close.cur", cur((1, 0)));
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(QuietHost),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    let slot = |file| CURSOR_FILES.iter().position(|(f, _)| *f == file).unwrap();
+    let eq_close = rt
+        .classic_cursor(slot("eqclose.cur"))
+        .expect("close.cur stands in");
+    assert_eq!(eq_close.frames[0].hot_x, 1);
+    assert!(
+        rt.classic_cursor(slot("normal.cur")).is_none(),
+        "nothing of its kind"
+    );
+}
+
+#[test]
 fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));
