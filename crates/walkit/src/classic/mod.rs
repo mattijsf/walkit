@@ -103,7 +103,9 @@ pub fn is_classic(files: &dyn SkinFiles) -> bool {
 
 /// The containers of a classic skin, as the engine reads a modern skin's: the main window,
 /// the equalizer under it and the playlist under that, each one classic window object that
-/// shapes its window (`sysregion`).
+/// shapes its window (`sysregion`); the library, the video and the visualizer, framed by
+/// `gen.bmp`, the visualizer's client area a holder the host draws its visualizer in
+/// ([`SkinRuntime::vis_rect`](crate::SkinRuntime::vis_rect)).
 fn generated_xml() -> String {
     let (w, h) = ClassicWindow::Main.size();
     format!(
@@ -142,11 +144,18 @@ fn generated_xml() -> String {
             r#"<classicwindow id="classic.video" window="video" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
             r#"<layer id="classic.video.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
             r#"</layout></container>"#,
+            r#"<container id="avs" name="Visualization" default_visible="0" default_x="{w}" default_y="0">"#,
+            r#"<layout id="normal" w="{w}" h="{h2}" minimum_w="{w}" minimum_h="{h}">"#,
+            r#"<classicwindow id="classic.avs" window="gen" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
+            r#"<windowholder id="classic.avs.holder" hold="guid:{avs}" x="11" y="20" w="-19" h="-34" relatw="1" relath="1"/>"#,
+            r#"<layer id="classic.gen.sizer" resize="bottomright" x="-20" relatx="1" y="-20" relaty="1" w="20" h="20"/>"#,
+            r#"</layout></container>"#,
             r#"</WinampAbstractionLayer>"#
         ),
         w = w,
         h = h,
-        h2 = h * 2
+        h2 = h * 2,
+        avs = crate::runtime::AVS_GUID
     )
 }
 

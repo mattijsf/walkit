@@ -2559,3 +2559,159 @@ fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
     // all 284 left under the main window
     assert_eq!(pl.height, 284);
 }
+
+fn apart(rt: &mut SkinRuntime) {
+    rt.set_presentation(&crate::host::Presentation {
+        free_windows: true,
+        viewport: (1600, 1200),
+        ..rt.presentation()
+    });
+    rt.ensure_layout();
+}
+
+#[test]
+fn a_window_at_twice_its_scale_draws_takes_presses_and_docks_twice_as_large() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    assert_eq!(rt.window_rect(eq), Rect::new(0, 116, 275, 116));
+
+    assert!(rt.set_window_scale("main", 2.0));
+    rt.ensure_layout();
+    assert_eq!(rt.window_rect(main), Rect::new(0, 0, 550, 232));
+    assert_eq!(
+        rt.window_rect(eq),
+        Rect::new(0, 232, 275, 116),
+        "the equalizer docked under it follows its bottom edge"
+    );
+    let drawn = rt.draw_windows();
+    let (_, cmds) = drawn
+        .iter()
+        .find(|(r, _)| r.width == 550)
+        .expect("the main window drawn");
+    assert!(
+        blits(cmds, "main.bmp").contains(&(0, 0, 275, 116, 0, 0)),
+        "the same part of the picture"
+    );
+    assert!(
+        cmds.iter().any(|c| matches!(
+            c,
+            DrawCmd::Image { dst, .. } if *dst == Rect::new(0, 0, 550, 232)
+        )),
+        "stretched over the window"
+    );
+    // Play sits at twice its place
+    rt.pointer_down(100, 194, 1);
+    rt.pointer_up(100, 194);
+    assert_eq!(rt.player.status(), Status::Playing);
+
+    assert!(rt.set_window_scale("main", 1.0));
+    rt.ensure_layout();
+    assert_eq!(rt.window_rect(main), Rect::new(0, 0, 275, 116));
+    assert_eq!(rt.window_rect(eq), Rect::new(0, 116, 275, 116));
+    assert!(!rt.set_window_scale("nothing", 2.0));
+}
+
+#[test]
+fn a_window_at_any_scale_keeps_its_drag_and_its_grip() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    apart(&mut rt);
+    let pl = rt.window_of("pledit").expect("the playlist");
+    assert!(rt.set_window_scale("pledit", 1.5));
+    rt.ensure_layout();
+    let r = rt.window_rect(pl);
+    assert_eq!((r.width, r.height), (413, 174));
+    // its grip: the corner of the window on screen, a 25 x 29 step at the scale
+    rt.pointer_down(r.right() - 3, r.bottom() - 3, 1);
+    rt.pointer_move(r.right() - 3 + 38, r.bottom() - 3 + 44);
+    rt.pointer_up(r.right() - 3 + 38, r.bottom() - 3 + 44);
+    rt.ensure_layout();
+    assert_eq!(
+        rt.window_size(pl),
+        (300, 145),
+        "one step each way, in layout pixels"
+    );
+    let moved = rt.window_rect(pl);
+    assert_eq!((moved.width, moved.height), (450, 218));
+}
+
+#[test]
+fn the_visualizer_window_holds_the_hosts_visualizer_in_its_frame() {
+    let mut rt = classic();
+    apart(&mut rt);
+    assert_eq!(rt.vis_rect(), None);
+    assert!(rt.open_window("avs"));
+    assert!(rt.set_window_title("avs", "Milkdrop"));
+    rt.ensure_layout();
+    let avs = rt.window_of("avs").expect("the visualizer window");
+    let r = rt.window_rect(avs);
+    assert_eq!((r.width, r.height), (275, 232));
+    assert_eq!(
+        rt.vis_rect(),
+        Some(Rect::new(r.left + 11, r.top + 20, 275 - 19, 232 - 34))
+    );
+    rt.set_window_scale("avs", 2.0);
+    rt.ensure_layout();
+    let r = rt.window_rect(avs);
+    assert_eq!(
+        rt.vis_rect(),
+        Some(Rect::new(
+            r.left + 22,
+            r.top + 40,
+            2 * (275 - 19),
+            2 * (232 - 34)
+        ))
+    );
+}
+
+#[test]
+fn double_size_keeps_every_window_docked_there_and_back() {
+    let mut rt = classic();
+    for c in ["equalizer", "pledit", "avs"] {
+        assert!(rt.open_window(c));
+    }
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    let pl = rt.window_of("pledit").expect("the playlist");
+    let avs = rt.window_of("avs").expect("the visualizer");
+    rt.place_window(avs, 275, 0);
+    rt.ensure_layout();
+    let tops = |rt: &mut SkinRuntime| {
+        [main, eq, pl, avs].map(|w| {
+            let r = rt.window_rect(w);
+            (r.left, r.top, r.width, r.height)
+        })
+    };
+    let start = tops(&mut rt);
+    assert_eq!(
+        start,
+        [
+            (0, 0, 275, 116),
+            (0, 116, 275, 116),
+            (0, 232, 275, 116),
+            (275, 0, 275, 232)
+        ]
+    );
+
+    rt.set_window_scale("main", 2.0);
+    rt.set_window_scale("equalizer", 2.0);
+    rt.ensure_layout();
+    assert_eq!(
+        tops(&mut rt),
+        [
+            (0, 0, 550, 232),
+            (0, 232, 550, 232),
+            (0, 464, 275, 116),
+            (550, 0, 275, 232)
+        ]
+    );
+
+    rt.set_window_scale("main", 1.0);
+    rt.set_window_scale("equalizer", 1.0);
+    rt.ensure_layout();
+    assert_eq!(tops(&mut rt), start);
+}

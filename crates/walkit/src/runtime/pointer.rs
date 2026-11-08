@@ -73,6 +73,8 @@ struct MenuAim {
 #[derive(Debug, Default)]
 pub(crate) struct PointerState {
     captured_origin: Rect,
+    /// The scale of the window the press went down in; 0 before any press.
+    captured_scale: f32,
     /// Where the last touch went down, in the stack.
     down_at: Option<(i32, i32)>,
     deferred: Option<DeferredPress>,
@@ -178,11 +180,25 @@ impl SkinRuntime {
         self.in_window(window, x, y, |rt, sx, sy| rt.double_tap(sx, sy, seq));
     }
 
+    /// A point of the stack in the pressed window's layout pixels.
+    fn captured_local(&self, sx: i32, sy: i32) -> (i32, i32) {
+        let at = self.pointer.captured_origin;
+        let s = if self.pointer.captured_scale > 0.0 {
+            self.pointer.captured_scale
+        } else {
+            1.0
+        };
+        (
+            ((sx - at.left) as f32 / s).floor() as i32,
+            ((sy - at.top) as f32 / s).floor() as i32,
+        )
+    }
+
     /// The topmost object at a point of the stack.
     pub(crate) fn hit_test_stack(&mut self, x: i32, y: i32) -> Option<ObjId> {
         let l = self.window_at(x, y)?;
-        let r = self.window_rect_of(l);
-        self.hit_test(l, x - r.left, y - r.top)
+        let (x, y) = self.layout_point(l, x, y);
+        self.hit_test(l, x, y)
     }
 
     /// Whether a touch on `o` does something: a control, or an object a script listens to.
@@ -233,19 +249,23 @@ impl SkinRuntime {
         }
         let apart = self.free_windows();
         let at = self.window_rect_of(l);
+        let scale = self.layout_scale(l);
+        let on_screen = |v: i32| (v as f32 * scale).round() as i32;
+        let in_layout = |v: i32| (v as f32 / scale).round() as i32;
         if apart {
-            let mut want = Rect::new(at.left, at.top, w, h);
+            let mut want = Rect::new(at.left, at.top, on_screen(w), on_screen(h));
             if r.edges.contains("left") {
-                want.left = at.right() - w;
+                want.left = at.right() - want.width;
             }
             if r.edges.contains("top") {
-                want.top = at.bottom() - h;
+                want.top = at.bottom() - want.height;
             }
             let got = self.autodock_edges(l, want, &r.edges);
-            w = got.width;
-            h = got.height;
+            w = in_layout(got.width);
+            h = in_layout(got.height);
         }
         let (vw, vh) = self.viewport();
+        let (vw, vh) = (in_layout(vw), in_layout(vh));
         let d = self.objects[l].layout().expect("a layout");
         let mut size = (
             within(w, d.min_w, d.max_w, vw),
@@ -266,12 +286,12 @@ impl SkinRuntime {
         }
         if apart {
             let x = if r.edges.contains("left") {
-                at.right() - size.0
+                at.right() - on_screen(size.0)
             } else {
                 at.left
             };
             let y = if r.edges.contains("top") {
-                at.bottom() - size.1
+                at.bottom() - on_screen(size.1)
             } else {
                 at.top
             };
@@ -366,9 +386,7 @@ impl SkinRuntime {
     /// What a finger at a point means; see the Kotlin engine's `touchTarget` for the order.
     pub(crate) fn touch_target(&mut self, sx: i32, sy: i32) -> Option<ObjId> {
         let window = self.window_at(sx, sy)?;
-        let origin = self.window_rect_of(window);
-        let x = sx - origin.left;
-        let y = sy - origin.top;
+        let (x, y) = self.layout_point(window, sx, sy);
         let hit = self.hit_test(window, x, y);
         if let Some(h) = hit {
             if self.is_control(h) || matches!(self.objects[h].kind, Kind::Menu(_)) {
@@ -492,12 +510,10 @@ impl SkinRuntime {
 
     /// The object hears the button go down at a point of the stack, and the finger come in.
     fn press(&mut self, target: ObjId, sx: i32, sy: i32) {
-        self.pointer.captured_origin = self
-            .layout_object(target)
-            .map(|l| self.window_rect_of(l))
-            .unwrap_or(Rect::EMPTY);
-        let x = sx - self.pointer.captured_origin.left;
-        let y = sy - self.pointer.captured_origin.top;
+        let window = self.layout_object(target);
+        self.pointer.captured_origin = window.map_or(Rect::EMPTY, |l| self.window_rect_of(l));
+        self.pointer.captured_scale = window.map_or(1.0, |l| self.layout_scale(l));
+        let (x, y) = self.captured_local(sx, sy);
         self.last_pointer = (x, y);
         self.captured = Some(target);
         if let Some(window) = self.layout_object(target) {
@@ -576,8 +592,7 @@ impl SkinRuntime {
             }
             self.send_deferred();
         }
-        let x = sx - self.pointer.captured_origin.left;
-        let y = sy - self.pointer.captured_origin.top;
+        let (x, y) = self.captured_local(sx, sy);
         self.last_pointer = (x, y);
         if let Some(r) = self.pointer.resizing.clone() {
             self.drag_grip(&r, x, y);
@@ -607,8 +622,7 @@ impl SkinRuntime {
     fn pointer_up_at(&mut self, sx: i32, sy: i32) {
         self.free_drag_end();
         self.send_deferred();
-        let x = sx - self.pointer.captured_origin.left;
-        let y = sy - self.pointer.captured_origin.top;
+        let (x, y) = self.captured_local(sx, sy);
         self.last_pointer = (x, y);
         if let Some(r) = self.pointer.resizing.clone() {
             self.drag_grip(&r, x, y);
@@ -642,11 +656,11 @@ impl SkinRuntime {
         let Some(target) = self.hit_test_stack(sx, sy) else {
             return;
         };
-        let origin = self
-            .layout_object(target)
-            .map(|l| self.window_rect_of(l))
-            .unwrap_or(Rect::EMPTY);
-        self.object_double_tap(target, sx - origin.left, sy - origin.top);
+        let (x, y) = match self.layout_object(target) {
+            Some(l) => self.layout_point(l, sx, sy),
+            None => (sx, sy),
+        };
+        self.object_double_tap(target, x, y);
     }
 
     /// The seq of the last press when it landed on an object with a skin menu, else `None`.
@@ -724,14 +738,9 @@ impl SkinRuntime {
 
     fn menu_aim_at(&mut self, sx: i32, sy: i32, seq: i32) -> Option<MenuAim> {
         let window = self.window_at(sx, sy)?;
-        let origin = self.window_rect_of(window);
-        let target = self.menu_object_at(window, sx - origin.left, sy - origin.top)?;
-        Some(MenuAim {
-            seq,
-            target,
-            x: sx - origin.left,
-            y: sy - origin.top,
-        })
+        let (x, y) = self.layout_point(window, sx, sy);
+        let target = self.menu_object_at(window, x, y)?;
+        Some(MenuAim { seq, target, x, y })
     }
 
     /// The object a right click at a point of `window` means, among objects with a skin menu only.

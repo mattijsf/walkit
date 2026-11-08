@@ -757,6 +757,57 @@ pub extern "C" fn wk_rt_place_window(id: i32, window: i32, x: i32, y: i32) -> i3
     .unwrap_or(0)
 }
 
+/// Shows the windows of the container named `scale` times as large (2 for Winamp's double
+/// size); 1 when the skin has the container.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_window_scale(
+    id: i32,
+    name: *const u8,
+    name_len: usize,
+    scale: f64,
+) -> i32 {
+    let name = text(name, name_len);
+    with_rt(id, |r| {
+        r.engine.set_window_scale(&name, scale as f32) as i32
+    })
+    .unwrap_or(0)
+}
+
+/// Screen pixels per layout pixel of the windows of the container named; 1 when it has none.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_window_scale(id: i32, name: *const u8, name_len: usize) -> f64 {
+    let name = text(name, name_len);
+    with_rt(id, |r| f64::from(r.engine.window_scale(&name))).unwrap_or(1.0)
+}
+
+/// Names the windows of the container named: the title a classic frame shows.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_window_title(
+    id: i32,
+    name: *const u8,
+    name_len: usize,
+    title: *const u8,
+    title_len: usize,
+) -> i32 {
+    let (name, title) = (text(name, name_len), text(title, title_len));
+    with_rt(id, |r| r.engine.set_window_title(&name, &title) as i32).unwrap_or(0)
+}
+
+/// Where the host draws its visualizer, in the viewport, as four little-endian i32s (left,
+/// top, width, height) in the result; 0 when no window shows a place for it.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_vis_rect(id: i32) -> i32 {
+    let Some(Some(r)) = with_rt(id, |r| r.engine.vis_rect()) else {
+        return 0;
+    };
+    let bytes = [r.left, r.top, r.width, r.height]
+        .iter()
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
 /// The window that has the focus, or -1.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_focused_window(id: i32) -> i32 {

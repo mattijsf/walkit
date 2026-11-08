@@ -197,14 +197,14 @@ impl SkinRuntime {
             return;
         };
         let others: Vec<ObjId> = self.windows().into_iter().skip(1).collect();
-        let (mw, mh) = self.layout_size(main);
+        let (mw, mh) = self.screen_size(main);
         self.placed.insert(main, Rect::new(0, 0, mw, mh));
         self.layout_root(main);
         let Some(view) = self.view_size else {
             // without a screen size (the reference tests) every window keeps the size it has
             let mut y = self.content_bottom(main);
             for l in others {
-                let (w, h) = self.layout_size(l);
+                let (w, h) = self.screen_size(l);
                 self.placed.insert(l, Rect::new(0, y, w, h));
                 y += h;
             }
@@ -225,7 +225,7 @@ impl SkinRuntime {
                     // resized by its grip: the size the finger gave it
                     self.objects[l].base.w = Some(sw);
                     self.objects[l].base.h = Some(sh);
-                    let (w, h) = self.layout_size(l);
+                    let (w, h) = self.screen_size(l);
                     self.placed.insert(l, Rect::new(column.x, y, w, h));
                     y += h;
                     continue;
@@ -241,7 +241,7 @@ impl SkinRuntime {
                     None
                 };
                 self.objects[l].base.h = stretched.or_else(|| self.skin_height(l));
-                let (w, h) = self.layout_size(l);
+                let (w, h) = self.screen_size(l);
                 self.placed.insert(l, Rect::new(column.x, y, w, h));
                 y += h;
             }

@@ -1046,13 +1046,9 @@ impl SkinRuntime {
         let r = self.objects[o].base.rect;
         self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.from)
             .and_then(|b| {
-                let at = self.window_rect_of(self.layout_object(o)?);
-                Some(Rect::new(
-                    at.left + r.left + b.left,
-                    at.top + r.top + b.top,
-                    b.width,
-                    b.height,
-                ))
+                let l = self.layout_object(o)?;
+                let b = Rect::new(r.left + b.left, r.top + b.top, b.width, b.height);
+                Some(self.stack_rect_in(l, b))
             });
         self.classic_act_on(o, w, &press);
         self.action_from = None;

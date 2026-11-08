@@ -319,6 +319,32 @@ export class Runtime {
     this.w.x.wk_rt_place_window(this.id, window, x, y);
   }
 
+  /** Shows the windows of a container `scale` times as large (2 for Winamp's double size). */
+  setWindowScale(container, scale) {
+    return this.w.withString(container, (p, n) => this.w.x.wk_rt_set_window_scale(this.id, p, n, scale)) !== 0;
+  }
+
+  /** Screen pixels per layout pixel of the windows of a container. */
+  windowScale(container) {
+    return this.w.withString(container, (p, n) => this.w.x.wk_rt_window_scale(this.id, p, n));
+  }
+
+  /** Names the windows of a container: the title a classic frame shows. */
+  setWindowTitle(container, title) {
+    return this.w.withString(container, (cp, cn) => this.w.withString(title, (tp, tn) => this.w.x.wk_rt_set_window_title(this.id, cp, cn, tp, tn))) !== 0;
+  }
+
+  /**
+   * Where the page draws its visualizer, `{left, top, width, height}` in the viewport: the
+   * classic visualizer window's inside, or a modern skin's visualizer holder; null when none shows.
+   */
+  visRect() {
+    if (!this.w.x.wk_rt_vis_rect(this.id)) return null;
+    const b = this.w.resultBytes();
+    const [left, top, width, height] = new Int32Array(b.buffer, b.byteOffset, 4);
+    return { left, top, width, height };
+  }
+
   /** The window that has the focus, or null. */
   focusedWindow() {
     const w = this.w.x.wk_rt_focused_window(this.id);

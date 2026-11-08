@@ -19,6 +19,15 @@ pub struct Rect {
 }
 
 impl Rect {
+    /// The rectangle with every edge times `scale`, rounded, so that rectangles sharing an
+    /// edge still share it.
+    #[must_use]
+    pub fn scaled(&self, scale: f32) -> Rect {
+        let at = |v: i32| (v as f32 * scale).round() as i32;
+        let (left, top) = (at(self.left), at(self.top));
+        Rect::new(left, top, at(self.right()) - left, at(self.bottom()) - top)
+    }
+
     /// A rectangle covering nothing at the origin.
     pub const EMPTY: Rect = Rect {
         left: 0,
@@ -392,6 +401,31 @@ pub enum DrawCmd {
 }
 
 impl DrawCmd {
+    /// The command drawn `scale` times as large, from the window's corner.
+    #[must_use]
+    pub fn scaled(&self, scale: f32) -> DrawCmd {
+        let mut cmd = self.clone();
+        match &mut cmd {
+            DrawCmd::Image { dst, .. } => *dst = dst.scaled(scale),
+            DrawCmd::Fill { rect, .. } | DrawCmd::Clip(rect) | DrawCmd::Pixels { rect, .. } => {
+                *rect = rect.scaled(scale);
+            }
+            DrawCmd::WindowStart(region) => *region = region.scaled(scale),
+            DrawCmd::Text(t) => {
+                t.rect = t.rect.scaled(scale);
+                t.size = (t.size as f32 * scale).round() as i32;
+                t.x *= scale;
+                t.baseline *= scale;
+                t.scroll = (t.scroll as f32 * scale).round() as i32;
+                t.shadow_dx = (t.shadow_dx as f32 * scale).round() as i32;
+                t.shadow_dy = (t.shadow_dy as f32 * scale).round() as i32;
+            }
+            DrawCmd::BitmapText(t) => t.rect = t.rect.scaled(scale),
+            DrawCmd::WindowEnd | DrawCmd::Unclip => {}
+        }
+        cmd
+    }
+
     /// Whether `other` draws exactly what this draws: the same kind of command with the same
     /// values, the same part of the same picture in the same tint, the same font, and pixels
     /// with the same content. A renderer may then keep what it drew for one and show it for the
@@ -487,6 +521,32 @@ pub enum Region {
 }
 
 impl Region {
+    /// The region `scale` times as large, from the window's corner.
+    #[must_use]
+    pub fn scaled(&self, scale: f32) -> Region {
+        match self {
+            Region::Pic(img) => Region::Pic(RegionImage {
+                dst: img.dst.scaled(scale),
+                ..img.clone()
+            }),
+            Region::Box(r) => Region::Box(r.scaled(scale)),
+            Region::Op {
+                base,
+                add,
+                keep,
+                cut,
+            } => {
+                let all = |v: &[Region]| v.iter().map(|r| r.scaled(scale)).collect();
+                Region::Op {
+                    base: base.as_ref().map(|b| Box::new(b.scaled(scale))),
+                    add: all(add),
+                    keep: all(keep),
+                    cut: all(cut),
+                }
+            }
+        }
+    }
+
     /// The same region with every picture passed through `f` (dropped when it gives `None`).
     pub fn map_pics(
         &self,

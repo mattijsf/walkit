@@ -117,6 +117,54 @@ fn outset(r: Rect, m: Margins) -> Rect {
 }
 
 /// Whether `a` and `b` share an edge line with their ranges on the other axis overlapping (inclusive).
+/// Which edge of its parent a window hangs off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Edge {
+    Below,
+    Above,
+    Right,
+    Left,
+}
+
+/// The windows hanging off the edges of others, from `root` outwards: each child with the window
+/// it touches, the edge, and its offset along that edge. A window reached from two is kept by
+/// the first.
+fn hanging(rects: &[(ObjId, Rect)], root: Option<ObjId>) -> Vec<(ObjId, ObjId, Edge, i32)> {
+    let Some(root) = root else {
+        return Vec::new();
+    };
+    let rect = |l: ObjId| rects.iter().find(|(w, _)| *w == l).map(|(_, r)| *r);
+    let mut out = Vec::new();
+    let mut reached = vec![root];
+    let mut i = 0;
+    while i < reached.len() {
+        let parent = reached[i];
+        i += 1;
+        let Some(p) = rect(parent) else { continue };
+        for (child, c) in rects {
+            if reached.contains(child) || !touches(p, *c) {
+                continue;
+            }
+            let edge = if c.top == p.bottom() {
+                Edge::Below
+            } else if c.bottom() == p.top {
+                Edge::Above
+            } else if c.left == p.right() {
+                Edge::Right
+            } else {
+                Edge::Left
+            };
+            let along = match edge {
+                Edge::Below | Edge::Above => c.left - p.left,
+                Edge::Right | Edge::Left => c.top - p.top,
+            };
+            out.push((*child, parent, edge, along));
+            reached.push(*child);
+        }
+    }
+    out
+}
+
 fn touches(a: Rect, b: Rect) -> bool {
     let along_x =
         a.left == b.right() || a.right() == b.left || a.right() == b.right() || a.left == b.left;
@@ -200,7 +248,14 @@ impl SkinRuntime {
                 let (x, y) = match spot {
                     Some((x, y)) => {
                         // kept inside the view at the size it will have apart
-                        let (w, h) = self.own_free_size(l).unwrap_or((r.width, r.height));
+                        let s = self.layout_scale(l);
+                        let (w, h) = self
+                            .own_free_size(l)
+                            .map(|(w, h)| {
+                                let r = Rect::new(0, 0, w, h).scaled(s);
+                                (r.width, r.height)
+                            })
+                            .unwrap_or((r.width, r.height));
                         let (vw, vh) = self.viewport();
                         (x.min(vw - w).max(0), y.min(vh - h).max(0))
                     }
@@ -224,7 +279,7 @@ impl SkinRuntime {
                 self.objects[l].base.w = w;
                 self.objects[l].base.h = h;
             }
-            let (w, h) = self.layout_size(l);
+            let (w, h) = self.screen_size(l);
             let d = self.objects[l].layout().expect("a layout");
             let r = Rect::new(d.view_x, d.view_y, w, h);
             self.placed.insert(l, r);
@@ -315,11 +370,13 @@ impl SkinRuntime {
 
     fn snap_margins(&self, l: ObjId) -> Margins {
         let d = self.objects[l].layout().expect("a layout");
+        let s = self.layout_scale(l);
+        let at = |v: i32| (v.max(0) as f32 * s).round() as i32;
         Margins {
-            left: d.snap_left.max(0),
-            top: d.snap_top.max(0),
-            right: d.snap_right.max(0),
-            bottom: d.snap_bottom.max(0),
+            left: at(d.snap_left),
+            top: at(d.snap_top),
+            right: at(d.snap_right),
+            bottom: at(d.snap_bottom),
         }
     }
 
@@ -594,6 +651,49 @@ impl SkinRuntime {
         }
     }
 
+    /// Runs `change`, which resizes windows (a new scale), and keeps every window that hung
+    /// off an edge of another hanging off that edge: from the main window outwards, each one
+    /// goes back against the edge it touched, at the same offset along it, as Winamp keeps the
+    /// equalizer and playlist under the main window when it doubles.
+    pub(crate) fn keeping_docks(&mut self, change: impl FnOnce(&mut Self)) {
+        if !self.free.on {
+            change(self);
+            return;
+        }
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let windows = self.windows();
+        let before: Vec<(ObjId, Rect)> = windows
+            .iter()
+            .map(|l| (*l, self.docking_rect(*l)))
+            .collect();
+        let hangs = hanging(&before, self.main_layout());
+        change(self);
+        if self.needs_layout {
+            self.do_layout();
+        }
+        for (child, parent, edge, along) in hangs {
+            let p = self.docking_rect(parent);
+            let c = self.docking_rect(child);
+            let (x, y) = match edge {
+                Edge::Below => (p.left + along, p.bottom()),
+                Edge::Above => (p.left + along, p.top - c.height),
+                Edge::Right => (p.right(), p.top + along),
+                Edge::Left => (p.left - c.width, p.top + along),
+            };
+            let at = self.window_rect_of(child);
+            let (dx, dy) = (x - c.left, y - c.top);
+            if dx != 0 || dy != 0 {
+                let d = self.objects[child].layout_mut().expect("a layout");
+                d.view_x = at.left + dx;
+                d.view_y = at.top + dy;
+                self.relayout();
+                self.do_layout();
+            }
+        }
+    }
+
     /// A script's `beforeRedock` on window `l`: notes the windows docked to it and where its
     /// docking rect is, before the script changes that rect.
     pub(crate) fn before_redock(&mut self, l: ObjId) {
@@ -711,8 +811,9 @@ impl SkinRuntime {
                         .and_then(crate::gui::to_int_lenient)
                 });
             if let Some(h) = h {
+                let width = (s.width as f32 / self.layout_scale(target)).round() as i32;
                 let d = self.objects[target].layout_mut().expect("a layout");
-                d.user_size = Some((s.width, h));
+                d.user_size = Some((width, h));
             }
         }
         if let Some(i) = s.z_at {

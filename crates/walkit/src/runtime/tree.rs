@@ -328,8 +328,21 @@ impl SkinRuntime {
         }
         self.z_windows()
             .into_iter()
-            .map(|l| (self.window_rect_of(l), self.draw_layout(l)))
+            .map(|l| {
+                let cmds = self.draw_layout(l);
+                let cmds = self.scaled_cmds(l, cmds);
+                (self.window_rect_of(l), cmds)
+            })
             .collect()
+    }
+
+    /// Window `l`'s drawing at its scale.
+    fn scaled_cmds(&self, l: ObjId, cmds: Vec<DrawCmd>) -> Vec<DrawCmd> {
+        let s = self.layout_scale(l);
+        if s == 1.0 {
+            return cmds;
+        }
+        cmds.iter().map(|c| c.scaled(s)).collect()
     }
 
     /// The windows in the order [`SkinRuntime::draw_windows`] draws them, bottom to top: the
@@ -354,6 +367,7 @@ impl SkinRuntime {
             .map(|l| {
                 let rect = self.window_rect_of(l);
                 let (cmds, owners) = self.draw_layout_owned(l);
+                let cmds = self.scaled_cmds(l, cmds);
                 DrawnWindow { rect, cmds, owners }
             })
             .collect()

@@ -395,15 +395,9 @@ impl crate::runtime::SkinRuntime {
         let crate::gui::Kind::ClassicWindow(kind) = self.objects[win].kind else {
             return None;
         };
-        let origin = self.window_rect_of(l);
+        let (x, y) = self.layout_point(l, sx, sy);
         let r = self.objects[win].base.rect;
-        slot_at(
-            kind,
-            r.width,
-            r.height,
-            sx - origin.left - r.left,
-            sy - origin.top - r.top,
-        )
+        slot_at(kind, r.width, r.height, x - r.left, y - r.top)
     }
 
     /// The skin's picture for cursor `slot`, decoded once; `None` when the skin has no such

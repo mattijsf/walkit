@@ -110,12 +110,11 @@ impl SkinRuntime {
             .rev()
             .find_map(|w| self.find_object(*w, id))?;
         let layout = self.layout_object(o)?;
-        let origin = self.window_rect_of(layout);
         let r = self.objects[o].base.rect;
         Some(ObjectInfo {
             window: self.window_id_of(layout),
             rect: r,
-            stack_rect: Rect::new(origin.left + r.left, origin.top + r.top, r.width, r.height),
+            stack_rect: self.stack_rect_in(layout, r),
             visible: self.objects[o].base.visible,
             class_name: self.objects[o].class_name().to_string(),
         })
@@ -138,9 +137,82 @@ impl SkinRuntime {
         if let Some(r) = self.placed.get(&layout) {
             *r
         } else {
-            let (w, h) = self.layout_size(layout);
+            let (w, h) = self.screen_size(layout);
             Rect::new(0, 0, w, h)
         }
+    }
+
+    /// Screen pixels per layout pixel of window `l`: its container's scale.
+    pub(crate) fn layout_scale(&self, l: ObjId) -> f32 {
+        self.objects[l]
+            .layout()
+            .and_then(|d| d.container)
+            .map_or(1.0, |c| self.containers[c].scale)
+    }
+
+    /// The size window `l` takes on screen: its layout's size at its scale.
+    pub(crate) fn screen_size(&mut self, l: ObjId) -> (i32, i32) {
+        let (w, h) = self.layout_size(l);
+        let r = Rect::new(0, 0, w, h).scaled(self.layout_scale(l));
+        (r.width, r.height)
+    }
+
+    /// The point `sx`, `sy` of the stack in window `l`'s layout pixels.
+    pub(crate) fn layout_point(&mut self, l: ObjId, sx: i32, sy: i32) -> (i32, i32) {
+        let at = self.window_rect_of(l);
+        let s = self.layout_scale(l);
+        (
+            ((sx - at.left) as f32 / s).floor() as i32,
+            ((sy - at.top) as f32 / s).floor() as i32,
+        )
+    }
+
+    /// Rectangle `r` of window `l`, in its layout pixels, where it shows in the stack.
+    pub(crate) fn stack_rect_in(&mut self, l: ObjId, r: Rect) -> Rect {
+        let at = self.window_rect_of(l);
+        let r = r.scaled(self.layout_scale(l));
+        Rect::new(at.left + r.left, at.top + r.top, r.width, r.height)
+    }
+
+    /// Names the windows of `container`: the title a classic `gen.bmp` frame shows (the
+    /// visualizer's plug-in, say). False when the skin has no such container.
+    pub fn set_window_title(&mut self, container: &str, title: &str) -> bool {
+        let Some(c) = self.container(container) else {
+            return false;
+        };
+        if self.containers[c].name != title {
+            self.containers[c].name = title.to_string();
+            self.repaint();
+        }
+        true
+    }
+
+    /// Screen pixels per layout pixel of the windows of `container`; 1 when it has none.
+    pub fn window_scale(&self, container: &str) -> f32 {
+        self.container(container)
+            .map_or(1.0, |c| self.containers[c].scale)
+    }
+
+    /// Shows the windows of `container` `scale` times as large (2 for Winamp's double size),
+    /// from 0.25 to 8. Apart, the windows hanging off its edges, and off theirs, stay docked.
+    /// False when the skin has no such container.
+    pub fn set_window_scale(&mut self, container: &str, scale: f32) -> bool {
+        let Some(c) = self.container(container) else {
+            return false;
+        };
+        let scale = if scale.is_finite() {
+            scale.clamp(0.25, 8.0)
+        } else {
+            1.0
+        };
+        if self.containers[c].scale == scale {
+            return true;
+        }
+        self.keeping_docks(|rt| {
+            rt.containers[c].scale = scale;
+            rt.relayout();
+        });
+        true
     }
 
     /// Opens the window of `container` in the stack; false when the skin has no such container.
