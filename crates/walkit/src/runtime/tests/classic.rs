@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use super::QuietHost;
+use super::{Froms, QuietHost, RecordingHost};
 use crate::draw::FontDef;
 use crate::draw::{Align, DrawCmd, Rect, Region, Rgb};
 use crate::files::MemoryFiles;
@@ -1617,40 +1617,6 @@ fn a_playing_classic_window_is_due_again_every_frame() {
     rt.player.stop();
     assert_ne!(rt.next_due_at(), Some(25));
     assert!(!rt.frames_wanted());
-}
-
-/// A host that keeps the actions the skin sends it, and where on screen each came from.
-struct RecordingHost(Rc<RefCell<Vec<String>>>, Froms);
-
-/// Where each host action came from, in order.
-type Froms = Rc<RefCell<Vec<Option<crate::host::ActionFrom>>>>;
-
-impl SkinHost for RecordingHost {
-    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
-        None
-    }
-
-    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, bold: bool) -> i32 {
-        text.chars().count() as i32 * size * if bold { 7 } else { 6 } / 10
-    }
-
-    fn log(&mut self, _message: &str) {}
-
-    fn invalidate(&mut self) {}
-
-    fn host_action(
-        &mut self,
-        action: &str,
-        param: Option<&str>,
-        from: Option<crate::host::ActionFrom>,
-    ) {
-        self.0.borrow_mut().push(
-            format!("{action} {}", param.unwrap_or(""))
-                .trim_end()
-                .to_string(),
-        );
-        self.1.borrow_mut().push(from);
-    }
 }
 
 fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {

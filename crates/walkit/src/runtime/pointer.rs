@@ -1045,11 +1045,12 @@ impl SkinRuntime {
                 }
             }
             // VID_1X..VID_MISC and the last four are a classic skin's: its video window's
-            // buttons, its presets button, its playlist's bottom buttons, the clutter bar's A and D
+            // buttons, its presets button, its playlist's bottom buttons, the clutter bar's A and D;
+            // PE_ADD..PE_LIST are a modern skin's playlist buttons, whose menus the app shows
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
             | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "VID_1X" | "VID_2X" | "VID_TV"
             | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "ALWAYS_ON_TOP"
-            | "DOUBLESIZE" | "ABOUT" => {
+            | "DOUBLESIZE" | "ABOUT" | "PE_ADD" | "PE_REM" | "PE_SEL" | "PE_MISC" | "PE_LIST" => {
                 if self.host_actions {
                     self.host.host_action(&a, param, from);
                 }
