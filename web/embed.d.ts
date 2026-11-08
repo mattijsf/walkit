@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/** A rectangle in viewport pixels. */
+export interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Where a button that asks the page for something sits, in the viewport. */
+export interface ActionFrom {
+  rect: [x: number, y: number, width: number, height: number];
+  point: [x: number, y: number] | null;
+}
+
+/** What the page answers for the engine. Every handler is optional. */
+export interface Handlers {
+  /** Something changed: draw a frame soon. */
+  invalidate?(): void;
+  /** Whether one of the page's windows or switches is on: "doublesize", "ontop", "pl", "eq"; null leaves it to the skin. */
+  windowOpen?(kind: string): boolean | null;
+  /**
+   * A button for the page's player: play, pause, stop, next, previous, eject, play_track
+   * (index), seek (ms), volume (0..255), pan (-127..127), shuffle, repeat, eq (0/1), preamp and
+   * band0..band9 (0..255).
+   */
+  player?(command: string, value: number): void;
+  /** MENU, CLOSE, MINIMIZE, DOUBLESIZE, EQ_PRESETS, PLAYLIST, PLAYLIST_SELECT, TOGGLE, ABOUT, ... */
+  action?(action: string, param: string, from: ActionFrom | null): void;
+  /** The windows on screen changed. */
+  windowsChanged?(ids: number[]): void;
+  /** A line the skin logs. */
+  log?(line: string): void;
+}
+
+/** What the page's player is doing; any field left out stays as it was. */
+export interface PlayerState {
+  status?: "stopped" | "playing" | "paused";
+  positionMs?: number;
+  lengthMs?: number;
+  title?: string;
+  /** The playlist entry playing, from 0. */
+  trackIndex?: number;
+  kbps?: number;
+  khz?: number;
+  channels?: number;
+  /** 0..255 */
+  volume?: number;
+  /** -127..127 */
+  pan?: number;
+  shuffle?: boolean;
+  repeat?: boolean;
+  eqOn?: boolean;
+  /** 0..255, 128 flat */
+  preamp?: number;
+  /** Ten bands, 0..255, 128 flat. */
+  bands?: number[];
+}
+
+/** A skin running on the engine. Coordinates are viewport pixels. */
+export interface Runtime {
+  setFree(on: boolean, width?: number, height?: number): void;
+  setPlayerState(state: PlayerState): void;
+  setPlaylist(tracks: { title: string; lengthMs: number }[]): void;
+  setVis(vis?: { spectrum?: Float32Array; waveform?: Float32Array; vu?: [number, number] }): void;
+  pointerDown(x: number, y: number, seq?: number): void;
+  pointerMove(x: number, y: number): void;
+  pointerUp(x: number, y: number): void;
+  doubleTap(x: number, y: number, seq?: number): void;
+  rightClick(seq?: number): void;
+  /** The seq of the last press when a drag from it moves its window and the page moves windows itself. */
+  moveTarget(): number | null;
+  cursorAt(x: number, y: number): number;
+  /** 0 arrow, 1 move, 2 sideways, 3 up and down, 4 close, 5 size. */
+  cursorKind(slot: number): number;
+  openWindow(container: string): boolean;
+  closeWindow(container: string): boolean;
+  placeWindow(window: number, x: number, y: number): void;
+  resizeWindow(window: number, width: number, height: number): void;
+  setWindowLayout(window: number, layout: string): void;
+  /** Screen pixels per layout pixel, 0.25..8; the windows docked to it stay docked. */
+  setWindowScale(container: string, scale: number): boolean;
+  windowScale(container: string): number;
+  setWindowTitle(container: string, title: string): boolean;
+  /** Where the page draws its visualizer, or null when no window shows a place for it. */
+  visRect(): Rect | null;
+  mainWindow(): number | null;
+  focusedWindow(): number | null;
+  timeRemaining(): boolean;
+  setTimeRemaining(on: boolean): void;
+  eqAuto(): boolean;
+  setEqAuto(on: boolean): void;
+  scrollPlaylist(rows: number): void;
+}
+
+/** A window on screen, bottom to top. */
+export interface SkinWindow {
+  id: number;
+  container: string;
+  layout: string;
+  rect: Rect;
+}
+
+export interface Skin {
+  rt: Runtime;
+  /** A classic .wsz skin rather than a modern .wal one. */
+  classic: boolean;
+  /** Steps the clock to `now` (ms); whether the windows need painting again. */
+  tick(now: number): boolean;
+  windows(): SkinWindow[];
+  /** Asks for the windows again on the next `tick`. */
+  invalidate(): void;
+  /** Paints `window` on `canvas`, its corner at the canvas's, `scale` device pixels per pixel. */
+  paint(canvas: HTMLCanvasElement, window: SkinWindow, scale?: number): void;
+  free(): void;
+}
+
+export type Source = string | URL | ArrayBuffer | Uint8Array;
+
+export interface Walkit {
+  setHandlers(handlers: Handlers): void;
+  /** The stand-in fonts a modern skin lays out text with: path ("fonts/LiberationSans.ttf") to bytes. */
+  addFonts(fonts: Map<string, Uint8Array>): Promise<void>;
+  /** A classic .wsz, or a modern .wal over `defaults` (Winamp's default element set). */
+  openSkin(
+    source: Source,
+    options?: { name?: string; defaults?: Source | Map<string, Uint8Array> | null; demoPlayer?: boolean }
+  ): Promise<Skin>;
+}
+
+/** Loads the engine, from `walkit.wasm` next to this module unless `wasm` says otherwise. */
+export function loadWalkit(handlers?: Handlers, options?: { wasm?: Source }): Promise<Walkit>;

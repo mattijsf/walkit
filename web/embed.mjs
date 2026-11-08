@@ -3,12 +3,12 @@
 // The engine for a page that brings its own player and windows: load it once, open a skin
 // archive, and each frame tick it, take its windows and paint each one on a canvas.
 //
-//   const walkit = await loadWalkit(wasmUrl, {
+//   const walkit = await loadWalkit({
 //     invalidate() {},                  // something changed: draw a frame soon
 //     windowOpen(kind) { return null }, // "doublesize", "ontop", "pl", "eq": true, false or null
 //     player(command, value) {},        // a button for the page's player (see Walkit.hostedRuntime)
 //     action(action, param, from) {},   // MENU, CLOSE, PLAYLIST, ...; from: {rect, point} in the viewport
-//   });
+//   });                                 // the module next to this file, or { wasm: url } after
 //   const skin = await walkit.openSkin(wszBytes);  // a .wal: { defaults }, after addFonts(fonts)
 //   skin.rt.setFree(true, innerWidth, innerHeight);
 //   // each animation frame:
@@ -64,8 +64,11 @@ class PointRenderer extends Renderer {
   }
 }
 
-/** Loads the engine from a URL or the module's bytes, with the page's `handlers`. */
-export async function loadWalkit(wasm, handlers = {}) {
+/**
+ * Loads the engine with the page's `handlers`, from `walkit.wasm` next to this file unless
+ * `wasm` names another URL or gives the module's bytes.
+ */
+export async function loadWalkit(handlers = {}, { wasm = new URL("./walkit.wasm", import.meta.url) } = {}) {
   const embed = new Embed(handlers);
   await embed.load(await bytesOf(wasm));
   return embed;
@@ -81,6 +84,11 @@ class Embed {
     this.families = new Map([["", "Arial"]]);
     this.registered = new Set();
     this.measure = document.createElement("canvas").getContext("2d");
+  }
+
+  /** Replaces the page's handlers, as when another part of the page takes the engine over. */
+  setHandlers(handlers) {
+    this.handlers = handlers;
   }
 
   /** Registers `bytes` as the font family named by its normalized path, once. */

@@ -36,20 +36,21 @@ engine's `listing` module; a renderer parses it. A packed binary form is a follo
 
 ## Embedding
 
-`embed.mjs` is the way in for a page that has its own player and puts the windows where it
+`tools/web-pack.sh <dir>` puts the `walkit-web` package together (the modules, their types in
+`embed.d.ts`, and the module as `walkit.wasm`) for a host to vendor. `embed.mjs` is the way in for a page that has its own player and puts the windows where it
 wants them (webamp, say): it loads the module, opens a skin archive, and hands out each
 window's drawing.
 
 ```js
-import { loadWalkit } from "./embed.mjs";
-const walkit = await loadWalkit("walkit-release.wasm", {
+import { loadWalkit } from "walkit-web";      // or "./embed.mjs" from this folder
+const walkit = await loadWalkit({
   invalidate() {},                   // something changed; draw soon
   windowOpen(kind) { return null; }, // "doublesize", "ontop": true, false or null
   player(command, value) {},         // play, pause, stop, next, previous, eject, play_track,
                                      // seek, volume, pan, shuffle, repeat, eq, preamp, band0..9
   action(action, param, from) {},    // MENU, CLOSE, MINIMIZE, EQ_PRESETS, PLAYLIST, ...;
                                      // from.rect is where the button sits, for a menu
-});
+});                                  // walkit.wasm next to embed.mjs, or { wasm: url } after
 const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { defaults }
 skin.rt.setFree(true, innerWidth, innerHeight); // windows apart, docked as on Winamp's desktop
 
