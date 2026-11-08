@@ -610,7 +610,28 @@ public class SkinRuntime(
      */
     public fun pointerCancel(): Unit = Native.rtPointerCancel(h())
 
+    /**
+     * Makes the moves and the release of the press now held land exactly where they say, as a
+     * mouse's do: no touch slop keeps the press on its control. For a host's magnifier, which
+     * steers the press with a finger geared down; the next [pointerDown] turns it off.
+     */
+    public fun setPointerPrecise(precise: Boolean): Unit = Native.rtSetPointerPrecise(h(), precise)
+
+    /**
+     * The controls of the window the press now held is on, in stack pixels, for a host's
+     * magnifier to show and steer the press between; empty without a press. A classic window
+     * lists each control by the box it answers in, and, while one of its playlist buttons is held,
+     * the pictures of its menu ([TouchControl.magnify]).
+     */
+    public fun pressControls(): List<TouchControl> =
+        Native.rtPressControls(h()).toList().chunked(TOUCH_CONTROL_INTS) {
+            TouchControl(Rect(it[0], it[1], it[2], it[3]), it[4] != 0)
+        }
+
     private companion object {
+        /** Ints [Native.rtPressControls] gives each control. */
+        const val TOUCH_CONTROL_INTS = 5
+
         /** The screen a skin may place windows on before the host sets a view size: a Full HD portrait phone. */
         const val VIEWPORT_W = 1080
         const val VIEWPORT_H = 1920

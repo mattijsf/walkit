@@ -300,7 +300,7 @@ pub struct SkinRuntime {
     edge_placements: i32,
     /// Total length of the playlist entries selected in the playlist editor, for `display="pe_info"`.
     pub(crate) playlist_selected_ms: i32,
-    pointer: pointer::PointerState,
+    pub(crate) pointer: pointer::PointerState,
 }
 
 impl SkinRuntime {
