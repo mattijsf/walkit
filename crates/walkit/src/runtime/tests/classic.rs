@@ -1754,6 +1754,76 @@ fn a_row_tapped_in_the_playlist_is_the_selection_the_host_hears_of() {
     assert_eq!(actions.borrow().len(), 1);
 }
 
+#[test]
+fn in_the_skins_letters_the_rows_are_one_block_and_a_row_they_cannot_spell_keeps_the_font() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = vec![
+        Track {
+            title: "One".into(),
+            length_ms: 60_000,
+        },
+        Track {
+            title: "Кино".into(),
+            length_ms: 60_000,
+        },
+    ];
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    // a text.bmp whose A cell has one lit pixel on plain paper
+    let mut sheet = vec![0xff10_1010u32; 155 * 18];
+    sheet[0] = 0xff30_f030;
+    rt.classic_list_ink = crate::classic::listfont::ListInk::of(&sheet, 155, 18).map(Rc::new);
+    rt.classic_list_ink_read = true;
+    let texts = |rt: &mut SkinRuntime| -> (Vec<String>, Vec<Rect>) {
+        let windows = rt.draw_windows();
+        let (_, cmds) = windows
+            .iter()
+            .find(|(r, _)| r.top == 116)
+            .expect("the playlist");
+        let words = cmds
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Text(t) => Some(t.text.clone()),
+                _ => None,
+            })
+            .collect();
+        let blocks = cmds
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Pixels { rect, .. } => Some(*rect),
+                _ => None,
+            })
+            .collect();
+        (words, blocks)
+    };
+    let (words, blocks) = texts(&mut rt);
+    assert!(
+        words.contains(&"1. One".to_string()),
+        "off, every row in the font"
+    );
+    assert!(blocks.is_empty());
+
+    rt.set_presentation(&crate::host::Presentation {
+        skin_list_font: true,
+        ..rt.presentation()
+    });
+    let (words, blocks) = texts(&mut rt);
+    assert!(
+        !words.contains(&"1. One".to_string()),
+        "spelled in the letters"
+    );
+    assert!(
+        words.contains(&"2. Кино".to_string()),
+        "the letters cannot spell it"
+    );
+    assert_eq!(
+        blocks,
+        vec![Rect::new(12, 22, 275 - 32, 3 * 15)],
+        "over the list, in the window"
+    );
+}
+
 /// The playlist's pledit.bmp blits, as the stack draws them now.
 fn playlist_blits(rt: &mut SkinRuntime) -> Vec<(i32, i32, i32, i32, i32, i32)> {
     let windows = rt.draw_windows();

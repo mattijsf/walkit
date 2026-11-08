@@ -23,7 +23,8 @@ public data class SkinSetup(
  * - [columnWidth]: how wide that right column is, 0 for as wide as what shows of the main window;
  * - [stretchLast]: whether the last docked list window takes the height left under the others;
  * - [touchSlop]: how far beside an object a finger may land and still mean it;
- * - [touch]: whether a finger drives the skin rather than a mouse.
+ * - [touch]: whether a finger drives the skin rather than a mouse;
+ * - [skinListFont]: whether a classic playlist spells its rows in the skin's text.bmp letters.
  */
 public data class Presentation(
     val viewSize: Pair<Int, Int>? = null,
@@ -44,6 +45,12 @@ public data class Presentation(
      * over a picture.
      */
     val touch: Boolean = false,
+    /**
+     * Whether a classic playlist spells its rows in the skin's `text.bmp` letters, in the colors
+     * `pledit.txt` gives them, rather than in the font `pledit.txt` names; a row the letters cannot
+     * spell keeps that font.
+     */
+    val skinListFont: Boolean = false,
 )
 
 /**
