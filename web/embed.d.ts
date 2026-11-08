@@ -106,8 +106,17 @@ export interface SkinWindow {
   rect: Rect;
 }
 
+/** A classic skin's own cursors over its windows. */
+export interface SkinCursors {
+  /** Shows on `el` the skin's cursor at `x`, `y` of the stack, its pictures `zoom` times their size. */
+  show(el: HTMLElement, x: number, y: number, zoom?: number): void;
+  /** Gives `el` back its own cursor, as when the pointer leaves it. */
+  hide(el: HTMLElement): void;
+}
+
 export interface Skin {
   rt: Runtime;
+  cursors: SkinCursors;
   /** A classic .wsz skin rather than a modern .wal one. */
   classic: boolean;
   /** When (in `tick`'s clock) the skin next changes by itself; Infinity when nothing will until the page changes something. */

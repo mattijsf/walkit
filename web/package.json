@@ -19,6 +19,7 @@
     "embed.d.ts",
     "walkit.mjs",
     "frame.mjs",
+    "cursor.mjs",
     "render.mjs",
     "pictures.mjs",
     "zip.mjs",

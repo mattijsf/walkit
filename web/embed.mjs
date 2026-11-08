@@ -22,6 +22,7 @@ import { Walkit } from "./walkit.mjs";
 import { FrameReader } from "./frame.mjs";
 import { Pictures, Renderer, normalize, inSkinFolder, familyOf, cmdRect } from "./render.mjs";
 import { unzipAsync } from "./zip.mjs";
+import { SkinCursors } from "./cursor.mjs";
 
 async function inflateWith(format, bytes) {
   const stream = new DecompressionStream(format);
@@ -274,6 +275,7 @@ export class Skin {
       };
     }
     this.rt = rt;
+    this.cursors = new SkinCursors(rt);
     this.classic = classic;
     this.renderer = renderer;
     this.reader = new FrameReader();

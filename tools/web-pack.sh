@@ -21,7 +21,7 @@ if command -v wasm-opt >/dev/null 2>&1; then
 else
   cp "$wasm" "$out/walkit.wasm"
 fi
-for f in package.json embed.mjs embed.d.ts walkit.mjs frame.mjs render.mjs pictures.mjs zip.mjs; do
+for f in package.json embed.mjs embed.d.ts walkit.mjs frame.mjs cursor.mjs render.mjs pictures.mjs zip.mjs; do
   cp "web/$f" "$out/$f"
 done
 cp LICENSE "$out/LICENSE"
