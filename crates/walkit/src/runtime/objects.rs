@@ -565,6 +565,20 @@ pub(crate) fn glyph(f: &crate::draw::BitmapFontDef, cell: (i32, i32)) -> BitmapD
 }
 
 impl SkinRuntime {
+    /// Where object `o` is in the stack, in layout pixels: its rectangle in its window, moved by
+    /// where the window is. `None` for an object in no window.
+    pub(crate) fn stack_rect_of(&mut self, o: ObjId) -> Option<Rect> {
+        let l = self.layout_object(o)?;
+        let r = self.laid_out_rect(o);
+        let at = self.window_rect_of(l);
+        Some(Rect::new(
+            at.left + r.left,
+            at.top + r.top,
+            r.width,
+            r.height,
+        ))
+    }
+
     /// The rectangle after any pending layout.
     pub(crate) fn laid_out_rect(&mut self, o: ObjId) -> Rect {
         self.ensure_layout();

@@ -7,6 +7,17 @@ use std::rc::Rc;
 
 use crate::draw::{FontDef, Rect};
 
+/// Where a host action came from on screen, in the stack's layout pixels (as pointer events
+/// take them): a menu it opens can go against the thing that sent it, or at the finger.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActionFrom {
+    /// The thing that sent it: the button, a classic window's control, or the point a long press
+    /// held as a 1 x 1 box.
+    pub rect: Rect,
+    /// Where the finger went down for it; `None` when no touch sent it (a script's timer).
+    pub point: Option<(i32, i32)>,
+}
+
 /// Services the app supplies to the skin: its pictures, its text and its windows.
 pub trait SkinHost {
     /// The size of a skin image, decoded by the host, or `None` when it cannot be read.
@@ -86,8 +97,10 @@ pub trait SkinHost {
     fn windows_changed(&mut self, _windows: &[WindowId]) {}
 
     /// A button action the host answers, as Winamp answered it outside the skin, when the skin
-    /// was set up with [`SkinSetup::host_actions`]: the action uppercase and its param or window name.
-    fn host_action(&mut self, _action: &str, _param: Option<&str>) {}
+    /// was set up with [`SkinSetup::host_actions`]: the action uppercase, its param or window
+    /// name, and where on screen it came from ([`ActionFrom`]), for a menu it opens; `None` when
+    /// nothing on screen sent it.
+    fn host_action(&mut self, _action: &str, _param: Option<&str>, _from: Option<ActionFrom>) {}
 }
 
 /// A popup menu a script shows: its items, in order.

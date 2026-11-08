@@ -154,6 +154,9 @@ pub struct SkinRuntime {
     pub(crate) classic_remaining: bool,
     /// Whether the classic playlist's rows are in the skin's letters (`Presentation::skin_list_font`).
     pub(crate) skin_list_font: bool,
+    /// Where the thing sending the next host action is in the stack, when a classic window's
+    /// control or a long press set it; else the action's source object's rectangle.
+    pub(crate) action_from: Option<Rect>,
     /// Pixels the classic playlist adds to a row (`Presentation::list_row_extra`).
     pub(crate) list_row_extra: i32,
     /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
@@ -416,6 +419,7 @@ impl SkinRuntime {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
+            action_from: None,
             classic_list_ink: None,
             classic_list_ink_read: false,
             last_pointer: (0, 0),

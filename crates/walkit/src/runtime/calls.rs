@@ -143,7 +143,7 @@ impl SkinRuntime {
             return false;
         }
         if self.firing_now() == Some("onleftclick") && self.host_actions {
-            self.host.host_action("VIS_FS", None);
+            self.host.host_action("VIS_FS", None, None);
         }
         true
     }

@@ -73,6 +73,8 @@ struct MenuAim {
 #[derive(Debug, Default)]
 pub(crate) struct PointerState {
     captured_origin: Rect,
+    /// Where the last touch went down, in the stack.
+    down_at: Option<(i32, i32)>,
     deferred: Option<DeferredPress>,
     resizing: Option<Resize>,
     menu_aim: Option<MenuAim>,
@@ -710,6 +712,14 @@ impl SkinRuntime {
             self.do_layout();
         }
         self.pointer.menu_aim = self.menu_aim_at(sx, sy, seq);
+        self.pointer.down_at = Some((sx, sy));
+    }
+
+    /// Where the touch going on went down, in the stack; `None` outside a touch.
+    pub(crate) fn press_point(&self) -> Option<(i32, i32)> {
+        self.pointer
+            .down_at
+            .filter(|_| self.pointer.gesture_depth > 0)
     }
 
     fn menu_aim_at(&mut self, sx: i32, sy: i32, seq: i32) -> Option<MenuAim> {
@@ -950,6 +960,12 @@ impl SkinRuntime {
         target: Option<&str>,
     ) {
         let a = action.to_uppercase();
+        let point = self.press_point();
+        let from = self
+            .action_from
+            .take()
+            .or_else(|| self.stack_rect_of(source))
+            .map(|rect| crate::host::ActionFrom { rect, point });
         let source_id = self.objects[source].base.id.clone();
         self.host.log(&format!(
             "action {a} {} from {source_id}",
@@ -978,7 +994,7 @@ impl SkinRuntime {
                 let answers = self.host_actions
                     && (HOST_WINDOWS.contains(&kind.as_str()) || self.toggle_target(&id).is_none());
                 if answers {
-                    self.host.host_action(&a, Some(&kind));
+                    self.host.host_action(&a, Some(&kind), from);
                     // the app shows it: the skin's frame for it (an empty library) stays shut
                     if HOST_WINDOWS.contains(&kind.as_str()) {
                         self.invalidate();
@@ -1009,7 +1025,7 @@ impl SkinRuntime {
                     .and_then(|l| self.objects[l].layout().and_then(|d| d.container));
                 if c.is_some() && c == self.main_container() {
                     if self.host_actions {
-                        self.host.host_action(&a, param);
+                        self.host.host_action(&a, param, from);
                     }
                 } else if let Some(c) = c.filter(|c| self.containers[*c].can_close()) {
                     self.close_container(c);
@@ -1022,7 +1038,7 @@ impl SkinRuntime {
             | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "ALWAYS_ON_TOP"
             | "DOUBLESIZE" | "ABOUT" => {
                 if self.host_actions {
-                    self.host.host_action(&a, param);
+                    self.host.host_action(&a, param, from);
                 }
             }
             "EQ_TOGGLE" => {
