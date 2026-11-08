@@ -159,6 +159,8 @@ pub struct SkinRuntime {
     pub(crate) action_from: Option<Rect>,
     /// Pixels the classic playlist adds to a row (`Presentation::list_row_extra`).
     pub(crate) list_row_extra: i32,
+    /// The classic playlist font's em in pixels (`set_classic_list_font_size`).
+    pub(crate) classic_list_font: i32,
     /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
     /// was read: once a skin.
     pub(crate) classic_list_ink: Option<std::rc::Rc<crate::classic::listfont::ListInk>>,
@@ -452,6 +454,7 @@ impl SkinRuntime {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
+            classic_list_font: crate::classic::pl::LIST_FONT_SIZE,
             action_from: None,
             classic_list_ink: None,
             classic_list_ink_read: false,

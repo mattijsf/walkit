@@ -382,6 +382,11 @@ export class Runtime {
     this.w.x.wk_rt_set_eq_auto(this.id, on ? 1 : 0);
   }
 
+  /** Sets a classic playlist's font size, pixels to the em (Winamp's 12 at first); its rows follow. */
+  setListFontSize(px) {
+    this.w.x.wk_rt_set_list_font_size(this.id, px);
+  }
+
   /** Scrolls a classic playlist by rows, down for more than 0. */
   scrollPlaylist(rows) {
     this.w.x.wk_rt_scroll_playlist(this.id, rows);

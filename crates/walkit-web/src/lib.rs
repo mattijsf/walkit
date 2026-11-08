@@ -859,6 +859,14 @@ pub extern "C" fn wk_rt_set_eq_auto(id: i32, on: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// Sets a classic playlist's font size, pixels to the em (Winamp's 12 at first).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_list_font_size(id: i32, px: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_list_font_size(px))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
 /// Scrolls a classic playlist by `rows`, down for more than 0.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {

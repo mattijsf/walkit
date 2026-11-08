@@ -26,14 +26,9 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
-/// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it:
-/// Winamp's playlist font is `pe_fontsize` pixels to the em at 96 dpi;
-/// a host reads a size as points, so it goes out as 4/3 of that (16 for an em
-/// of 12 pixels).
-pub(super) const ROW_FONT: i32 = 12 * 4 / 3;
-/// A row's height: the font's `tmHeight`, 15 for Arial at 12 in the reference
-/// VM, where 3 rows fill a playlist 116 tall.
-pub(crate) const ROW_HEIGHT: i32 = 15;
+/// Winamp's "playlist font size" default (`pe_fontsize`): the font is that many pixels to the
+/// em at 96 dpi.
+pub(crate) const LIST_FONT_SIZE: i32 = 12;
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
@@ -56,7 +51,8 @@ impl SkinRuntime {
         font: Option<&crate::draw::FontDef>,
         width: i32,
     ) -> String {
-        let fits = |rt: &mut Self, s: &str| rt.host.text_width(s, font, ROW_FONT, false) <= width;
+        let size = self.classic_row_font();
+        let fits = |rt: &mut Self, s: &str| rt.host.text_width(s, font, size, false) <= width;
         if fits(self, text) {
             return text.to_string();
         }
@@ -137,10 +133,26 @@ impl SkinRuntime {
         ((h - 60) / self.classic_row()).max(0)
     }
 
-    /// A playlist row's height: the font's (Winamp's 15) and what the host adds
+    /// A playlist row's height: the font's `tmHeight`, Arial's 5/4 of the em
+    /// (15 at Winamp's 12, where 3 rows fill a playlist 116 tall), and what the host adds
     /// (`Presentation::list_row_extra`).
     pub(crate) fn classic_row(&self) -> i32 {
-        ROW_HEIGHT + self.list_row_extra
+        (self.classic_list_font * 5 + 2) / 4 + self.list_row_extra
+    }
+
+    /// The playlist font's size as the host reads it, in points: 4/3 of the em in pixels.
+    pub(crate) fn classic_row_font(&self) -> i32 {
+        self.classic_list_font * 4 / 3
+    }
+
+    /// Sets the playlist font's size, pixels to the em, as Winamp's "playlist font size"
+    /// preference does; its rows grow and shrink with it.
+    pub fn set_classic_list_font_size(&mut self, px: i32) {
+        let px = px.clamp(6, 40);
+        if px != self.classic_list_font {
+            self.classic_list_font = px;
+            self.repaint();
+        }
     }
 
     /// The first row shown, clamped to the rows that fit under the list's end.
@@ -218,6 +230,7 @@ impl SkinRuntime {
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
         let rows = self.classic_pl_rows(h);
         let row = self.classic_row();
+        let font_size = self.classic_row_font();
         // in the skin's letters, the rows go into one block of pixels over the list
         let ink = if self.skin_list_font {
             self.classic_list_ink()
@@ -258,12 +271,26 @@ impl SkinRuntime {
             // the title ends, cut short on "...", before the length (Winamp's ellipsis)
             let face = Some(&style.font);
             let def = Self::classic_pl_font(&style.font);
-            let time_w = self.host.text_width(&time, def.as_ref(), ROW_FONT, false);
+            let time_w = self.host.text_width(&time, def.as_ref(), font_size, false);
             let room = block_w - LIST_RIGHT - time_w - LIST_GAP;
             let title =
                 self.classic_pl_fitted(&format!("{}. {}", i + 1, t.title), def.as_ref(), room);
-            p.text(&title, face, (12, y, w - 32, row), color, Align::Left);
-            p.text(&time, face, (12, y, w - 32, row), color, Align::Right);
+            p.text(
+                &title,
+                face,
+                font_size,
+                (12, y, w - 32, row),
+                color,
+                Align::Left,
+            );
+            p.text(
+                &time,
+                face,
+                font_size,
+                (12, y, w - 32, row),
+                color,
+                Align::Right,
+            );
         }
         if let Some(block) = block.filter(|_| lettered) {
             p.out.push(DrawCmd::Pixels {

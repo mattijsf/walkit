@@ -602,6 +602,7 @@ impl Painter<'_> {
         &mut self,
         text: &str,
         face: Option<&String>,
+        size: i32,
         (dx, dy, w, h): (i32, i32, i32, i32),
         color: Rgb,
         align: Align,
@@ -612,7 +613,7 @@ impl Painter<'_> {
         self.out.push(DrawCmd::Text(Box::new(TextCmd {
             text: text.to_string(),
             font,
-            size: super::pl::ROW_FONT,
+            size,
             color,
             rect: Rect::new(self.at.left + dx, self.at.top + dy, w, h),
             align,

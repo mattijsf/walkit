@@ -262,7 +262,7 @@ const CHANGES = [
   "setPlayerState", "setPlaylist", "setVis", "pointerDown", "pointerMove", "pointerUp", "doubleTap",
   "rightClick", "openWindow", "closeWindow", "placeWindow", "resizeWindow", "setWindowLayout",
   "setWindowScale", "setWindowTitle", "setFree", "setView", "setTimeRemaining", "setEqAuto",
-  "scrollPlaylist", "selectTheme", "player",
+  "scrollPlaylist", "setListFontSize", "selectTheme", "player",
 ];
 
 export class Skin {

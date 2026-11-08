@@ -2522,6 +2522,30 @@ fn the_video_status_line_takes_its_colors_from_pledit() {
 }
 
 #[test]
+fn a_smaller_playlist_font_draws_smaller_text_in_shorter_rows() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!((rt.classic_row(), rt.classic_row_font()), (15, 16));
+    rt.set_classic_list_font_size(9);
+    assert_eq!((rt.classic_row(), rt.classic_row_font()), (11, 12));
+    assert_eq!(rt.classic_pl_rows(116), 5, "(116 - 60) / 11");
+    let sizes: Vec<i32> = rt
+        .draw_windows()
+        .iter()
+        .flat_map(|(_, cmds)| cmds.iter())
+        .filter_map(|c| match c {
+            DrawCmd::Text(t) => Some(t.size),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !sizes.is_empty() && sizes.iter().all(|&s| s == 12),
+        "{sizes:?}"
+    );
+}
+
+#[test]
 fn the_stack_names_winamps_cursor_under_the_pointer() {
     use crate::classic::cursor::CURSOR_FILES;
     let mut rt = classic();

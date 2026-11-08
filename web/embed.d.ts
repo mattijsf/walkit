@@ -96,6 +96,8 @@ export interface Runtime {
   eqAuto(): boolean;
   setEqAuto(on: boolean): void;
   scrollPlaylist(rows: number): void;
+  /** A classic playlist's font size, pixels to the em (Winamp's 12 at first); its rows follow. */
+  setListFontSize(px: number): void;
 }
 
 /** A window on screen, bottom to top. */
