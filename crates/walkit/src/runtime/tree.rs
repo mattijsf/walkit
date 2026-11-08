@@ -332,6 +332,17 @@ impl SkinRuntime {
             .collect()
     }
 
+    /// The windows in the order [`SkinRuntime::draw_windows`] draws them, bottom to top: the
+    /// stack's order, or the raised order while the windows are apart, which differs from
+    /// [`SkinRuntime::window_ids`] once a window was raised. A host pairs the drawn windows
+    /// with these.
+    pub fn drawn_window_ids(&mut self) -> Vec<crate::host::WindowId> {
+        self.z_windows()
+            .into_iter()
+            .map(|l| self.window_id_of(l))
+            .collect()
+    }
+
     /// Every window's drawing as [`SkinRuntime::draw_windows`] gives it, with the object that
     /// drew each command, for a host that plans what it keeps between frames.
     pub fn draw_windows_owned(&mut self) -> Vec<DrawnWindow> {

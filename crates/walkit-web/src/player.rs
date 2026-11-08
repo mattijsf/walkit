@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use walkit::player::{Player, Status};
+use walkit::player::{Player, Status, Track};
 
 use crate::imports;
 
@@ -32,6 +32,7 @@ pub struct HostState {
     pub waveform: Vec<f32>,
     pub vu: (i32, i32),
     pub track_index: i32,
+    pub tracks: Vec<Track>,
 }
 
 impl Default for HostState {
@@ -55,6 +56,7 @@ impl Default for HostState {
             waveform: Vec::new(),
             vu: (0, 0),
             track_index: 0,
+            tracks: Vec::new(),
         }
     }
 }
@@ -206,5 +208,20 @@ impl Player for HostPlayer {
     }
     fn track_index(&self) -> i32 {
         self.0.borrow().track_index
+    }
+    // the playlist the page pushed (`wk_rt_host_player_tracks`); before any, the song playing
+    fn tracks(&self) -> Vec<Track> {
+        let h = self.0.borrow();
+        if h.tracks.is_empty() && !h.title.is_empty() {
+            return vec![Track {
+                title: h.title.clone(),
+                length_ms: h.length_ms,
+            }];
+        }
+        h.tracks.clone()
+    }
+    fn play_track(&mut self, index: i32) {
+        self.0.borrow_mut().track_index = index;
+        imports::player("play_track", index);
     }
 }

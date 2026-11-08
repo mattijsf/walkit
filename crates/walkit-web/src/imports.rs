@@ -46,7 +46,13 @@ extern "C" {
     fn host_window_open(kind: *const u8, len: usize) -> i32;
     fn host_choose_from_menu(text: *const u8, len: usize) -> i32;
     fn host_windows_changed(text: *const u8, len: usize);
-    fn host_host_action(action: *const u8, action_len: usize, param: *const u8, param_len: usize);
+    fn host_host_action(
+        action: *const u8,
+        action_len: usize,
+        param: *const u8,
+        param_len: usize,
+        from: *const i32,
+    );
     fn host_player(cmd: *const u8, cmd_len: usize, arg: i32);
 }
 
@@ -240,10 +246,33 @@ pub fn windows_changed(text: &str) {
     unsafe { host_windows_changed(text.as_ptr(), text.len()) }
 }
 
-/// A button action the host answers.
-pub fn host_action(action: &str, param: &str) {
-    // SAFETY: the slices live for the call.
-    unsafe { host_host_action(action.as_ptr(), action.len(), param.as_ptr(), param.len()) }
+/// A button action the host answers, with where it came from: the sender's rect in the stack
+/// and the point the finger went down, as seven ints (has rect, x, y, w, h, has point, px, py
+/// follow the first), all 0 when nothing on screen sent it.
+pub fn host_action(action: &str, param: &str, from: Option<walkit::host::ActionFrom>) {
+    let mut f = [0i32; 8];
+    if let Some(from) = from {
+        f[0] = 1;
+        f[1] = from.rect.left;
+        f[2] = from.rect.top;
+        f[3] = from.rect.width;
+        f[4] = from.rect.height;
+        if let Some((x, y)) = from.point {
+            f[5] = 1;
+            f[6] = x;
+            f[7] = y;
+        }
+    }
+    // SAFETY: the slices and `f` live for the call.
+    unsafe {
+        host_host_action(
+            action.as_ptr(),
+            action.len(),
+            param.as_ptr(),
+            param.len(),
+            f.as_ptr(),
+        );
+    }
 }
 
 /// A command for the page's player (`play`, `seek` with ms, `volume` 0..255, ...).

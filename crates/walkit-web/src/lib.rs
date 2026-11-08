@@ -451,6 +451,31 @@ pub extern "C" fn wk_rt_host_player_state(
     .unwrap_or(0)
 }
 
+/// The playlist of the page's player for a runtime of `wk_rt_new_hosted`: one entry per line,
+/// its length in ms, a tab, its title. 1 when the runtime plays on the page's player.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_host_player_tracks(id: i32, list: *const u8, len: usize) -> i32 {
+    let list = text(list, len);
+    let tracks: Vec<walkit::player::Track> = list
+        .lines()
+        .filter_map(|l| {
+            let (ms, title) = l.split_once('\t')?;
+            Some(walkit::player::Track {
+                title: title.to_string(),
+                length_ms: ms.parse().unwrap_or(0),
+            })
+        })
+        .collect();
+    with_rt(id, |r| match &r.hosted {
+        Some(h) => {
+            h.borrow_mut().tracks = tracks;
+            1
+        }
+        None => 0,
+    })
+    .unwrap_or(0)
+}
+
 /// What the page's player is heard as now: `spec_n` spectrum levels 0..1 (75 like Winamp's) at
 /// `spec`, `wave_n` samples -1..1 (576) at `wave`, the VU levels 0..255. Empty when nothing plays.
 #[unsafe(no_mangle)]
@@ -518,7 +543,7 @@ pub extern "C" fn wk_rt_tick(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
     let Some(text) = with_rt(id, |r| {
-        let ids = r.engine.window_ids();
+        let ids = r.engine.drawn_window_ids();
         let drawn = r.engine.draw_windows();
         let mut out = String::new();
         for (wid, (_, cmds)) in ids.iter().zip(drawn.iter()) {
@@ -547,7 +572,7 @@ pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
     let Some(bytes) = with_rt(id, |r| {
-        let ids = r.engine.window_ids();
+        let ids = r.engine.drawn_window_ids();
         let moving = r.engine.take_tick_changed();
         let drawn = r.engine.draw_windows_owned();
         let planned = r.planner.plan(&ids, drawn, &moving, now_ms as i64);
@@ -711,6 +736,25 @@ pub extern "C" fn wk_rt_cursor_image(id: i32, slot: i32) -> i32 {
 pub extern "C" fn wk_rt_open_window(id: i32, name: *const u8, name_len: usize) -> i32 {
     let name = text(name, name_len);
     with_rt(id, |r| r.engine.open_window(&name) as i32).unwrap_or(0)
+}
+
+/// Closes the window of the container named; 1 when it was open.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_close_window(id: i32, name: *const u8, name_len: usize) -> i32 {
+    let name = text(name, name_len);
+    with_rt(id, |r| r.engine.close_window(&name) as i32).unwrap_or(0)
+}
+
+/// Puts window `window` at `x`, `y` of the viewport while the windows are apart (where the host
+/// keeps it between runs); nothing while they are one stack.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_place_window(id: i32, window: i32, x: i32, y: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine
+            .place_window(walkit::host::WindowId(window as u32), x, y);
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
 }
 
 /// Stages a song on the page's fake player: `title`, `length_ms` long.

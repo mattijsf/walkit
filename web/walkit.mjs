@@ -8,7 +8,7 @@
 // null, `imageSize(file)` -> [w, h] or null, `pixels(file, x, y, w, h)` -> Uint32Array or null,
 // `fontFile(file)` -> Uint8Array or null, `log(text)`, `invalidate()`, `windowOpen(kind)` ->
 // true/false/null, `chooseFromMenu(text)` -> id or null, `windowsChanged(ids)`,
-// `hostAction(action, param)`, and `now()` in ms. Everything is optional; what is missing
+// `hostAction(action, param, from)` (from: `{rect: [x, y, w, h], point: [x, y] | null}` in the stack, or null), `player(cmd, arg)`, and `now()` in ms. Everything is optional; what is missing
 // answers nothing.
 
 const encoder = new TextEncoder();
@@ -184,7 +184,12 @@ export class Walkit {
         return r === null || r === undefined ? -1 : r;
       },
       host_windows_changed: (p, n) => h.windowsChanged && h.windowsChanged(str(p, n).split(",").filter(Boolean).map(Number)),
-      host_host_action: (ap, an, pp, pn) => h.hostAction && h.hostAction(str(ap, an), str(pp, pn)),
+      host_host_action: (ap, an, pp, pn, fp) => {
+        if (!h.hostAction) return;
+        const f = new Int32Array(this.memory.buffer, fp, 8);
+        const from = f[0] ? { rect: [f[1], f[2], f[3], f[4]], point: f[5] ? [f[6], f[7]] : null } : null;
+        h.hostAction(str(ap, an), str(pp, pn), from);
+      },
       host_player: (cp, cn, arg) => h.player && h.player(str(cp, cn), arg),
     };
   }
@@ -280,6 +285,21 @@ export class Runtime {
 
   openWindow(name) {
     return this.w.withString(name, (p, n) => this.w.x.wk_rt_open_window(this.id, p, n)) !== 0;
+  }
+
+  closeWindow(name) {
+    return this.w.withString(name, (p, n) => this.w.x.wk_rt_close_window(this.id, p, n)) !== 0;
+  }
+
+  /** Puts a window at x, y of the viewport while the windows are apart. */
+  placeWindow(window, x, y) {
+    this.w.x.wk_rt_place_window(this.id, window, x, y);
+  }
+
+  /** The page's playlist (a hosted runtime): [{title, lengthMs}]. */
+  playerTracks(tracks) {
+    const text = tracks.map((t) => `${Math.round(t.lengthMs) || 0}\t${String(t.title).replace(/[\t\n]/g, " ")}`).join("\n");
+    this.w.withString(text, (p, n) => this.w.x.wk_rt_host_player_tracks(this.id, p, n));
   }
 
   /** Stages a song on the page's fake player: `title`, `lengthMs` long. */
