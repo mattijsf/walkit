@@ -8,6 +8,7 @@
 //! do.
 
 use crate::classic::ClassicWindow;
+use crate::draw::Rect;
 use crate::gui::{Kind, ObjId};
 use crate::player::Status;
 use crate::runtime::SkinRuntime;
@@ -257,6 +258,34 @@ const DRAG_SLOP: i32 = 8;
 /// Whether `x`, `y` lies in the box.
 fn hit(x: i32, y: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
     x >= bx && x < bx + bw && y >= by && y < by + bh
+}
+
+/// The box in window `w` (sized `width` x `height`, its playlist rows `row` tall) of the control
+/// at `x`, `y`: as far each way as the same control answers, so a menu the control opens can go
+/// against it. `None` where no control is.
+pub fn control_box(
+    w: ClassicWindow,
+    width: i32,
+    height: i32,
+    row: i32,
+    (x, y): (i32, i32),
+) -> Option<Rect> {
+    let c = control_at(w, width, height, row, x, y)?;
+    let same = |px: i32, py: i32| control_at(w, width, height, row, px, py) == Some(c);
+    let (mut left, mut right, mut top, mut bottom) = (x, x, y, y);
+    while left > 0 && same(left - 1, y) {
+        left -= 1;
+    }
+    while right + 1 < width && same(right + 1, y) {
+        right += 1;
+    }
+    while top > 0 && same(x, top - 1) {
+        top -= 1;
+    }
+    while bottom + 1 < height && same(x, bottom + 1) {
+        bottom += 1;
+    }
+    Some(Rect::new(left, top, right - left + 1, bottom - top + 1))
 }
 
 /// The control of window `w` (sized `width` x `height`, its playlist rows `row` tall) at `x`, `y`.
@@ -810,6 +839,8 @@ impl SkinRuntime {
 
     /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
     pub(crate) fn classic_right_click(&mut self, o: ObjId) {
+        // the menu pops where the finger held
+        self.action_from = self.press_point().map(|(x, y)| Rect::new(x, y, 1, 1));
         self.action(o, "MENU", None, None);
     }
 
@@ -1011,6 +1042,24 @@ impl SkinRuntime {
 
     /// What a release over the pressed control does.
     fn classic_act(&mut self, o: ObjId, w: ClassicWindow, press: ClassicPress) {
+        // a menu the control opens goes against the control
+        let r = self.objects[o].base.rect;
+        self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.from)
+            .and_then(|b| {
+                let at = self.window_rect_of(self.layout_object(o)?);
+                Some(Rect::new(
+                    at.left + r.left + b.left,
+                    at.top + r.top + b.top,
+                    b.width,
+                    b.height,
+                ))
+            });
+        self.classic_act_on(o, w, &press);
+        self.action_from = None;
+    }
+
+    /// What `press` on `o`, a window of kind `w`, does as it ends.
+    fn classic_act_on(&mut self, o: ObjId, w: ClassicWindow, press: &ClassicPress) {
         match press.control {
             Control::Previous => self.player.previous(),
             Control::Play => self.player.play(),

@@ -13,10 +13,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use jni::objects::JValue;
+use jni::objects::{JObject, JValue};
 use jni::{jni_sig, jni_str};
 use walkit::draw::FontDef;
-use walkit::host::{SkinHost, SkinMenu, WindowId};
+use walkit::host::{ActionFrom, SkinHost, SkinMenu, WindowId};
 
 use crate::bridge::{bytes_of, floats_of, ints_of, jints, jstring, Bridge};
 
@@ -339,15 +339,24 @@ impl SkinHost for JniHost {
         });
     }
 
-    fn host_action(&mut self, action: &str, param: Option<&str>) {
+    // `from` crosses as [x, y, w, h, px, py], the point i32::MIN when no touch sent it; null for none
+    fn host_action(&mut self, action: &str, param: Option<&str>, from: Option<ActionFrom>) {
         self.bridge.with(|env, obj| {
             let a = env.new_string(action)?;
             let p = jstring(env, param)?;
+            let f = match from {
+                Some(f) => {
+                    let (px, py) = f.point.unwrap_or((i32::MIN, i32::MIN));
+                    let r = f.rect;
+                    JObject::from(jints(env, &[r.left, r.top, r.width, r.height, px, py])?)
+                }
+                None => JObject::null(),
+            };
             env.call_method(
                 obj,
                 jni_str!("hostAction"),
-                jni_sig!("(Ljava/lang/String;Ljava/lang/String;)V"),
-                &[JValue::Object(&a), JValue::Object(&p)],
+                jni_sig!("(Ljava/lang/String;Ljava/lang/String;[I)V"),
+                &[JValue::Object(&a), JValue::Object(&p), JValue::Object(&f)],
             )?;
             Ok(())
         });

@@ -90,11 +90,14 @@ public interface WindowHost {
 
     /**
      * A button action the host answers, as Winamp answered it outside the skin, when the skin was
-     * set up with [SkinSetup.hostActions]: the action uppercase and its param or window name.
+     * set up with [SkinSetup.hostActions]: the action uppercase, its param or window name, and
+     * where on screen it came from ([ActionFrom]) for a menu it opens; null when nothing on screen
+     * sent it.
      */
     public fun hostAction(
         action: String,
         param: String?,
+        from: ActionFrom?,
     ): Unit = Unit
 }
 
@@ -103,3 +106,14 @@ public interface SkinHost :
     ImageHost,
     TextHost,
     WindowHost
+
+/**
+ * Where a host action came from on screen, in the stack's layout pixels (as pointer events take
+ * them): a menu it opens can go against the thing that sent it, or at the finger.
+ */
+public data class ActionFrom(
+    /** The thing that sent it: the button, a classic window's control, or the point a long press held as a 1 x 1 box. */
+    val rect: Rect,
+    /** Where the finger went down for it, x to y; null when no touch sent it (a script's timer). */
+    val point: Pair<Int, Int>?,
+)

@@ -563,7 +563,7 @@ impl SkinRuntime {
         }
         if self.host_actions {
             self.shown_for_skin.push(kind.clone());
-            self.host.host_action("SHOW", Some(&kind));
+            self.host.host_action("SHOW", Some(&kind), None);
         }
     }
 }
