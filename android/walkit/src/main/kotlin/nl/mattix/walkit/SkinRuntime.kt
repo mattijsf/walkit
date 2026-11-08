@@ -215,6 +215,7 @@ public class SkinRuntime(
                 freeWindows = p[9] != 0,
                 touch = p[10] != 0,
                 skinListFont = p[11] != 0,
+                listRowExtra = p[12],
             )
         }
         set(value) =
@@ -232,6 +233,7 @@ public class SkinRuntime(
                 value.freeWindows,
                 value.touch,
                 value.skinListFont,
+                value.listRowExtra,
             )
 
     // ---- loading and themes --------------------------------------------------------------------

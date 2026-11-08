@@ -230,6 +230,9 @@ pub struct Presentation {
     /// `pledit.txt` gives them, rather than in the font `pledit.txt` names; a row the letters
     /// cannot spell keeps that font.
     pub skin_list_font: bool,
+    /// Pixels a classic playlist adds to each row's height, for rows a finger can pick more
+    /// easily; 0 keeps the font's row (Winamp's 15).
+    pub list_row_extra: i32,
 }
 
 impl Default for Presentation {
@@ -244,6 +247,7 @@ impl Default for Presentation {
             free_windows: false,
             touch: false,
             skin_list_font: false,
+            list_row_extra: 0,
         }
     }
 }

@@ -911,10 +911,10 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
     rt.ensure_layout();
     // 116 tall: three rows show (as in the VM), seventeen lie past the window; the thumb starts
     // at the top
-    assert_eq!(SkinRuntime::classic_pl_rows(116), 3);
-    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 0), 0);
-    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 17), 40);
-    assert_eq!(SkinRuntime::classic_pl_thumb(116, 20, 8), 18);
+    assert_eq!(rt.classic_pl_rows(116), 3);
+    assert_eq!(rt.classic_pl_thumb(116, 20, 0), 0);
+    assert_eq!(rt.classic_pl_thumb(116, 20, 17), 40);
+    assert_eq!(rt.classic_pl_thumb(116, 20, 8), 18);
     // a drag up on the rows by two rows scrolls two rows; the release picks nothing
     rt.pointer_down(60, 116 + 60, 1);
     rt.pointer_move(60, 116 + 30);
@@ -1848,6 +1848,48 @@ fn the_playlist_rows_ask_for_winamps_em_of_twelve_pixels() {
         .collect();
     // a size is points to a host: 16 of them are 12 pixels
     assert_eq!(sizes, vec![16, 16], "the title and the length");
+}
+
+#[test]
+fn taller_rows_from_the_host_show_fewer_and_a_tap_picks_the_row_under_it() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..10)
+        .map(|i| Track {
+            title: format!("Song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!(rt.classic_pl_rows(116), 3, "Winamp's 15-pixel rows");
+    rt.set_presentation(&crate::host::Presentation {
+        list_row_extra: 12,
+        ..rt.presentation()
+    });
+    assert_eq!(rt.classic_row(), 27);
+    assert_eq!(rt.classic_pl_rows(116), 2, "(116 - 60) / 27");
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    let boxes: Vec<Rect> = cmds
+        .iter()
+        .filter_map(|c| match c {
+            DrawCmd::Text(t) if t.align == Align::Left => Some(t.rect),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        boxes,
+        vec![Rect::new(12, 22, 243, 27), Rect::new(12, 49, 243, 27)]
+    );
+    // a tap low in the second row picks the second song
+    rt.pointer_down(30, 116 + 22 + 27 + 20, 1);
+    rt.pointer_up(30, 116 + 22 + 27 + 20);
+    assert_eq!(rt.classic_selected_row, Some(1));
 }
 
 /// The playlist's pledit.bmp blits, as the stack draws them now.
