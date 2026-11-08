@@ -118,6 +118,7 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
+        self.settle_holders();
         for o in self.sliders.clone() {
             self.slider_sync(o);
         }

@@ -109,3 +109,25 @@ fn the_visualizer_window_closing_presses_the_reattach_button_of_the_window_a_scr
     assert!(rt.player().eq_enabled());
     assert_eq!(rt.windows().len(), 1, "the skin's window stays shut");
 }
+
+#[test]
+fn a_holder_that_takes_the_visualizer_as_it_shows_closes_the_visualizations_window() {
+    let mut rt = loaded();
+    let holder = object(&rt, "vis");
+    rt.objects[holder]
+        .base
+        .attrs
+        .push(("autoopen".to_string(), "1".to_string()));
+    assert!(rt.open_window("avs"));
+    rt.ensure_layout();
+    assert_eq!(rt.windows().len(), 2);
+
+    show_vis(&mut rt, true);
+    rt.ensure_layout();
+    assert_eq!(rt.windows().len(), 1, "the visualizer went into the drawer");
+
+    // opened again while the drawer still shows it, the window stays
+    assert!(rt.open_window("avs"));
+    rt.ensure_layout();
+    assert_eq!(rt.windows().len(), 2);
+}

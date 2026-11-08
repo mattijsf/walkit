@@ -183,6 +183,7 @@ impl SkinRuntime {
 
     /// A frame gives a hidden pane's room to the other one.
     fn shown_changed(&mut self, o: ObjId) {
+        self.holders_stale = true;
         let in_frame = self.objects[o]
             .base
             .parent
@@ -264,6 +265,15 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
+        self.settle_holders();
+    }
+
+    /// Hands components to the holders that showed since the last look (see
+    /// `hand_components_to_holders`), laying out again when a window closed.
+    pub(crate) fn settle_holders(&mut self) {
+        if std::mem::take(&mut self.holders_stale) && self.hand_components_to_holders() {
+            self.do_layout();
+        }
     }
 
     /// Lays out until scripts stop changing the tree (a few passes at most).
@@ -273,6 +283,10 @@ impl SkinRuntime {
             self.layout_pass();
             passes += 1;
             if !(self.needs_layout && passes < MAX_LAYOUT_PASSES) {
+                self.holders_stale = false;
+                if self.hand_components_to_holders() && passes < MAX_LAYOUT_PASSES {
+                    continue;
+                }
                 break;
             }
         }

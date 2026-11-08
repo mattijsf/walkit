@@ -481,6 +481,52 @@ impl SkinRuntime {
         self.relayout();
     }
 
+    /// A component shows in one place at a time: a window holder that takes it as it shows
+    /// (`autoopen`) closes the window made for the component (Winamp Modern's drawer, its
+    /// visualizer reattached, closes the Visualizations window). Whether a window closed.
+    pub(crate) fn hand_components_to_holders(&mut self) -> bool {
+        let mut shown = Vec::new();
+        for l in self.windows() {
+            let mut stack = vec![l];
+            while let Some(o) = stack.pop() {
+                let obj = &self.objects[o];
+                if !obj.base.visible {
+                    continue;
+                }
+                if super::HOLDER_TAGS.contains(&obj.base.tag.as_str())
+                    && obj.base.attr("autoopen") == Some("1")
+                {
+                    shown.push((o, l));
+                }
+                stack.extend(obj.children().iter().copied());
+            }
+        }
+        let before =
+            std::mem::replace(&mut self.holders_shown, shown.iter().map(|s| s.0).collect());
+        let mut closed = false;
+        for (holder, l) in shown {
+            if before.contains(&holder) {
+                continue;
+            }
+            let own = self.containers.iter().position(|c| c.layouts.contains(&l));
+            let made_for: Vec<ContainerId> = (0..self.containers.len())
+                .filter(|&c| Some(c) != own && self.opened.contains(&c))
+                .filter(|&c| {
+                    self.containers[c].attr("component").is_some_and(|v| {
+                        let guid = v.to_lowercase();
+                        let guid = guid.trim_start_matches("guid:").trim_matches(['{', '}']);
+                        Self::holds(&self.objects[holder].base.attrs, guid)
+                    })
+                })
+                .collect();
+            for c in made_for {
+                self.close_container(c);
+                closed = true;
+            }
+        }
+        closed
+    }
+
     pub(crate) fn close_container(&mut self, c: ContainerId) {
         let Some(at) = self.opened.iter().position(|o| *o == c) else {
             return;

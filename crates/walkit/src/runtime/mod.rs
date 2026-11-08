@@ -161,6 +161,11 @@ pub struct SkinRuntime {
     pub(crate) list_row_extra: i32,
     /// The classic playlist font's em in pixels (`set_classic_list_font_size`).
     pub(crate) classic_list_font: i32,
+    /// The window holders that take a component as they show (`autoopen`) and showed at the
+    /// last layout.
+    pub(crate) holders_shown: Vec<ObjId>,
+    /// Whether something showed or hid since the holders were last looked at.
+    pub(crate) holders_stale: bool,
     /// The Winamp the classic windows are shown as (`set_classic_style`).
     pub(crate) classic_style: crate::classic::style::ClassicStyle,
     /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
@@ -458,6 +463,8 @@ impl SkinRuntime {
             list_row_extra: 0,
             classic_list_font: crate::classic::style::ClassicStyle::Winamp5666.list_font_size(),
             classic_style: crate::classic::style::ClassicStyle::Winamp5666,
+            holders_shown: Vec::new(),
+            holders_stale: false,
             action_from: None,
             classic_list_ink: None,
             classic_list_ink_read: false,
