@@ -272,10 +272,15 @@ pub struct SkinRuntime {
     classic_next_at: i64,
     /// The windows of the objects that moved by themselves since the last draw.
     moved_windows: HashSet<ObjId>,
+    /// The objects that moved by themselves since the last draw.
+    moved_objects: Vec<ObjId>,
     /// The second a classic playlist's time showed when it last drew, and whether it counted down.
     clock_second: (i32, bool),
-    /// Each window's last drawing, for the windows a clock-only draw keeps.
-    window_drawings: HashMap<ObjId, (Vec<DrawCmd>, Vec<Option<ObjId>>)>,
+    /// Each window's last drawing, at its scale: a clock-only draw keeps it, or draws again
+    /// only the objects that moved in it.
+    window_drawings: HashMap<ObjId, WindowDrawing>,
+    /// Where each object's commands lie in the window being drawn, as the objects claim them.
+    pub(crate) drawn_spans: Vec<(ObjId, usize, usize)>,
     needs_layout: bool,
     scripts_started: bool,
     last_status: Status,
@@ -455,8 +460,10 @@ impl SkinRuntime {
             moved_dirty: false,
             classic_next_at: 0,
             moved_windows: HashSet::new(),
+            moved_objects: Vec::new(),
             clock_second: (-1, false),
             window_drawings: HashMap::new(),
+            drawn_spans: Vec::new(),
             needs_layout: true,
             scripts_started: false,
             last_status,
@@ -654,14 +661,26 @@ impl SkinRuntime {
 /// `owners[i]` is the object (an id into the skin's objects, the same from frame to frame while
 /// the skin is loaded) whose drawing `cmds[i]` is, or `None` for a command that is the window's
 /// structure (the end of a shape or a clip).
+///
+/// The lists are shared: a window that did not change since the frame before hands out the
+/// same lists, so a host can tell it unchanged with [`Rc::ptr_eq`] instead of comparing them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DrawnWindow {
     /// Where the window sits in the stack.
     pub rect: Rect,
     /// Its drawing.
-    pub cmds: Vec<DrawCmd>,
+    pub cmds: Rc<Vec<DrawCmd>>,
     /// Who drew each command.
-    pub owners: Vec<Option<ObjId>>,
+    pub owners: Rc<Vec<Option<ObjId>>>,
+}
+
+/// A window's drawing as the engine keeps it between frames: its commands at its scale, the
+/// object that drew each, and where the commands of each object lie.
+#[derive(Debug, Clone)]
+pub(crate) struct WindowDrawing {
+    pub(crate) cmds: Rc<Vec<DrawCmd>>,
+    pub(crate) owners: Rc<Vec<Option<ObjId>>>,
+    pub(crate) spans: crate::fasthash::FastMap<ObjId, (usize, usize)>,
 }
 
 /// The player's shuffle, repeat and crossfade switches as bits 1, 2 and 4.

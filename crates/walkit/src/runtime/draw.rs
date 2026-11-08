@@ -3,30 +3,77 @@
 //! A window's drawing as a renderer sees it: the objects' commands with every picture fitted to
 //! its sheet and tinted, bitmap text spelled out, and text placed.
 
-use super::SkinRuntime;
+use std::rc::Rc;
+
+use super::{SkinRuntime, WindowDrawing};
 use crate::draw::{Align, BitmapTextCmd, DrawCmd, Rect, Rgb, VAlign};
+use crate::fasthash::FastMap;
 use crate::gui::ObjId;
 
 impl SkinRuntime {
     /// The drawing of the window `layout` shows.
     pub(crate) fn draw_layout(&mut self, layout: ObjId) -> Vec<DrawCmd> {
-        self.draw_layout_owned(layout).0
+        Rc::unwrap_or_clone(self.draw_layout_owned(layout).cmds)
     }
 
     /// The drawing of the window `layout` shows, and the object that drew each command: the
     /// innermost object whose drawing it is, the layout for what no child drew, and nothing for
     /// the end of a shape or a clip.
-    pub(crate) fn draw_layout_owned(
-        &mut self,
-        layout: ObjId,
-    ) -> (Vec<DrawCmd>, Vec<Option<ObjId>>) {
+    pub(crate) fn draw_layout_owned(&mut self, layout: ObjId) -> WindowDrawing {
         if self.needs_layout {
             self.do_layout();
         }
         self.dirty = false;
         let mut drawn = Vec::new();
         self.draw_window(layout, &mut drawn);
-        let mut owners = std::mem::take(&mut self.drawn_owners);
+        let owners = std::mem::take(&mut self.drawn_owners);
+        let claimed = std::mem::take(&mut self.drawn_spans);
+        let mut at = Vec::with_capacity(drawn.len() + 1);
+        let (cmds, owners) = self.finish_drawn(layout, drawn, owners, Some(&mut at));
+        // an object drawn twice cannot be drawn again in one place
+        let mut spans = FastMap::default();
+        for (o, from, to) in claimed {
+            let span = (at[from], at[to]);
+            spans
+                .entry(o)
+                .and_modify(|s| *s = (usize::MAX, usize::MAX))
+                .or_insert(span);
+        }
+        WindowDrawing {
+            cmds: Rc::new(cmds),
+            owners: Rc::new(owners),
+            spans,
+        }
+    }
+
+    /// Object `o` of window `layout` drawn again by itself, as its commands come out in the
+    /// window's drawing.
+    pub(crate) fn redraw_object(
+        &mut self,
+        layout: ObjId,
+        o: ObjId,
+    ) -> (Vec<DrawCmd>, Vec<Option<ObjId>>) {
+        let owners = std::mem::take(&mut self.drawn_owners);
+        let spans = std::mem::take(&mut self.drawn_spans);
+        let tracking = std::mem::replace(&mut self.tracking_owners, true);
+        let mut drawn = Vec::new();
+        self.draw_object(o, &mut drawn);
+        self.claim_drawn(0, drawn.len(), o);
+        let mine = std::mem::replace(&mut self.drawn_owners, owners);
+        self.drawn_spans = spans;
+        self.tracking_owners = tracking;
+        self.finish_drawn(layout, drawn, mine, None)
+    }
+
+    /// The commands objects drew for window `layout`, with the object that drew each, as a
+    /// renderer takes them; `at`, when given, gets where each drawn command starts out.
+    fn finish_drawn(
+        &mut self,
+        layout: ObjId,
+        drawn: Vec<DrawCmd>,
+        mut owners: Vec<Option<ObjId>>,
+        mut at: Option<&mut Vec<usize>>,
+    ) -> (Vec<DrawCmd>, Vec<Option<ObjId>>) {
         owners.resize(drawn.len(), None);
         for (cmd, owner) in drawn.iter().zip(owners.iter_mut()) {
             *owner = match cmd {
@@ -37,6 +84,9 @@ impl SkinRuntime {
         let mut out = Vec::with_capacity(drawn.len());
         let mut out_owners = Vec::with_capacity(drawn.len());
         for (cmd, owner) in drawn.into_iter().zip(owners) {
+            if let Some(at) = at.as_deref_mut() {
+                at.push(out.len());
+            }
             match cmd {
                 DrawCmd::Image {
                     bitmap,
@@ -86,6 +136,9 @@ impl SkinRuntime {
                 }
             }
         }
+        if let Some(at) = at {
+            at.push(out.len());
+        }
         (out, out_owners)
     }
 
@@ -104,6 +157,7 @@ impl SkinRuntime {
         };
         // the shape may have drawn objects to measure them: the owners start here
         self.drawn_owners.clear();
+        self.drawn_spans.clear();
         self.tracking_owners = true;
         match shape {
             None => {
@@ -140,6 +194,7 @@ impl SkinRuntime {
         if !self.tracking_owners {
             return;
         }
+        self.drawn_spans.push((owner, from, to));
         if self.drawn_owners.len() < to {
             self.drawn_owners.resize(to, None);
         }

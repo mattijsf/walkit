@@ -216,6 +216,7 @@ impl SkinRuntime {
         match self.layout_object(o) {
             Some(l) => {
                 self.moved_windows.insert(l);
+                self.moved_objects.push(o);
                 self.moved_dirty = true;
             }
             None => self.dirty = true,

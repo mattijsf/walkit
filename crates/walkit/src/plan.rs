@@ -22,6 +22,7 @@
 //! its runs (the quick look); any other is planned from the start (the full plan).
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::draw::{DrawCmd, Rect};
@@ -102,7 +103,7 @@ pub struct PlannedWindow {
     /// Where it sits in the stack.
     pub rect: Rect,
     /// Its drawing.
-    pub cmds: Vec<DrawCmd>,
+    pub cmds: Rc<Vec<DrawCmd>>,
     /// What a renderer may keep of it.
     pub plan: WindowPlan,
 }
@@ -201,7 +202,7 @@ struct WindowState {
     seen: u64,
     // the frame before, as planned, for the quick look: its commands (none when its structure did
     // not scan), its plan, and its entries with the clip in force at each
-    cmds: Option<Vec<DrawCmd>>,
+    cmds: Option<Rc<Vec<DrawCmd>>>,
     plan: Option<WindowPlan>,
     count: usize,
     from: Vec<usize>,
@@ -601,14 +602,14 @@ impl DrawPlanner {
                 rec.hinted = frame;
             }
         }
-        self.plan_window_now(key, rect, cmds, owners, now)
+        self.plan_window_now(key, rect, &Rc::new(cmds.to_vec()), owners, now)
     }
 
     fn plan_window_now(
         &mut self,
         key: WindowId,
         rect: Rect,
-        cmds: &[DrawCmd],
+        cmds: &Rc<Vec<DrawCmd>>,
         owners: &[Option<ObjId>],
         now: i64,
     ) -> WindowPlan {
@@ -670,7 +671,7 @@ impl DrawPlanner {
         &mut self,
         ws: &mut WindowState,
         rect: Rect,
-        cmds: &[DrawCmd],
+        cmds: &Rc<Vec<DrawCmd>>,
         owners: &[Option<ObjId>],
         now: i64,
         frame: u64,
@@ -747,8 +748,8 @@ impl DrawPlanner {
     }
 
     /// What the quick look of the next frame needs of this one.
-    fn keep(&mut self, ws: &mut WindowState, cmds: Option<&[DrawCmd]>, plan: &WindowPlan) {
-        ws.cmds = cmds.map(|c| c.to_vec());
+    fn keep(&mut self, ws: &mut WindowState, cmds: Option<&Rc<Vec<DrawCmd>>>, plan: &WindowPlan) {
+        ws.cmds = cmds.cloned();
         ws.plan = Some(plan.clone());
         ws.count = self.item_count;
         ws.ensure(self.item_count);
@@ -1122,7 +1123,7 @@ impl DrawPlanner {
         &mut self,
         ws: &mut WindowState,
         rect: Rect,
-        cmds: &[DrawCmd],
+        cmds: &Rc<Vec<DrawCmd>>,
         owners: &[Option<ObjId>],
         now: i64,
         frame: u64,
@@ -1137,9 +1138,13 @@ impl DrawPlanner {
             return None;
         }
         let prev = ws.cmds.take().expect("the frame before");
-        let result = self
-            .changes(ws, &prev, cmds)
-            .filter(|changes| self.steady(ws, owners, *changes, now, frame));
+        // the same list as the frame before changed nowhere
+        let changes = if Rc::ptr_eq(&prev, cmds) {
+            Some(0)
+        } else {
+            self.changes(ws, &prev, cmds)
+        };
+        let result = changes.filter(|changes| self.steady(ws, owners, *changes, now, frame));
         if let Some(changes) = result {
             Some(self.commit(ws, cmds, now, frame, changes))
         } else {
@@ -1225,7 +1230,7 @@ impl DrawPlanner {
     fn commit(
         &mut self,
         ws: &mut WindowState,
-        cmds: &[DrawCmd],
+        cmds: &Rc<Vec<DrawCmd>>,
         now: i64,
         frame: u64,
         changes: usize,
@@ -1272,7 +1277,7 @@ impl DrawPlanner {
         if outside {
             ws.version = next_id();
         }
-        ws.cmds = Some(cmds.to_vec());
+        ws.cmds = Some(cmds.clone());
         let runs = self.moved_runs(ws, &plan);
         let next = match runs {
             Some(runs) => WindowPlan {
