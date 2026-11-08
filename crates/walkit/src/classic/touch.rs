@@ -14,7 +14,7 @@ use crate::player::Status;
 use crate::runtime::SkinRuntime;
 
 /// A control of a classic window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Control {
     /// The bar a drag moves the window by.
     TitleBar,
@@ -114,7 +114,7 @@ pub enum Control {
 }
 
 /// The playlist's bottom buttons, each with a menu of stacked pictures from `pledit.bmp`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlMenu {
     /// ADD: a URL, a folder, files.
     Add,
@@ -655,6 +655,61 @@ impl SkinRuntime {
             .then_some(grip)
     }
 
+    /// The controls of the classic window `press` is on, in stack pixels, each by the box it
+    /// answers in; while a playlist button is held, its menu's pictures too.
+    pub(crate) fn classic_controls(
+        &mut self,
+        press: ClassicPress,
+    ) -> Vec<crate::host::TouchControl> {
+        let o = press.object;
+        let (Some(w), Some(window)) = (self.classic_kind(o), self.layout_object(o)) else {
+            return Vec::new();
+        };
+        let at = self.window_rect_of(window);
+        let r = self.objects[o].base.rect;
+        let row = self.classic_row();
+        let mut boxes: Vec<(Control, (i32, i32, i32, i32))> = Vec::new();
+        let mut index: std::collections::HashMap<Control, usize> = std::collections::HashMap::new();
+        for y in 0..r.height {
+            for x in 0..r.width {
+                let Some(c) = control_at(w, r.width, r.height, row, x, y) else {
+                    continue;
+                };
+                if matches!(c, Control::Background | Control::TitleBar) {
+                    continue;
+                }
+                if let Some(i) = index.get(&c) {
+                    let b = &mut boxes[*i].1;
+                    *b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+                } else {
+                    index.insert(c, boxes.len());
+                    boxes.push((c, (x, y, x, y)));
+                }
+            }
+        }
+        let left = at.left + r.left;
+        let top = at.top + r.top;
+        let mut out: Vec<crate::host::TouchControl> = boxes
+            .into_iter()
+            .map(|(_, (l, t, rr, b))| crate::host::TouchControl {
+                rect: Rect::new(left + l, top + t, rr - l + 1, b - t + 1),
+                magnify: false,
+            })
+            .collect();
+        if let Control::PlButton(b) = press.control {
+            // pl_menu_item_at: 22 by 18, the lowest ending at height - 12
+            let x = b.menu_left(r.width) + 3;
+            for i in 0..b.items() {
+                let bottom = r.height - 12 - 18 * i;
+                out.push(crate::host::TouchControl {
+                    rect: Rect::new(left + x, top + bottom - 17, 22, 18),
+                    magnify: true,
+                });
+            }
+        }
+        out
+    }
+
     /// Whether a drag from the press on `o` moves the window: it began on the title bar or on
     /// a place without a control.
     pub(crate) fn classic_moves_window(&self, o: ObjId) -> bool {
@@ -884,7 +939,7 @@ impl SkinRuntime {
     /// down.
     fn classic_near(&self, press: &ClassicPress, px: i32, py: i32) -> bool {
         let (dx, dy) = (px - press.from.0, py - press.from.1);
-        dx * dx + dy * dy <= self.touch_slop * self.touch_slop
+        !self.pointer.precise && dx * dx + dy * dy <= self.touch_slop * self.touch_slop
     }
 
     pub(crate) fn classic_pointer_up(&mut self, o: ObjId, px: i32, py: i32, inside: bool) {
