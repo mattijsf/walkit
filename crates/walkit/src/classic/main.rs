@@ -461,8 +461,6 @@ impl SkinRuntime {
         }
     }
 
-    /// The title row's text: the playlist number, the title and the length, as Winamp writes it
-    /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
     /// How far the title has scrolled: where it stood, then a cell per step of the clock since
     /// it last moved on.
     pub(crate) fn classic_title_scroll(&self) -> i32 {
@@ -510,10 +508,12 @@ impl SkinRuntime {
         self.player.status() == Status::Paused && (self.now() / PAUSE_BLINK_MS) % 2 == 1
     }
 
-    fn classic_title_text(&mut self) -> String {
+    /// The title row's text: the playlist number, the title and the length, as Winamp writes it
+    /// with numbers in the playlist on; the Winamp's name and version with nothing loaded.
+    pub(crate) fn classic_title_text(&mut self) -> String {
         let title = self.player.title();
         if title.is_empty() {
-            return "Winamp 5.666".to_string();
+            return self.classic_style.name().to_string();
         }
         let length = self.player.length_ms() / 1000;
         let index = self.player.track_index() + 1;

@@ -20,6 +20,7 @@ pub(crate) mod main;
 pub(crate) mod pl;
 pub mod pledit;
 pub mod region;
+pub mod style;
 mod switches;
 pub mod touch;
 pub(crate) mod video;

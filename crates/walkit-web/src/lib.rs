@@ -859,7 +859,19 @@ pub extern "C" fn wk_rt_set_eq_auto(id: i32, on: i32) -> i32 {
         .unwrap_or(0)
 }
 
-/// Sets a classic playlist's font size, pixels to the em (Winamp's 12 at first).
+/// Shows the classic windows as Winamp `version` ("2.91" or "5.666") does; 0 for another.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_classic_style(id: i32, version: *const u8, len: usize) -> i32 {
+    use walkit::classic::style::ClassicStyle;
+    let Some(style) = ClassicStyle::from_version(&text(version, len)) else {
+        return 0;
+    };
+    with_rt(id, |r| r.engine.set_classic_style(style))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Sets a classic playlist's font size, pixels to the em (the style's own at first).
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_list_font_size(id: i32, px: i32) -> i32 {
     with_rt(id, |r| r.engine.set_classic_list_font_size(px))

@@ -26,9 +26,6 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
-/// Winamp's "playlist font size" default (`pe_fontsize`): the font is that many pixels to the
-/// em at 96 dpi.
-pub(crate) const LIST_FONT_SIZE: i32 = 12;
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
@@ -146,7 +143,8 @@ impl SkinRuntime {
     }
 
     /// Sets the playlist font's size, pixels to the em, as Winamp's "playlist font size"
-    /// preference does; its rows grow and shrink with it.
+    /// preference does (`pe_fontsize`: the font is that many pixels to the em); its rows grow
+    /// and shrink with it.
     pub fn set_classic_list_font_size(&mut self, px: i32) {
         let px = px.clamp(6, 40);
         if px != self.classic_list_font {

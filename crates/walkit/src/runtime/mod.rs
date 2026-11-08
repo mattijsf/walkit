@@ -161,6 +161,8 @@ pub struct SkinRuntime {
     pub(crate) list_row_extra: i32,
     /// The classic playlist font's em in pixels (`set_classic_list_font_size`).
     pub(crate) classic_list_font: i32,
+    /// The Winamp the classic windows are shown as (`set_classic_style`).
+    pub(crate) classic_style: crate::classic::style::ClassicStyle,
     /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
     /// was read: once a skin.
     pub(crate) classic_list_ink: Option<std::rc::Rc<crate::classic::listfont::ListInk>>,
@@ -454,7 +456,8 @@ impl SkinRuntime {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
-            classic_list_font: crate::classic::pl::LIST_FONT_SIZE,
+            classic_list_font: crate::classic::style::ClassicStyle::Winamp5666.list_font_size(),
+            classic_style: crate::classic::style::ClassicStyle::Winamp5666,
             action_from: None,
             classic_list_ink: None,
             classic_list_ink_read: false,

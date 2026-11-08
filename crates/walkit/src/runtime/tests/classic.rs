@@ -2522,6 +2522,23 @@ fn the_video_status_line_takes_its_colors_from_pledit() {
 }
 
 #[test]
+fn the_2_91_style_has_its_name_and_smaller_playlist_rows() {
+    use crate::classic::style::ClassicStyle;
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.title.clear();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!(rt.classic_title_text(), "Winamp 5.666");
+    rt.set_classic_style(ClassicStyle::from_version("2.91").unwrap());
+    assert_eq!(rt.classic_title_text(), "Winamp 2.91");
+    assert_eq!(rt.classic_row(), 13, "Arial at 10");
+    rt.set_classic_style(ClassicStyle::Winamp5666);
+    assert_eq!(rt.classic_row(), 15);
+}
+
+#[test]
 fn a_smaller_playlist_font_draws_smaller_text_in_shorter_rows() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));

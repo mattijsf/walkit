@@ -382,7 +382,12 @@ export class Runtime {
     this.w.x.wk_rt_set_eq_auto(this.id, on ? 1 : 0);
   }
 
-  /** Sets a classic playlist's font size, pixels to the em (Winamp's 12 at first); its rows follow. */
+  /** Shows the classic windows as Winamp `version` ("2.91" or "5.666", the first) does; false for another. */
+  setClassicStyle(version) {
+    return this.w.withString(version, (p, n) => this.w.x.wk_rt_set_classic_style(this.id, p, n)) !== 0;
+  }
+
+  /** Sets a classic playlist's font size, pixels to the em (the style's own at first); its rows follow. */
   setListFontSize(px) {
     this.w.x.wk_rt_set_list_font_size(this.id, px);
   }
