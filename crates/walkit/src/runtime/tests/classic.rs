@@ -2559,3 +2559,100 @@ fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
     // all 284 left under the main window
     assert_eq!(pl.height, 284);
 }
+
+/// Turns touch on, the slop `slop` skin pixels.
+fn touched(rt: &mut SkinRuntime, slop: i32) {
+    rt.set_presentation(&crate::host::Presentation {
+        touch: true,
+        touch_slop: slop,
+        ..rt.presentation()
+    });
+}
+
+#[test]
+fn under_touch_a_finger_beside_a_control_takes_it() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    // x 8 is left of the clutter bar's I (x 11..=19, y 40..=47): a mouse there moves the window
+    rt.pointer_down(8, 44, 1);
+    rt.pointer_up(8, 44);
+    assert!(actions.borrow().is_empty());
+    touched(&mut rt, 6);
+    rt.pointer_down(8, 44, 2);
+    rt.pointer_up(8, 44);
+    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+}
+
+#[test]
+fn under_touch_a_finger_beside_a_slider_takes_it_only_across_its_track() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    rt.player.set_volume(0);
+    // under the volume slider (y 58..=66): taken at the x the finger has
+    rt.pointer_down(150, 69, 1);
+    rt.pointer_up(150, 69);
+    let set = rt.player.volume();
+    assert!(set > 0, "taken from below");
+    // past its left end (x 107): not taken, the volume stays
+    rt.pointer_down(103, 62, 2);
+    rt.pointer_up(103, 62);
+    assert_eq!(rt.player.volume(), set);
+}
+
+#[test]
+fn under_touch_a_finger_beside_the_equalizer_labels_sets_no_band() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    touched(&mut rt, 21);
+    // x 70 is three right of "+12" (x 42..=67, y 33..=42), which sends every band to the top
+    rt.pointer_down(70, 116 + 35, 1);
+    rt.pointer_up(70, 116 + 35);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v != 255));
+}
+
+#[test]
+fn under_touch_a_menu_taken_beside_its_button_goes_against_the_button() {
+    let (mut rt, actions, froms) = classic_recording_froms();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    // three under PRESETS (y 18..=30)
+    rt.pointer_down(230, 116 + 33, 1);
+    rt.pointer_up(230, 116 + 33);
+    assert_eq!(*actions.borrow(), vec!["EQ_PRESETS"]);
+    assert_eq!(
+        froms.borrow()[0],
+        Some(crate::host::ActionFrom {
+            rect: Rect::new(217, 116 + 18, 45, 13),
+            point: Some((230, 116 + 33)),
+        })
+    );
+}
+
+#[test]
+fn under_touch_the_playlist_grip_takes_its_square_and_a_finger_beside_it() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    // 19 and 19 from the corner: outside the triangle a mouse has, the press moves the window
+    assert_eq!(pl_drag(&mut rt, (256, 97), (281, 97)), (275, 116));
+    touched(&mut rt, 6);
+    assert_eq!(pl_drag(&mut rt, (256, 97), (281, 97)), (300, 116));
+    // three left of the grip's square (x 280.. at width 300), nearer it than LIST (x 256..=278,
+    // y 86..=102)
+    assert_eq!(pl_drag(&mut rt, (277, 110), (302, 110)), (325, 116));
+}
+
+#[test]
+fn under_touch_a_finger_on_the_title_bar_beside_close_takes_close() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    let pl = rt.container("pledit").expect("the playlist");
+    // close answers x 265..=274, y 3..=12; one row above it is the title bar
+    rt.pointer_down(270, 116 + 1, 1);
+    rt.pointer_up(270, 116 + 1);
+    assert!(!rt.is_open(pl), "taken by close");
+}

@@ -249,6 +249,9 @@ pub struct ClassicPress {
     pub dragged: bool,
     /// Whether the press landed on a picture of a menu a tap left open, under touch.
     pub on_open_menu: bool,
+    /// The point of the control the press took: where it began, or, under touch, the point of
+    /// the control nearest to a finger that landed beside it.
+    pub aim: (i32, i32),
 }
 
 /// How far a finger moves on the playlist's rows before the press scrolls them instead of
@@ -511,6 +514,58 @@ pub fn control_at(
     }
 }
 
+/// Under touch, the control a finger at `x`, `y` of window `w` (sized `width` x `height`, its
+/// playlist rows `row` tall) means when it lands beside every control: the nearest that `takes`
+/// accepts within `reach`, with its point nearest the finger and the square of the distance. A
+/// slider is reached only across its track, never past its ends, so the finger takes it at the
+/// value under the finger.
+pub(crate) fn nearest_control(
+    w: ClassicWindow,
+    (width, height, row): (i32, i32, i32),
+    (x, y): (i32, i32),
+    reach: i32,
+    takes: impl Fn(Control) -> bool,
+) -> Option<(Control, (i32, i32), i32)> {
+    let mut best: Option<(Control, (i32, i32), i32)> = None;
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            let d2 = dx * dx + dy * dy;
+            if d2 > reach * reach || best.is_some_and(|(_, _, b)| d2 >= b) {
+                continue;
+            }
+            let (cx, cy) = (x + dx, y + dy);
+            if cx < 0 || cy < 0 || cx >= width || cy >= height {
+                continue;
+            }
+            let Some(c) = control_at(w, width, height, row, cx, cy) else {
+                continue;
+            };
+            let across = match c {
+                Control::Volume
+                | Control::Balance
+                | Control::Position
+                | Control::ShadeVolume
+                | Control::ShadeBalance
+                | Control::ShadePosition => dx == 0,
+                Control::EqSlider(_) | Control::PlScroll => dy == 0,
+                _ => true,
+            };
+            if across && takes(c) {
+                best = Some((c, (cx, cy), d2));
+            }
+        }
+    }
+    best
+}
+
+/// Whether `c` is one of a title bar's buttons.
+fn is_title_button(c: Control) -> bool {
+    matches!(
+        c,
+        Control::Menu | Control::Minimize | Control::Shade | Control::Close
+    )
+}
+
 impl SkinRuntime {
     /// The classic window kind of object `o`.
     fn classic_kind(&self, o: ObjId) -> Option<ClassicWindow> {
@@ -523,6 +578,81 @@ impl SkinRuntime {
     /// The press on `o` now, when there is one.
     pub(crate) fn classic_press_on(&self, o: ObjId) -> Option<ClassicPress> {
         self.classic_press.filter(|p| p.object == o)
+    }
+
+    /// What a press at `px`, `py` of classic window `o` (of kind `w`) takes, and the point of
+    /// it: the control there, the main window's vis only while something plays. Under touch a
+    /// finger on a place without a control takes the nearest control within the touch slop, and
+    /// one on the title bar the nearest of its buttons; farther off, the press moves the window.
+    pub(crate) fn classic_touch_control(
+        &self,
+        o: ObjId,
+        w: ClassicWindow,
+        px: i32,
+        py: i32,
+    ) -> Option<(Control, (i32, i32))> {
+        let rect = self.objects[o].base.rect;
+        let size = (rect.width, rect.height, self.classic_row());
+        let playing = self.player.status() == Status::Playing;
+        let shown = |c: Control| c != Control::Vis || playing;
+        let mut control = control_at(w, size.0, size.1, size.2, px, py)?;
+        if !shown(control) {
+            control = Control::Background;
+        }
+        if !self.touch {
+            return Some((control, (px, py)));
+        }
+        let near = match control {
+            // the equalizer's level labels set every band, too much for a finger beside them
+            Control::Background => nearest_control(w, size, (px, py), self.touch_slop, |c| {
+                shown(c)
+                    && !matches!(
+                        c,
+                        Control::Background | Control::TitleBar | Control::EqLevel(_)
+                    )
+            }),
+            Control::TitleBar => {
+                nearest_control(w, size, (px, py), self.touch_slop, is_title_button)
+            }
+            _ => None,
+        };
+        Some(near.map_or((control, (px, py)), |(c, at, _)| (c, at)))
+    }
+
+    /// Under touch, the corner grip of classic window `o`'s window that a finger at `px`, `py`
+    /// of it means: where the window has no control there and the grip lies within the touch
+    /// slop, nearer than any control.
+    pub(crate) fn classic_grip_near(&self, o: ObjId, px: i32, py: i32) -> Option<ObjId> {
+        let w = self.classic_kind(o)?;
+        let window = self.layout_object(o)?;
+        let rect = self.objects[o].base.rect;
+        let (x, y) = (px - rect.left, py - rect.top);
+        let size = (rect.width, rect.height, self.classic_row());
+        if !self.touch
+            || self.classic_filled()
+            || control_at(w, size.0, size.1, size.2, x, y) != Some(Control::Background)
+        {
+            return None;
+        }
+        let slop2 = i64::from(self.touch_slop) * i64::from(self.touch_slop);
+        let (grip, d) = self
+            .all_objects
+            .iter()
+            .copied()
+            .filter(|g| {
+                self.layout_object(*g) == Some(window)
+                    && self.is_grip(*g)
+                    && self.touchable(*g, true)
+            })
+            .map(|g| (g, self.distance2(g, px, py)))
+            .min_by_key(|(_, d)| *d)
+            .filter(|(_, d)| *d <= slop2)?;
+        let control = nearest_control(w, size, (x, y), self.touch_slop, |c| {
+            !matches!(c, Control::Background | Control::TitleBar)
+        });
+        control
+            .is_none_or(|(_, _, c)| d <= i64::from(c))
+            .then_some(grip)
     }
 
     /// Whether a drag from the press on `o` moves the window: it began on the title bar or on
@@ -588,6 +718,7 @@ impl SkinRuntime {
                         acted: false,
                         dragged: false,
                         on_open_menu: true,
+                        aim: (px, py),
                     });
                     return;
                 }
@@ -596,16 +727,9 @@ impl SkinRuntime {
             }
             self.classic_open_menu = None;
         }
-        let Some(mut control) = control_at(w, rect.width, rect.height, self.classic_row(), px, py)
-        else {
+        let Some((control, aim)) = self.classic_touch_control(o, w, px, py) else {
             return;
         };
-        let playing = self.player.status() == Status::Playing;
-        // the main window's vis answers only while something plays; else it is a place to
-        // move the window by
-        if control == Control::Vis && !playing {
-            control = Control::Background;
-        }
         let mut press = ClassicPress {
             object: o,
             control,
@@ -619,6 +743,7 @@ impl SkinRuntime {
             acted: false,
             dragged: false,
             on_open_menu: false,
+            aim,
         };
         self.classic_grab(&mut press, px);
         self.classic_follow(&mut press, px, py);
@@ -1044,7 +1169,7 @@ impl SkinRuntime {
     fn classic_act(&mut self, o: ObjId, w: ClassicWindow, press: ClassicPress) {
         // a menu the control opens goes against the control
         let r = self.objects[o].base.rect;
-        self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.from)
+        self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.aim)
             .and_then(|b| {
                 let at = self.window_rect_of(self.layout_object(o)?);
                 Some(Rect::new(
