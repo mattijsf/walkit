@@ -433,6 +433,15 @@ impl SkinRuntime {
         Some(l) == focused
     }
 
+    /// The window that has the focus: the one pressed last, else the main window.
+    pub fn focused_window(&mut self) -> Option<WindowId> {
+        let windows = self.windows();
+        self.focused
+            .filter(|f| windows.contains(f))
+            .or_else(|| self.main_layout())
+            .map(|l| self.window_id_of(l))
+    }
+
     /// Gives `l` the focus as a touch does: the window losing it and `l` show their alphas and
     /// pictures for it on the next frame, with nothing moved or resized.
     pub(crate) fn take_focus(&mut self, l: ObjId) {

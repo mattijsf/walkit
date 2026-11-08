@@ -757,6 +757,48 @@ pub extern "C" fn wk_rt_place_window(id: i32, window: i32, x: i32, y: i32) -> i3
     .unwrap_or(0)
 }
 
+/// The window that has the focus, or -1.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_focused_window(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.focused_window().map_or(-1, |w| w.0 as i32)).unwrap_or(-1)
+}
+
+/// Whether a classic skin's time displays count down.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_time_remaining(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.classic_time_remaining() as i32).unwrap_or(0)
+}
+
+/// Makes a classic skin's time displays count down (1) or up (0).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_time_remaining(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_time_remaining(on != 0))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Whether a classic equalizer's auto button is on.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_eq_auto(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.classic_eq_auto() as i32).unwrap_or(0)
+}
+
+/// Turns a classic equalizer's auto button on (1) or off (0).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_eq_auto(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_eq_auto(on != 0))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Scrolls a classic playlist by `rows`, down for more than 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {
+    with_rt(id, |r| r.engine.scroll_classic_playlist(rows))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
 /// Stages a song on the page's fake player: `title`, `length_ms` long.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_set_track(

@@ -113,8 +113,11 @@ export class Walkit {
   }
 
   /**
-   * A runtime on the page's own player instead of the fake one: the page pushes its state with
-   * `Runtime.playerState` and `Runtime.playerVis`, and hears each command through the `player(cmd, arg)` import.
+   * A runtime on the page's own player instead of the demo one: the page tells it the player's
+   * state (`setPlayerState`, `setPlaylist`, `setVis`) and hears each button through the
+   * `player(command, value)` import: play, pause, stop, next, previous, eject, play_track
+   * (index), seek (ms), volume (0..255), pan (-127..127), shuffle, repeat, eq (0/1), preamp
+   * and band0..band9 (0..255).
    */
   hostedRuntime(stackId, skinName, haveLibrary = true, startMs = Date.now()) {
     const id = this.withString(skinName, (p, n) => this.x.wk_rt_new_hosted(stackId, p, n, haveLibrary ? 1 : 0, startMs));
@@ -194,6 +197,26 @@ export class Walkit {
     };
   }
 }
+
+const EMPTY = new Float32Array(0);
+const STATUS = { stopped: 0, playing: 1, paused: 2 };
+const PLAYER_DEFAULTS = {
+  status: "stopped",
+  positionMs: 0,
+  lengthMs: 0,
+  title: "",
+  trackIndex: 0,
+  kbps: 0,
+  khz: 0,
+  channels: 2,
+  volume: 200,
+  pan: 0,
+  shuffle: false,
+  repeat: false,
+  eqOn: false,
+  preamp: 128,
+  bands: [128, 128, 128, 128, 128, 128, 128, 128, 128, 128],
+};
 
 /** A runtime the page drives: the clock stepped by the page, the draw list out as text. */
 export class Runtime {
@@ -296,10 +319,33 @@ export class Runtime {
     this.w.x.wk_rt_place_window(this.id, window, x, y);
   }
 
-  /** The page's playlist (a hosted runtime): [{title, lengthMs}]. */
-  playerTracks(tracks) {
-    const text = tracks.map((t) => `${Math.round(t.lengthMs) || 0}\t${String(t.title).replace(/[\t\n]/g, " ")}`).join("\n");
-    this.w.withString(text, (p, n) => this.w.x.wk_rt_host_player_tracks(this.id, p, n));
+  /** The window that has the focus, or null. */
+  focusedWindow() {
+    const w = this.w.x.wk_rt_focused_window(this.id);
+    return w < 0 ? null : w;
+  }
+
+  /** Whether a classic skin's time displays count down. */
+  timeRemaining() {
+    return this.w.x.wk_rt_time_remaining(this.id) !== 0;
+  }
+
+  setTimeRemaining(on) {
+    this.w.x.wk_rt_set_time_remaining(this.id, on ? 1 : 0);
+  }
+
+  /** Whether a classic equalizer's auto button is on. */
+  eqAuto() {
+    return this.w.x.wk_rt_eq_auto(this.id) !== 0;
+  }
+
+  setEqAuto(on) {
+    this.w.x.wk_rt_set_eq_auto(this.id, on ? 1 : 0);
+  }
+
+  /** Scrolls a classic playlist by rows, down for more than 0. */
+  scrollPlaylist(rows) {
+    this.w.x.wk_rt_scroll_playlist(this.id, rows);
   }
 
   /** Stages a song on the page's fake player: `title`, `lengthMs` long. */
@@ -361,29 +407,41 @@ export class Runtime {
   }
 
   /**
-   * The page's player as it is now (a hosted runtime): `{status: 0 stopped | 1 playing | 2 paused,
-   * positionMs, lengthMs, title, kbps, khz, channels, volume 0..255, pan -127..127, shuffle,
-   * repeat, eqOn, preamp 0..255, bands: ten 0..255, trackIndex}`.
+   * Tells a runtime on the page's player (`Walkit.hostedRuntime`) what the player is doing.
+   * Give any of: `status` ("stopped", "playing", "paused"), `positionMs`, `lengthMs`, `title`,
+   * `trackIndex` (from 0), `kbps`, `khz`, `channels`, `volume` (0..255), `pan` (-127..127),
+   * `shuffle`, `repeat`, `eqOn`, `preamp` (0..255), `bands` (ten, 0..255); the rest stays.
    */
-  playerState(s) {
+  setPlayerState(changes) {
+    const s = (this.playerSeen = { ...PLAYER_DEFAULTS, ...this.playerSeen, ...changes });
     const ints = new Int32Array(23);
-    ints.set([s.status, s.positionMs, s.lengthMs, s.kbps, s.khz, s.channels, s.volume, s.pan, s.shuffle ? 1 : 0, s.repeat ? 1 : 0, s.eqOn ? 1 : 0, s.preamp]);
+    ints.set([STATUS[s.status] ?? s.status, s.positionMs, s.lengthMs, s.kbps, s.khz, s.channels, s.volume, s.pan, +!!s.shuffle, +!!s.repeat, +!!s.eqOn, s.preamp]);
     ints.set(s.bands.slice(0, 10), 12);
-    ints[22] = s.trackIndex || 0;
+    ints[22] = s.trackIndex;
     const [ip, il] = this.w.put(new Uint8Array(ints.buffer));
     try {
-      this.w.withString(s.title || "", (tp, tn) => this.w.x.wk_rt_host_player_state(this.id, ip, 23, tp, tn));
+      this.w.withString(s.title, (tp, tn) => this.w.x.wk_rt_host_player_state(this.id, ip, 23, tp, tn));
     } finally {
       this.w.free(ip, il);
     }
   }
 
-  /** What the page's player is heard as now: a Float32Array spectrum (75, 0..1), wave (576, -1..1), VU 0..255. */
-  playerVis(spectrum, wave, vuL = 0, vuR = 0) {
+  /** The page's playlist for a runtime on the page's player: `[{title, lengthMs}]`. */
+  setPlaylist(tracks) {
+    const text = tracks.map((t) => `${Math.round(t.lengthMs) || 0}\t${String(t.title).replace(/[\t\n]/g, " ")}`).join("\n");
+    this.w.withString(text, (p, n) => this.w.x.wk_rt_host_player_tracks(this.id, p, n));
+  }
+
+  /**
+   * What the page's player is heard as now, for the skin's visualizers: `spectrum` (75 levels
+   * 0..1, low to high), `waveform` (576 samples -1..1) and `vu` ([left, right], 0..255). Call
+   * with nothing while nothing plays.
+   */
+  setVis({ spectrum = EMPTY, waveform = EMPTY, vu = [0, 0] } = {}) {
     const [sp, sl] = this.w.put(new Uint8Array(spectrum.buffer, spectrum.byteOffset, spectrum.byteLength));
-    const [wp, wl] = this.w.put(new Uint8Array(wave.buffer, wave.byteOffset, wave.byteLength));
+    const [wp, wl] = this.w.put(new Uint8Array(waveform.buffer, waveform.byteOffset, waveform.byteLength));
     try {
-      this.w.x.wk_rt_host_player_vis(this.id, sp, spectrum.length, wp, wave.length, vuL, vuR);
+      this.w.x.wk_rt_host_player_vis(this.id, sp, spectrum.length, wp, waveform.length, vu[0], vu[1]);
     } finally {
       this.w.free(sp, sl);
       this.w.free(wp, wl);
