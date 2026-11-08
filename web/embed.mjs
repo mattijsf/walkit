@@ -20,7 +20,7 @@
 
 import { Walkit } from "./walkit.mjs";
 import { FrameReader } from "./frame.mjs";
-import { Pictures, Renderer, normalize, inSkinFolder, familyOf, cmdRect } from "./render.mjs";
+import { Pictures, Renderer, emPixels, normalize, inSkinFolder, familyOf, cmdRect } from "./render.mjs";
 import { unzipAsync } from "./zip.mjs";
 import { SkinCursors } from "./cursor.mjs";
 
@@ -54,15 +54,6 @@ const STAND_INS = {
   "microsoft sans serif": "fonts/liberationsans.ttf",
   "trebuchet ms": "fonts/dejavusanscondensed.ttf",
 };
-
-// a classic skin gives its text sizes in points
-const pointsToPixels = (size) => (size * 3) / 4;
-
-class PointRenderer extends Renderer {
-  fontOf(cmd) {
-    return super.fontOf({ ...cmd, size: pointsToPixels(cmd.size) });
-  }
-}
 
 // the commands that only mark out the drawing: when one of them changes, everything is drawn again
 const FRAMING = new Set(["clip", "unclip", "shape", "endshape"]);
@@ -186,8 +177,7 @@ class Embed {
   cssFont(name, size, bold) {
     const [id, file] = name ? name.split("|") : ["", ""];
     const family = familyOf(name ? { id, file } : null, this.families);
-    const px = this.classic ? pointsToPixels(size) : size;
-    return `${bold ? "bold " : ""}${px}px ${JSON.stringify(family)}`;
+    return `${bold ? "bold " : ""}${emPixels(size)}px ${JSON.stringify(family)}`;
   }
 
   async load(wasm) {
@@ -248,7 +238,7 @@ class Embed {
     const rt = this.w[make](stack, name, false, performance.now());
     rt.load();
     const families = this.families;
-    const renderer = this.classic ? new PointRenderer(pictures, families) : new Renderer(pictures, families);
+    const renderer = new Renderer(pictures, families);
     return new Skin(rt, renderer, this.classic);
   }
 }

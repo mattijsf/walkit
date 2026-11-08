@@ -234,6 +234,12 @@ export function familyOf(font, families) {
   return families.get("") || "sans-serif";
 }
 
+/**
+ * The em in pixels of a text the engine sizes `size`: a skin's `fontsize`, which Winamp draws at
+ * three quarters, rounded to whole pixels as Windows sizes fonts (Big Bento's 14 draws at 11).
+ */
+export const emPixels = (size) => Math.round((size * 3) / 4);
+
 /** Draws frames. `families` maps a font file (normalized) or `id:<name>` to a CSS family. */
 export class Renderer {
   constructor(pictures, families) {
@@ -249,7 +255,7 @@ export class Renderer {
   }
 
   fontOf(cmd) {
-    return `${cmd.bold ? "bold " : ""}${cmd.size}px ${JSON.stringify(familyOf(cmd.font, this.families))}`;
+    return `${cmd.bold ? "bold " : ""}${emPixels(cmd.size)}px ${JSON.stringify(familyOf(cmd.font, this.families))}`;
   }
 
   /**

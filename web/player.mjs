@@ -9,7 +9,7 @@ import { Walkit } from "./walkit.mjs";
 import { unpack, siblingName } from "./corpus.mjs";
 import { unzipAsync } from "./zip.mjs";
 import { decodePicture } from "./pictures.mjs";
-import { Pictures, Renderer, normalize, familyOf, inSkinFolder } from "./render.mjs";
+import { Pictures, Renderer, emPixels, normalize, familyOf, inSkinFolder } from "./render.mjs";
 import { FrameReader } from "./frame.mjs";
 import { SkinCursors } from "./cursor.mjs";
 
@@ -73,7 +73,7 @@ const measure = (typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(1,
 function cssFont(name, size, bold) {
   const [id, file] = name ? name.split("|") : ["", ""];
   const font = name ? { id, file } : null;
-  return `${bold ? "bold " : ""}${size}px ${JSON.stringify(familyOf(font, families))}`;
+  return `${bold ? "bold " : ""}${emPixels(size)}px ${JSON.stringify(familyOf(font, families))}`;
 }
 
 // every archive of the server's folder, by file, once fetched: a skin reads its siblings' files
