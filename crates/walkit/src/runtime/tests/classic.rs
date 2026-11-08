@@ -709,6 +709,21 @@ fn stacked_to_fill_the_view_the_playlist_grip_sizes_nothing() {
     assert_eq!(pl_drag(&mut rt, (270, 280), (320, 300)), (275, 284));
 }
 
+#[test]
+fn stacked_to_fill_the_view_a_playlist_sized_apart_fills_it_all_the_same() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    assert_eq!(pl_drag(&mut rt, (270, 111), (296, 112)), (325, 145));
+    rt.set_presentation(&crate::host::Presentation {
+        view_size: Some((275, 400)),
+        stretch_last: true,
+        ..rt.presentation()
+    });
+    rt.ensure_layout();
+    let pl = rt.window_rect(rt.window_of("pledit").expect("its window"));
+    assert_eq!((pl.width, pl.top + pl.height), (275, 400));
+}
+
 /// The playlist's size after a drag from `from` to `to`, points of its window.
 fn pl_drag(rt: &mut SkinRuntime, from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
     rt.ensure_layout();

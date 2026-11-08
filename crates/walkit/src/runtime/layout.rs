@@ -215,7 +215,13 @@ impl SkinRuntime {
             let mut y = column.top;
             let last = column.windows.len().saturating_sub(1);
             for (i, l) in column.windows.iter().copied().enumerate() {
-                if let Some((sw, sh)) = self.objects[l].layout().and_then(|d| d.user_size) {
+                // a classic playlist filling the view leaves the size its grip gave it for apart
+                let fills = self.stretch_last && i == last && self.is_classic_playlist(l);
+                if let Some((sw, sh)) = self.objects[l]
+                    .layout()
+                    .and_then(|d| d.user_size)
+                    .filter(|_| !fills)
+                {
                     // resized by its grip: the size the finger gave it
                     self.objects[l].base.w = Some(sw);
                     self.objects[l].base.h = Some(sh);
@@ -327,13 +333,17 @@ impl SkinRuntime {
     /// 116, so the stack reaches the bottom of the view (Winamp draws the last run of its sides
     /// shortened); `None` for any other window.
     fn classic_stretch(&self, l: ObjId, left: i32) -> Option<i32> {
-        let playlist = self.objects[l].children().iter().any(|c| {
+        self.is_classic_playlist(l).then(|| left.max(116))
+    }
+
+    /// Whether `l` is the layout of Winamp's classic playlist.
+    fn is_classic_playlist(&self, l: ObjId) -> bool {
+        self.objects[l].children().iter().any(|c| {
             matches!(
                 self.objects[*c].kind,
                 Kind::ClassicWindow(crate::classic::ClassicWindow::Playlist)
             )
-        });
-        playlist.then(|| left.max(116))
+        })
     }
 
     /// Whether `l` shows a list, which shows more rows when the window is taller.
