@@ -300,7 +300,8 @@ pub fn rt_draw_windows<'l>(
 ) -> JByteArray<'l> {
     env.with_env(|env| {
         let bytes = with_rt(env, h, |r| {
-            let ids = r.rt.window_ids();
+            // the drawn order, which differs from the stack's once a window apart was raised
+            let ids = r.rt.drawn_window_ids();
             let moving = r.rt.take_tick_changed();
             let drawn = r.rt.draw_windows_owned();
             let start = Instant::now();
