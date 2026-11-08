@@ -18,11 +18,8 @@ analyzer and the oscilloscope as Winamp 5.666 or Winamp 2.91 draws them.
 
 Early. No crate or AAR is released yet.
 
-The engine is a port of the Kotlin engine in the `:modernskin` module of
-[Andamp](https://github.com/mattijsf/andamp), which serves as the reference.
-
-A scripted run through either engine writes a trace of everything the engine does, and the two
-traces are compared line by line (see [ENGINEERING.md](ENGINEERING.md)).
+A scripted run writes a trace of everything the engine does. Traces of a change are compared
+line by line with those of the last release (see [ENGINEERING.md](ENGINEERING.md)).
 
 ## Building
 

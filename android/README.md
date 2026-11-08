@@ -2,15 +2,14 @@
 
 The engine as an Android library: `nl.mattix.walkit:walkit`, one AAR with the native engine
 (`libwalkit.so` for `arm64-v8a` and `x86_64`, built from `crates/walkit-android`) and a Kotlin
-API in package `nl.mattix.walkit`. The API mirrors the `skin` package of Andamp's `:modernskin`
-module, so a player written against that module mostly needs new imports.
+API in package `nl.mattix.walkit`.
 
 ## Building
 
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.17
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.18
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
@@ -34,7 +33,7 @@ consumer's shrinker needs no extra rules.
 
 ## Test fixtures
 
-`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.17"))` adds the engine built for
+`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.18"))` adds the engine built for
 the publishing machine (the `cargoBuildHost` task, a plain `cargo build`), so a consumer's JVM
 unit tests can run skins.
 
@@ -83,10 +82,11 @@ where the host kept it.
 Windows move by a drag on their move areas and resize by their grip, and they dock and snap as
 in Winamp 5.666. The frame's window rects say where each one is.
 
-## The parity run on a device
+## The trace run on a device
 
 `CorpusTraceTest`, an instrumented test, runs every reference scenario through the AAR and
-writes a trace of each, to compare byte for byte with the traces of Andamp's `EngineTraceTest`.
+writes a trace of each, to compare byte for byte with the traces the same commit writes on a
+desktop.
 Push the inputs [ENGINEERING.md](../ENGINEERING.md) describes to the device first:
 
 ```bash
@@ -101,7 +101,7 @@ ANDROID_SERIAL=emulator-5690 ./gradlew :walkit:connectedAndroidTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true   # keeps the APK and its traces
 $ADB pull /sdcard/Android/data/nl.mattix.walkit.test/files/traces traces-device
 $ADB uninstall nl.mattix.walkit.test
-WALKIT_REFERENCE_TRACES=<reference traces> ../tools/trace-diff.sh traces-device
+WALKIT_REFERENCE_TRACES=<desktop traces> ../tools/trace-diff.sh traces-device
 ```
 
 To check the desktop build on the device without the AAR, build it with `cargo ndk -t arm64-v8a

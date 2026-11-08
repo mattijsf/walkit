@@ -11,8 +11,7 @@
 //! the Kotlin side into draw commands. A menu a script pops crosses the same way, and a menu
 //! the host passes back is read with `walkit::packed::decode_menu`.
 //!
-//! A runtime is one thread's: the Kotlin side calls it from one thread at a time, as it calls
-//! the Kotlin engine. The clock is the Kotlin side's, set before each call (`rtSetNow`), so
+//! A runtime is one thread's: the Kotlin side calls it from one thread at a time. The clock is the Kotlin side's, set before each call (`rtSetNow`), so
 //! the engine reads it without crossing the boundary.
 //!
 //! This crate is the boundary: a native method's handle is a pointer the Kotlin side holds as a

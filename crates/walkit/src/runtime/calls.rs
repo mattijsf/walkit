@@ -326,7 +326,7 @@ impl SkinRuntime {
         })
     }
 
-    /// `tag#id`, as the reference engine names an object in a log line.
+    /// `tag#id`, as a log line names an object.
     pub(crate) fn object_text(&self, o: ObjId) -> String {
         format!("{}#{}", self.objects[o].base.tag, self.objects[o].base.id)
     }

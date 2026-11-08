@@ -1,15 +1,15 @@
 #!/bin/sh
-# Diffs the traces of a walkit run against the reference engine's, scenario by
-# scenario, and prints the first line where each pair parts.
+# Diffs the traces of a walkit run against a reference set (the last release's
+# traces), scenario by scenario, and prints the first line where each pair parts.
 #
 #   tools/trace-diff.sh [walkit traces dir] [reference traces dir]
 #
-# Defaults: traces/ here, and the reference set at $WALKIT_REFERENCE_TRACES
-# (an Andamp checkout beside this one writes it to modernskin/build/traces).
+# Defaults: traces/ here, and the reference set at $WALKIT_REFERENCE_TRACES.
 set -eu
 cd "$(dirname "$0")/.."
 ours=${1:-traces}
-theirs=${2:-${WALKIT_REFERENCE_TRACES:-../andamp/modernskin/build/traces}}
+theirs=${2:-${WALKIT_REFERENCE_TRACES:-}}
+[ -n "$theirs" ] || { echo "no reference traces: set WALKIT_REFERENCE_TRACES"; exit 2; }
 [ -d "$ours" ] || { echo "no traces at $ours"; exit 2; }
 [ -d "$theirs" ] || { echo "no reference traces at $theirs"; exit 2; }
 same=0

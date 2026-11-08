@@ -107,9 +107,8 @@ class TraceScenario(
 
 /**
  * A record of everything the engine does in a [TraceScenario], as text (`trace v1`): the same
- * record the reference engine's test fixture writes, through this binding's [SkinRuntime]. Two
- * engines fed the same scenario should write the same trace, line for line; the first line that
- * differs is where they part.
+ * record `walkit-trace` writes, through this binding's [SkinRuntime]. Both fed the same scenario
+ * write the same trace, line for line; the first line that differs is where they part.
  *
  * The record depends on nothing a platform measures: the host measures text by a fixed rule
  * ([TraceHost]) and takes image sizes and pixels from the skin's files, so any engine can be run
