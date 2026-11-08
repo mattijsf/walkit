@@ -109,10 +109,19 @@ internal class HostBridge(
 
     fun windowsChanged(ids: IntArray): Unit = host.windowsChanged(ids.map { WindowId(it) })
 
+    /** [from] is [x, y, w, h, px, py], the point Int.MIN_VALUE when no touch sent it; null for none. */
     fun hostAction(
         action: String,
         param: String?,
-    ): Unit = host.hostAction(action, param)
+        from: IntArray?,
+    ): Unit =
+        host.hostAction(
+            action,
+            param,
+            from?.let {
+                ActionFrom(Rect(it[0], it[1], it[2], it[3]), (it[4] to it[5]).takeIf { p -> p.first != Int.MIN_VALUE })
+            },
+        )
 }
 
 /** [Player] as the engine drives it: the status as 0 stopped, 1 playing, 2 paused. */

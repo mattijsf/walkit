@@ -1608,8 +1608,11 @@ fn a_playing_classic_window_is_due_again_every_frame() {
     assert!(!rt.frames_wanted());
 }
 
-/// A host that keeps the actions the skin sends it.
-struct RecordingHost(Rc<RefCell<Vec<String>>>);
+/// A host that keeps the actions the skin sends it, and where on screen each came from.
+struct RecordingHost(Rc<RefCell<Vec<String>>>, Froms);
+
+/// Where each host action came from, in order.
+type Froms = Rc<RefCell<Vec<Option<crate::host::ActionFrom>>>>;
 
 impl SkinHost for RecordingHost {
     fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
@@ -1624,17 +1627,29 @@ impl SkinHost for RecordingHost {
 
     fn invalidate(&mut self) {}
 
-    fn host_action(&mut self, action: &str, param: Option<&str>) {
+    fn host_action(
+        &mut self,
+        action: &str,
+        param: Option<&str>,
+        from: Option<crate::host::ActionFrom>,
+    ) {
         self.0.borrow_mut().push(
             format!("{action} {}", param.unwrap_or(""))
                 .trim_end()
                 .to_string(),
         );
+        self.1.borrow_mut().push(from);
     }
 }
 
 fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
+    let (rt, actions, _) = classic_recording_froms();
+    (rt, actions)
+}
+
+fn classic_recording_froms() -> (SkinRuntime, Rc<RefCell<Vec<String>>>, Froms) {
     let actions = Rc::new(RefCell::new(Vec::new()));
+    let froms: Froms = Rc::new(RefCell::new(Vec::new()));
     let mut files = MemoryFiles::new();
     for s in SHEETS {
         files.insert(s, &b"x"[..]);
@@ -1643,7 +1658,7 @@ fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
     let clock: Clock = Rc::new(|| 0);
     let mut rt = SkinRuntime::new(
         Box::new(files),
-        Box::new(RecordingHost(actions.clone())),
+        Box::new(RecordingHost(actions.clone(), froms.clone())),
         Box::new(FakePlayer::new(clock.clone())),
         SkinSetup {
             host_actions: true,
@@ -1652,7 +1667,25 @@ fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
         clock,
     );
     rt.load();
-    (rt, actions)
+    (rt, actions, froms)
+}
+
+#[test]
+fn a_menu_button_tells_the_host_its_box_and_where_the_finger_went_down() {
+    let (mut rt, actions, froms) = classic_recording_froms();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    // the equalizer under the main window: PRESETS answers x 217..=261, y 18..=30
+    rt.pointer_down(230, 116 + 24, 1);
+    rt.pointer_up(230, 116 + 24);
+    assert_eq!(*actions.borrow(), vec!["EQ_PRESETS"]);
+    assert_eq!(
+        froms.borrow()[0],
+        Some(crate::host::ActionFrom {
+            rect: Rect::new(217, 116 + 18, 45, 13),
+            point: Some((230, 116 + 24)),
+        })
+    );
 }
 
 #[test]
@@ -2249,7 +2282,7 @@ fn the_playlist_small_transport_time_arrows_and_button_double_taps() {
     files.insert("region.txt", REGION.as_bytes());
     let mut rt = SkinRuntime::new(
         Box::new(files),
-        Box::new(RecordingHost(actions.clone())),
+        Box::new(RecordingHost(actions.clone(), Rc::default())),
         Box::new(player),
         SkinSetup {
             host_actions: true,

@@ -155,7 +155,12 @@ impl SkinHost for TraceHost {
         self.write(&format!("windows {}", ids.join(",")));
     }
 
-    fn host_action(&mut self, action: &str, param: Option<&str>) {
+    fn host_action(
+        &mut self,
+        action: &str,
+        param: Option<&str>,
+        _from: Option<walkit::host::ActionFrom>,
+    ) {
         self.write(&format!("hostaction {action} {}", param.unwrap_or("-")));
     }
 }
