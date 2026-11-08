@@ -91,6 +91,9 @@ pub(crate) struct PointerState {
     /// What `has_skin_menu` answered for each object since the last layout pass.
     pub(crate) skin_menus: HashMap<ObjId, bool>,
     skin_menu_reads: i64,
+    /// Whether the moves and the release of the press now held land exactly where they say: a
+    /// host's magnifier steers them, so no touch slop keeps the press on its control.
+    pub(crate) precise: bool,
 }
 
 impl SkinRuntime {
@@ -444,6 +447,7 @@ impl SkinRuntime {
         self.gesture(true, |rt| {
             rt.aim_menu(sx, sy, seq);
             rt.pointer.move_seq = None;
+            rt.pointer.precise = false;
             // apart, a press raises its window; a press on the desktop between the windows
             // reaches no window (window_at falls back to the nearest one for the stack)
             if rt.free_windows() {
@@ -577,7 +581,7 @@ impl SkinRuntime {
             let dx = sx - d.sx;
             let dy = sy - d.sy;
             // still a tap or a long press
-            if dx * dx + dy * dy <= self.touch_slop * self.touch_slop {
+            if !self.pointer.precise && dx * dx + dy * dy <= self.touch_slop * self.touch_slop {
                 return;
             }
             self.send_deferred();
@@ -625,7 +629,11 @@ impl SkinRuntime {
         };
         // a finger that drifts a little still counts as on the control
         let r = self.objects[target].base.rect;
-        let slop = self.touch_slop;
+        let slop = if self.pointer.precise {
+            0
+        } else {
+            self.touch_slop
+        };
         let inside = x >= r.left - slop
             && x < r.right() + slop
             && y >= r.top - slop
@@ -925,6 +933,47 @@ impl SkinRuntime {
             self.pointer.picked_this_gesture = true;
         }
         picked.unwrap_or(0)
+    }
+
+    /// Makes the moves and the release of the press now held land exactly where they say, as a
+    /// mouse's do: no touch slop keeps the press on its control or a finger on a button. For a
+    /// host's magnifier, which steers the press with a finger geared down; the next
+    /// `pointer_down` turns it off.
+    pub fn set_pointer_precise(&mut self, precise: bool) {
+        self.pointer.precise = precise;
+    }
+
+    /// The controls of the window the press now held is on, in stack pixels, for a host's
+    /// magnifier to show and to steer the press between; empty without a press. A classic
+    /// window lists each control by the box it answers in, and, while one of its playlist
+    /// buttons is held, the pictures of its menu, which ask for the magnifier.
+    pub fn press_controls(&mut self) -> Vec<crate::host::TouchControl> {
+        if let Some(press) = self.classic_press {
+            return self.classic_controls(press);
+        }
+        let Some(held) = self.captured else {
+            return Vec::new();
+        };
+        let Some(window) = self.layout_object(held) else {
+            return Vec::new();
+        };
+        let at = self.window_rect_of(window);
+        self.all_objects
+            .clone()
+            .into_iter()
+            .filter(|o| {
+                self.layout_object(*o) == Some(window)
+                    && self.is_control(*o)
+                    && self.touchable(*o, false)
+            })
+            .map(|o| {
+                let r = self.objects[o].base.rect;
+                crate::host::TouchControl {
+                    rect: Rect::new(at.left + r.left, at.top + r.top, r.width, r.height),
+                    magnify: false,
+                }
+            })
+            .collect()
     }
 
     /// Ends the press under the finger without a release.

@@ -2656,3 +2656,72 @@ fn under_touch_a_finger_on_the_title_bar_beside_close_takes_close() {
     rt.pointer_up(270, 116 + 1);
     assert!(!rt.is_open(pl), "taken by close");
 }
+
+#[test]
+fn a_precise_press_leaves_its_control_as_a_mouse_does() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    // as the wobble test, but steered by a magnifier: 3 px down onto D has left I
+    rt.pointer_down(15, 46, 1);
+    rt.set_pointer_precise(true);
+    rt.pointer_move(15, 49);
+    rt.pointer_up(15, 49);
+    assert!(actions.borrow().is_empty(), "{:?}", actions.borrow());
+    // the next press is a finger's again
+    rt.pointer_down(15, 46, 2);
+    rt.pointer_move(15, 49);
+    rt.pointer_up(15, 49);
+    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+}
+
+#[test]
+fn the_press_controls_are_the_boxes_of_its_window() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    assert!(rt.press_controls().is_empty(), "no press");
+    rt.pointer_down(15, 44, 1);
+    let controls = rt.press_controls();
+    let has = |r: Rect| controls.iter().any(|c| c.rect == r && !c.magnify);
+    assert!(
+        has(Rect::new(11, 40, 9, 8)),
+        "the clutter bar's I: {controls:?}"
+    );
+    assert!(has(Rect::new(264, 3, 9, 10)), "close");
+    assert!(has(Rect::new(107, 58, 69, 9)), "volume");
+    rt.pointer_up(15, 44);
+}
+
+#[test]
+fn a_held_playlist_button_lists_its_menu_pictures_for_the_magnifier() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    rt.pointer_down(20, 116 + 95, 1);
+    let pictures: Vec<Rect> = rt
+        .press_controls()
+        .iter()
+        .filter(|c| c.magnify)
+        .map(|c| c.rect)
+        .collect();
+    // ADD's three, 22 by 18 at x 14, the lowest ending 12 above the bottom
+    assert_eq!(
+        pictures,
+        vec![
+            Rect::new(14, 116 + 87, 22, 18),
+            Rect::new(14, 116 + 69, 22, 18),
+            Rect::new(14, 116 + 51, 22, 18)
+        ]
+    );
+    // steered precisely up onto the top picture, the release picks it
+    rt.set_pointer_precise(true);
+    rt.pointer_move(20, 116 + 55);
+    rt.pointer_up(20, 116 + 55);
+    assert!(rt.classic_open_menu.is_none(), "picked, not left open");
+    assert!(
+        actions.borrow().iter().any(|a| a.starts_with("PLAYLIST ")),
+        "{:?}",
+        actions.borrow()
+    );
+}

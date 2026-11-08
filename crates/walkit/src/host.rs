@@ -7,6 +7,16 @@ use std::rc::Rc;
 
 use crate::draw::{FontDef, Rect};
 
+/// A control a finger can press, as a host's magnifier lists them (`SkinRuntime::press_controls`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TouchControl {
+    /// Where it answers, in stack pixels.
+    pub rect: Rect,
+    /// Whether a hold on it asks for the magnifier whatever its size: one of a stack of
+    /// look-alike pictures, such as a classic playlist menu's.
+    pub magnify: bool,
+}
+
 /// Where a host action came from on screen, in the stack's layout pixels (as pointer events
 /// take them): a menu it opens can go against the thing that sent it, or at the finger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
