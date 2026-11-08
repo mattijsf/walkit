@@ -189,6 +189,7 @@ internal object Native {
         freeWindows: Boolean,
         touch: Boolean,
         skinListFont: Boolean,
+        listRowExtra: Int,
     )
 
     @JvmStatic

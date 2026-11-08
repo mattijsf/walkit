@@ -225,6 +225,7 @@ impl SkinRuntime {
             free_windows: self.free.on,
             touch: self.touch,
             skin_list_font: self.skin_list_font,
+            list_row_extra: self.list_row_extra,
         }
     }
 
@@ -237,6 +238,10 @@ impl SkinRuntime {
         self.set_stretch_last(p.stretch_last);
         self.touch_slop = p.touch_slop;
         self.touch = p.touch;
+        if p.list_row_extra.max(0) != self.list_row_extra {
+            self.list_row_extra = p.list_row_extra.max(0);
+            self.dirty = true;
+        }
         if p.skin_list_font != self.skin_list_font {
             self.skin_list_font = p.skin_list_font;
             self.dirty = true;

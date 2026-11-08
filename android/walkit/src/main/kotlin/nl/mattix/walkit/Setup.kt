@@ -24,7 +24,8 @@ public data class SkinSetup(
  * - [stretchLast]: whether the last docked list window takes the height left under the others;
  * - [touchSlop]: how far beside an object a finger may land and still mean it;
  * - [touch]: whether a finger drives the skin rather than a mouse;
- * - [skinListFont]: whether a classic playlist spells its rows in the skin's text.bmp letters.
+ * - [skinListFont]: whether a classic playlist spells its rows in the skin's text.bmp letters;
+ * - [listRowExtra]: pixels a classic playlist adds to each row's height.
  */
 public data class Presentation(
     val viewSize: Pair<Int, Int>? = null,
@@ -51,6 +52,8 @@ public data class Presentation(
      * spell keeps that font.
      */
     val skinListFont: Boolean = false,
+    /** Pixels a classic playlist adds to each row's height, for rows a finger picks more easily; 0 keeps Winamp's. */
+    val listRowExtra: Int = 0,
 )
 
 /**
