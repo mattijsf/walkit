@@ -201,8 +201,13 @@ impl SkinRuntime {
         ) || self.is_grip(o)
     }
 
+    /// Whether a classic stack stretches to fill the view, where its grips size nothing.
+    pub(crate) fn classic_filled(&self) -> bool {
+        self.stretch_last && self.view_size.is_some() && !self.free_windows()
+    }
+
     /// Whether `o` is a window's resize grip: its `resize`, as a script last set it, names an edge, and it lies in a window.
-    fn is_grip(&self, o: ObjId) -> bool {
+    pub(crate) fn is_grip(&self, o: ObjId) -> bool {
         let Some(edges) = self.objects[o]
             .base
             .attr("resize")
@@ -356,7 +361,7 @@ impl SkinRuntime {
     }
 
     /// Squared distance from a point to `o`'s rectangle; 0 inside.
-    fn distance2(&self, o: ObjId, x: i32, y: i32) -> i64 {
+    pub(crate) fn distance2(&self, o: ObjId, x: i32, y: i32) -> i64 {
         let r = self.objects[o].base.rect;
         let dx = (r.left - x).max(0).max(x - (r.right() - 1)) as i64;
         let dy = (r.top - y).max(0).max(y - (r.bottom() - 1)) as i64;
@@ -371,6 +376,9 @@ impl SkinRuntime {
         let y = sy - origin.top;
         let hit = self.hit_test(window, x, y);
         if let Some(h) = hit {
+            if let Some(grip) = self.classic_grip_near(h, x, y) {
+                return Some(grip);
+            }
             if self.is_control(h) || matches!(self.objects[h].kind, Kind::Menu(_)) {
                 return Some(h);
             }
@@ -502,10 +510,8 @@ impl SkinRuntime {
         self.captured = Some(target);
         if let Some(window) = self.layout_object(target) {
             // a classic stack stretched to fill the view keeps its size: its grip sizes nothing
-            let filled = self.stretch_last
-                && self.view_size.is_some()
-                && !self.free_windows()
-                && self.objects[target].base.id.starts_with("classic.");
+            let filled =
+                self.classic_filled() && self.objects[target].base.id.starts_with("classic.");
             if self.is_grip(target) && !filled {
                 let edges = self.objects[target]
                     .base
