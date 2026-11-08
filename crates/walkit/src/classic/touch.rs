@@ -740,8 +740,12 @@ impl SkinRuntime {
                 }
             }
         }
+        // a press that moves its window shows nothing new: the window only goes along
+        let moving = matches!(press.control, Control::TitleBar | Control::Background);
         self.classic_press = Some(press);
-        self.repaint();
+        if !moving {
+            self.repaint();
+        }
     }
 
     /// Selects playlist row `row` (or none) and tells the host, which keeps the selection the

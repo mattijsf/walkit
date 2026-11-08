@@ -2655,6 +2655,41 @@ fn a_drag_ends_where_the_finger_lifts_even_with_no_move_there() {
 }
 
 #[test]
+fn a_drag_of_docked_windows_only_places_them_again() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    apart(&mut rt);
+    rt.tick();
+    let first = rt.draw_windows_owned();
+    assert_eq!(rt.take_placed_only(), None, "drawn and nothing moved");
+    let main = rt.main_window().expect("the main window");
+    let r = rt.window_rect(main);
+    // the press and the drag's first step may redraw: the title bar lights up
+    rt.pointer_down(r.left + 60, r.top + 6, 1);
+    rt.tick();
+    rt.draw_windows_owned();
+    rt.pointer_move(r.left + 70, r.top + 11);
+    rt.tick();
+    rt.draw_windows_owned();
+    rt.pointer_move(r.left + 80, r.top + 16);
+    rt.tick();
+    let placed = rt.take_placed_only().expect("only moved");
+    assert_eq!(placed.len(), first.len());
+    for (p, w) in placed.iter().zip(&first) {
+        let moved = Rect::new(
+            w.rect.left + 20,
+            w.rect.top + 10,
+            w.rect.width,
+            w.rect.height,
+        );
+        assert_eq!(p.1, moved, "every docked window went along");
+    }
+    assert_eq!(rt.take_placed_only(), None, "taken once");
+    rt.pointer_up(r.left + 80, r.top + 16);
+}
+
+#[test]
 fn the_visualizer_window_holds_the_hosts_visualizer_in_its_frame() {
     let mut rt = classic();
     apart(&mut rt);

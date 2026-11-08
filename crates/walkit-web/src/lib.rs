@@ -597,6 +597,23 @@ pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
     1
 }
 
+/// When the windows only moved since the last frame: 1, with the result their ids and rects
+/// bottom to top as five `i32`s each, and the move taken as drawn (the host keeps their
+/// drawings). 0 when something needs drawing: [`wk_rt_draw_frame`] then.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_placed_only(id: i32) -> i32 {
+    let Some(Some(placed)) = with_rt(id, |r| r.engine.take_placed_only()) else {
+        return 0;
+    };
+    let bytes = placed
+        .iter()
+        .flat_map(|(w, r)| [w.0 as i32, r.left, r.top, r.width, r.height])
+        .flat_map(i32::to_le_bytes)
+        .collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
 /// The main window as it shows now, or -1 when the skin has none.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_main_window(id: i32) -> i32 {

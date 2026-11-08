@@ -397,6 +397,32 @@ impl SkinRuntime {
             .collect()
     }
 
+    /// When the windows only moved since they were last drawn, where each one shows now, bottom
+    /// to top as [`SkinRuntime::draw_windows_owned`] gives them, and the move taken as drawn: a
+    /// host places its windows again and keeps their drawings. `None` when something needs
+    /// drawing, which [`SkinRuntime::draw_windows_owned`] then does.
+    pub fn take_placed_only(&mut self) -> Option<Vec<(crate::host::WindowId, Rect)>> {
+        if !self.moved_dirty
+            || self.dirty
+            || self.needs_layout
+            || !self.moved_windows.is_empty()
+            || !self.tick_changed.is_empty()
+        {
+            return None;
+        }
+        let windows = self.z_windows();
+        if !windows.iter().all(|l| self.window_drawings.contains_key(l)) {
+            return None;
+        }
+        self.moved_dirty = false;
+        Some(
+            windows
+                .into_iter()
+                .map(|l| (self.window_id_of(l), self.window_rect_of(l)))
+                .collect(),
+        )
+    }
+
     /// The objects the last tick found moving by themselves (a ticker stepping, a visualizer, a
     /// seek thumb), taken once: a host's planner counts them live from their first change.
     pub fn take_tick_changed(&mut self) -> Vec<ObjId> {

@@ -292,9 +292,21 @@ export class Skin {
     this.rt.setNow(now);
     const changed = this.rt.tick() || this.dirty;
     this.dirty = false;
-    if (changed) this.shown = this.reader.decode(this.rt.drawFrame(now)).windows;
+    if (changed) this.shown = this.moved(this.rt.placedOnly()) ?? this.reader.decode(this.rt.drawFrame(now)).windows;
     this.dueAt = this.rt.nextDueAt() ?? Infinity;
     return changed;
+  }
+
+  /** The windows shown, at the places `placed` gives, or null when they are not the same windows. */
+  moved(placed) {
+    if (!placed || placed.length !== this.shown.length) return null;
+    const out = [];
+    for (let i = 0; i < placed.length; i++) {
+      const w = this.shown[i];
+      if (w.id !== placed[i].id) return null;
+      out.push({ ...w, rect: placed[i].rect });
+    }
+    return out;
   }
 
   /** The windows on screen, bottom to top: `{id, container, layout, rect}`, rect in the viewport. */

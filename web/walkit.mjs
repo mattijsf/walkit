@@ -46,12 +46,12 @@ export class Walkit {
     this.x.wk_free(ptr, len);
   }
 
-  /** The last result's text. */
   /** The last result the module gave, as a copy of its bytes. */
   resultBytes() {
     return this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()).slice();
   }
 
+  /** The last result's text. */
   result() {
     return decoder.decode(this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()));
   }
@@ -250,6 +250,19 @@ export class Runtime {
   drawFrame(nowMs) {
     this.w.x.wk_rt_draw_frame(this.id, nowMs);
     return this.w.resultBytes();
+  }
+
+  /**
+   * When the windows only moved since the last frame, where each one shows now, bottom to top:
+   * `[{id, rect}]`, the move taken as drawn. Null when something needs drawing (`drawFrame`).
+   */
+  placedOnly() {
+    if (!this.w.x.wk_rt_placed_only(this.id)) return null;
+    const b = this.w.resultBytes();
+    const v = new Int32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+    const out = [];
+    for (let i = 0; i < v.length; i += 5) out.push({ id: v[i], rect: { left: v[i + 1], top: v[i + 2], width: v[i + 3], height: v[i + 4] } });
+    return out;
   }
 
   /** A right click, or a long press, where the pointer last was. */

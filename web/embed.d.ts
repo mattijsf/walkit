@@ -86,6 +86,8 @@ export interface Runtime {
   /** Where the page draws its visualizer, or null when no window shows a place for it. */
   visRect(): Rect | null;
   mainWindow(): number | null;
+  /** When the windows only moved since the last frame, where each one shows now; null when something needs drawing. */
+  placedOnly(): { id: number; rect: Rect }[] | null;
   /** When (clock ms) something on the skin next changes by itself, or null. */
   nextDueAt(): number | null;
   focusedWindow(): number | null;
