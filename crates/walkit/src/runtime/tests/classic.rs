@@ -1824,6 +1824,32 @@ fn in_the_skins_letters_the_rows_are_one_block_and_a_row_they_cannot_spell_keeps
     );
 }
 
+#[test]
+fn the_playlist_rows_ask_for_winamps_em_of_twelve_pixels() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = vec![Track {
+        title: "One".into(),
+        length_ms: 60_000,
+    }];
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    let sizes: Vec<i32> = cmds
+        .iter()
+        .filter_map(|c| match c {
+            DrawCmd::Text(t) => Some(t.size),
+            _ => None,
+        })
+        .collect();
+    // a size is points to a host: 16 of them are 12 pixels
+    assert_eq!(sizes, vec![16, 16], "the title and the length");
+}
+
 /// The playlist's pledit.bmp blits, as the stack draws them now.
 fn playlist_blits(rt: &mut SkinRuntime) -> Vec<(i32, i32, i32, i32, i32, i32)> {
     let windows = rt.draw_windows();

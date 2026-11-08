@@ -30,6 +30,34 @@ internal object Native {
 
     @JvmStatic external fun rtFree(h: Long)
 
+    @JvmStatic external fun hfNew(data: ByteArray): Long
+
+    @JvmStatic external fun hfFree(h: Long)
+
+    @JvmStatic external fun hfCovers(
+        h: Long,
+        text: String,
+    ): Boolean
+
+    @JvmStatic external fun hfWidth(
+        h: Long,
+        text: String,
+        em: Float,
+    ): Int
+
+    @Suppress("LongParameterList") // the text, its color and the block it goes in
+    @JvmStatic
+    external fun hfDraw(
+        h: Long,
+        text: String,
+        em: Float,
+        argb: Int,
+        w: Int,
+        hgt: Int,
+        x: Int,
+        baseline: Int,
+    ): IntArray
+
     @JvmStatic
     external fun rtSetNow(
         h: Long,

@@ -25,6 +25,7 @@
 
 mod bridge;
 mod files;
+mod hinted;
 mod host;
 mod native;
 mod player;
