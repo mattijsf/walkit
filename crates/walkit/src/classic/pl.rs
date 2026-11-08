@@ -43,6 +43,38 @@ const LIST_RIGHT: i32 = 3;
 const LIST_GAP: i32 = 4;
 
 impl SkinRuntime {
+    /// The playlist's font as its rows draw in it, or none for the host's own.
+    fn classic_pl_font(face: &str) -> Option<crate::draw::FontDef> {
+        (!face.is_empty()).then(|| crate::draw::FontDef::new(&face.to_lowercase(), ""))
+    }
+
+    /// `text` as it fits in `width` px of the playlist's font: whole, or cut on a whole letter
+    /// with "..." after it.
+    fn classic_pl_fitted(
+        &mut self,
+        text: &str,
+        font: Option<&crate::draw::FontDef>,
+        width: i32,
+    ) -> String {
+        let fits = |rt: &mut Self, s: &str| rt.host.text_width(s, font, ROW_FONT, false) <= width;
+        if fits(self, text) {
+            return text.to_string();
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let cut = |n: usize| format!("{}...", chars[..n].iter().collect::<String>().trim_end());
+        // the most letters that fit with the ellipsis
+        let (mut lo, mut hi) = (0, chars.len());
+        while lo < hi {
+            let mid = (lo + hi).div_ceil(2);
+            if fits(self, &cut(mid)) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        cut(lo)
+    }
+
     /// The playlist's shade bar (14 high): the left piece, tiles, a stretched
     /// remainder, and the right piece with the bar's buttons; active y 42, inactive 57.
     pub(crate) fn draw_classic_pl_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
@@ -223,15 +255,15 @@ impl SkinRuntime {
                     continue;
                 }
             }
-            let font = Some(&style.font);
-            p.text(
-                &format!("{}. {}", i + 1, t.title),
-                font,
-                (12, y, w - 32, row),
-                color,
-                Align::Left,
-            );
-            p.text(&time, font, (12, y, w - 32, row), color, Align::Right);
+            // the title ends, cut short on "...", before the length (Winamp's ellipsis)
+            let face = Some(&style.font);
+            let def = Self::classic_pl_font(&style.font);
+            let time_w = self.host.text_width(&time, def.as_ref(), ROW_FONT, false);
+            let room = block_w - LIST_RIGHT - time_w - LIST_GAP;
+            let title =
+                self.classic_pl_fitted(&format!("{}. {}", i + 1, t.title), def.as_ref(), room);
+            p.text(&title, face, (12, y, w - 32, row), color, Align::Left);
+            p.text(&time, face, (12, y, w - 32, row), color, Align::Right);
         }
         if let Some(block) = block.filter(|_| lettered) {
             p.out.push(DrawCmd::Pixels {

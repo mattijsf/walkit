@@ -380,10 +380,12 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
     let title = rt.player.title();
     let length = rt.player.length_ms() / 1000;
     assert_eq!(texts.len(), 2);
+    // at this host's 9.6 px a letter, the title ends on "..." 4 px before the length
+    assert_eq!(title, "Andamp - Modern skin demo");
     assert_eq!(
         texts[0],
         (
-            format!("1. {title}"),
+            "1. Andamp - Moder...".to_string(),
             Rect::new(12, 22, 243, 15),
             Align::Left
         )
