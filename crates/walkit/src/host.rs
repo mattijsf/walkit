@@ -79,7 +79,9 @@ pub trait SkinHost {
     /// Whether one of the app's own windows is open: "pl" (playlist), "ml" (library), "eq",
     /// "video" or "vis". `None` leaves it to the skin's container. Buttons that toggle these light up.
     /// A classic skin's clutter bar also asks for two of the app's switches: "ontop" (always on
-    /// top, its A) and "doublesize" (its D); `None` reads as off.
+    /// top, its A) and "doublesize" (its D); `None` reads as off. "visrandom" is whether the
+    /// visualizer picks its presets at random (Winamp Modern's Random), which a skin's button
+    /// flips with the host action `VIS_RANDOM`, "1" or "0".
     fn window_open(&mut self, _kind: &str) -> Option<bool> {
         None
     }

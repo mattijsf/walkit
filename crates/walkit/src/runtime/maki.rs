@@ -1030,6 +1030,11 @@ impl SkinRuntime {
             "enable equalizer" | "eq" => self.player.eq_enabled(),
             k => match self.script_attribute(name) {
                 Some(a) => wtoi(&self.attribute_data(a)) == 1,
+                // the visualizer's own "Random" (Winamp Modern's vis button): the host's
+                None if k == "random" => match self.host.window_open("visrandom") {
+                    Some(on) => on,
+                    None => self.config_flags.get(k).copied().unwrap_or(false),
+                },
                 None => self.config_flags.get(k).copied().unwrap_or(false),
             },
         }
@@ -1041,12 +1046,17 @@ impl SkinRuntime {
             "repeat" => self.player.set_repeat(on),
             "enable crossfading" | "crossfade" => self.player.set_crossfade(on),
             "enable equalizer" | "eq" => self.player.set_eq_enabled(on),
-            k => match self.script_attribute(name) {
-                Some(a) => self.attribute_set_data(a, if on { "1" } else { "0" }),
-                None => {
-                    self.config_flags.insert(k.to_string(), on);
+            k => {
+                if let Some(a) = self.script_attribute(name) {
+                    self.attribute_set_data(a, if on { "1" } else { "0" });
+                    return;
                 }
-            },
+                self.config_flags.insert(k.to_string(), on);
+                if k == "random" && self.host_actions {
+                    self.host
+                        .host_action("VIS_RANDOM", Some(if on { "1" } else { "0" }), None);
+                }
+            }
         }
     }
 
