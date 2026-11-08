@@ -132,6 +132,13 @@ impl SkinRuntime {
         self.window_rect_of(self.layout_of(id))
     }
 
+    /// The part of window `id` that docks to others: its rect inside the snap margins its skin
+    /// gives it (Winamp Modern's main window leaves out its closed drawer).
+    pub fn window_docking_rect(&mut self, id: WindowId) -> Rect {
+        let l = self.layout_of(id);
+        self.docking_rect(l)
+    }
+
     /// Where `layout` sits in the stack, in layout pixels.
     pub(crate) fn window_rect_of(&mut self, layout: ObjId) -> Rect {
         if let Some(r) = self.placed.get(&layout) {

@@ -473,3 +473,11 @@ fn a_mouse_press_beside_a_grip_moves_the_window_where_a_finger_takes_the_grip() 
         );
     }
 }
+
+#[test]
+fn a_window_docks_inside_its_snap_margins() {
+    let mut rt = free();
+    let main = id_of(&rt, "main");
+    // the main window leaves out its 80 px closed drawer
+    assert_eq!(rt.window_docking_rect(main), Rect::new(0, 0, 300, 120));
+}

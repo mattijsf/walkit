@@ -358,6 +358,14 @@ export class Runtime {
     return { left, top, width, height };
   }
 
+  /** The part of window `window` that docks to others: its rect inside its skin's snap margins. */
+  dockingRect(window) {
+    if (!this.w.x.wk_rt_docking_rect(this.id, window)) return null;
+    const b = this.w.resultBytes();
+    const [left, top, width, height] = new Int32Array(b.buffer, b.byteOffset, 4);
+    return { left, top, width, height };
+  }
+
   /** The window that has the focus, or null. */
   focusedWindow() {
     const w = this.w.x.wk_rt_focused_window(this.id);
