@@ -112,6 +112,16 @@ export class Walkit {
     return new Runtime(this, id);
   }
 
+  /**
+   * A runtime on the page's own player instead of the fake one: the page pushes its state with
+   * `Runtime.playerState` and `Runtime.playerVis`, and hears each command through the `player(cmd, arg)` import.
+   */
+  hostedRuntime(stackId, skinName, haveLibrary = true, startMs = Date.now()) {
+    const id = this.withString(skinName, (p, n) => this.x.wk_rt_new_hosted(stackId, p, n, haveLibrary ? 1 : 0, startMs));
+    if (id < 0) throw new Error("no such stack");
+    return new Runtime(this, id);
+  }
+
   imports() {
     const h = this.host;
     const str = (p, n) => this.text(p, n);
@@ -175,6 +185,7 @@ export class Walkit {
       },
       host_windows_changed: (p, n) => h.windowsChanged && h.windowsChanged(str(p, n).split(",").filter(Boolean).map(Number)),
       host_host_action: (ap, an, pp, pn) => h.hostAction && h.hostAction(str(ap, an), str(pp, pn)),
+      host_player: (cp, cn, arg) => h.player && h.player(str(cp, cn), arg),
     };
   }
 }
@@ -232,6 +243,12 @@ export class Runtime {
 
   pointerUp(x, y) {
     this.w.x.wk_rt_pointer_up(this.id, x, y);
+  }
+
+  /** The seq of the last press when a drag from it moves the window, or null (a host that moves its windows itself). */
+  moveTarget() {
+    const s = this.w.x.wk_rt_move_target(this.id);
+    return s < 0 ? null : s;
   }
 
   /** The classic cursor slot at x, y of the stack, or -1. */
@@ -321,6 +338,36 @@ export class Runtime {
   /** 1 play, 2 pause, 3 stop, 4 next, 5 previous. */
   player(action) {
     this.w.x.wk_rt_player(this.id, action);
+  }
+
+  /**
+   * The page's player as it is now (a hosted runtime): `{status: 0 stopped | 1 playing | 2 paused,
+   * positionMs, lengthMs, title, kbps, khz, channels, volume 0..255, pan -127..127, shuffle,
+   * repeat, eqOn, preamp 0..255, bands: ten 0..255, trackIndex}`.
+   */
+  playerState(s) {
+    const ints = new Int32Array(23);
+    ints.set([s.status, s.positionMs, s.lengthMs, s.kbps, s.khz, s.channels, s.volume, s.pan, s.shuffle ? 1 : 0, s.repeat ? 1 : 0, s.eqOn ? 1 : 0, s.preamp]);
+    ints.set(s.bands.slice(0, 10), 12);
+    ints[22] = s.trackIndex || 0;
+    const [ip, il] = this.w.put(new Uint8Array(ints.buffer));
+    try {
+      this.w.withString(s.title || "", (tp, tn) => this.w.x.wk_rt_host_player_state(this.id, ip, 23, tp, tn));
+    } finally {
+      this.w.free(ip, il);
+    }
+  }
+
+  /** What the page's player is heard as now: a Float32Array spectrum (75, 0..1), wave (576, -1..1), VU 0..255. */
+  playerVis(spectrum, wave, vuL = 0, vuR = 0) {
+    const [sp, sl] = this.w.put(new Uint8Array(spectrum.buffer, spectrum.byteOffset, spectrum.byteLength));
+    const [wp, wl] = this.w.put(new Uint8Array(wave.buffer, wave.byteOffset, wave.byteLength));
+    try {
+      this.w.x.wk_rt_host_player_vis(this.id, sp, spectrum.length, wp, wave.length, vuL, vuR);
+    } finally {
+      this.w.free(sp, sl);
+      this.w.free(wp, wl);
+    }
   }
 
   nextDueAt() {

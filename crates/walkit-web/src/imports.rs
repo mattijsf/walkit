@@ -47,6 +47,7 @@ extern "C" {
     fn host_choose_from_menu(text: *const u8, len: usize) -> i32;
     fn host_windows_changed(text: *const u8, len: usize);
     fn host_host_action(action: *const u8, action_len: usize, param: *const u8, param_len: usize);
+    fn host_player(cmd: *const u8, cmd_len: usize, arg: i32);
 }
 
 /// Memory for the host: `len` bytes, uninitialized, which the host fills.
@@ -243,4 +244,10 @@ pub fn windows_changed(text: &str) {
 pub fn host_action(action: &str, param: &str) {
     // SAFETY: the slices live for the call.
     unsafe { host_host_action(action.as_ptr(), action.len(), param.as_ptr(), param.len()) }
+}
+
+/// A command for the page's player (`play`, `seek` with ms, `volume` 0..255, ...).
+pub fn player(cmd: &str, arg: i32) {
+    // SAFETY: the slice lives for the call.
+    unsafe { host_player(cmd.as_ptr(), cmd.len(), arg) }
 }
