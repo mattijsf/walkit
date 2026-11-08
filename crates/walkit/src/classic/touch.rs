@@ -259,9 +259,16 @@ fn hit(x: i32, y: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
     x >= bx && x < bx + bw && y >= by && y < by + bh
 }
 
-/// The control of window `w` (sized `width` x `height`) at `x`, `y`.
+/// The control of window `w` (sized `width` x `height`, its playlist rows `row` tall) at `x`, `y`.
 #[allow(clippy::enum_glob_use)]
-pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> Option<Control> {
+pub fn control_at(
+    w: ClassicWindow,
+    width: i32,
+    height: i32,
+    row: i32,
+    x: i32,
+    y: i32,
+) -> Option<Control> {
     use Control::*;
     match w {
         ClassicWindow::Main => {
@@ -407,8 +414,7 @@ pub fn control_at(w: ClassicWindow, width: i32, height: i32, x: i32, y: i32) -> 
             }
             // the rows: x 12..=w-20, y 20..=h-38, a row counted from y 22
             if hit(x, y, 12, 20, width - 31, height - 57) {
-                let row = (y - crate::classic::pl::ROW_TOP) / crate::classic::pl::ROW_HEIGHT;
-                return Some(PlRow(row));
+                return Some(PlRow((y - crate::classic::pl::ROW_TOP) / row.max(1)));
             }
             // the small transport by the time, x w-144..=w-91 split at 7, 17, 27, 36 and 45
             // and the time beside it
@@ -561,7 +567,8 @@ impl SkinRuntime {
             }
             self.classic_open_menu = None;
         }
-        let Some(mut control) = control_at(w, rect.width, rect.height, px, py) else {
+        let Some(mut control) = control_at(w, rect.width, rect.height, self.classic_row(), px, py)
+        else {
             return;
         };
         let playing = self.player.status() == Status::Playing;
@@ -668,7 +675,7 @@ impl SkinRuntime {
         };
         let rect = self.objects[o].base.rect;
         press.at = (px, py);
-        let under = control_at(w, rect.width, rect.height, px, py);
+        let under = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
         // a finger that wobbles within the touch slop of where it went down stays on its
         // control, where a mouse would have left a box this small
         let near = self.classic_near(&press, px, py);
@@ -738,7 +745,7 @@ impl SkinRuntime {
         self.classic_follow(&mut press, px, py);
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
-        let under = control_at(w, rect.width, rect.height, px, py);
+        let under = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
         let near = self.classic_near(&press, px, py);
         if let Some(c) = under.filter(|c| !near && Self::hands_along(press.control, *c)) {
             press.control = c;
@@ -826,7 +833,10 @@ impl SkinRuntime {
         if title_row {
             return self.classic_toggle_shade(o, w);
         }
-        match (w, control_at(w, rect.width, rect.height, px, py)) {
+        match (
+            w,
+            control_at(w, rect.width, rect.height, self.classic_row(), px, py),
+        ) {
             (ClassicWindow::Main, Some(Control::TitleText)) if (25..35).contains(&py) => {
                 self.action(o, "TRACKINFO", None, None);
             }
@@ -913,8 +923,8 @@ impl SkinRuntime {
             Control::PlRow(_) if press.dragged => {
                 // the rows scroll with the finger, a row per row height
                 let h = self.objects[press.object].base.rect.height;
-                let rows = (press.from.1 - py) / crate::classic::pl::ROW_HEIGHT;
-                let past = self.player.tracks().len() as i32 - SkinRuntime::classic_pl_rows(h);
+                let rows = (press.from.1 - py) / self.classic_row();
+                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
                 self.classic_pl_scroll = (press.scroll_from + rows).clamp(0, past.max(0));
             }
             Control::PlScroll => {
@@ -922,7 +932,7 @@ impl SkinRuntime {
                 // thumb's share of the rows past the window, cut down as Winamp cuts it (a
                 // click on the track at 50 of a 116-tall list of 20 shows row 9 in the VM)
                 let h = self.objects[press.object].base.rect.height;
-                let past = self.player.tracks().len() as i32 - SkinRuntime::classic_pl_rows(h);
+                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
                 let track = h - 76;
                 if past > 0 && track > 0 {
                     let along = (py - 20 - 9).clamp(0, track);
@@ -1066,7 +1076,7 @@ impl SkinRuntime {
             Control::PlTime => self.classic_remaining = !self.classic_remaining,
             Control::PlScrollUp | Control::PlScrollDown => {
                 let h = self.objects[o].base.rect.height;
-                let past = self.player.tracks().len() as i32 - SkinRuntime::classic_pl_rows(h);
+                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
                 let step = if press.control == Control::PlScrollUp {
                     -1
                 } else {

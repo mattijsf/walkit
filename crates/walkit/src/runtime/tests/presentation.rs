@@ -38,11 +38,13 @@ fn the_presentation_reads_and_sets_the_window_settings_as_one_value() {
         free_windows: false,
         touch: true,
         skin_list_font: true,
+        list_row_extra: 6,
     };
     rt.set_presentation(&p);
     assert_eq!(rt.presentation(), p);
     assert!(rt.touch);
     assert!(rt.skin_list_font);
+    assert_eq!(rt.list_row_extra, 6);
     assert_eq!(rt.view_size(), Some((200, 400)));
     assert_eq!((rt.viewport_w, rt.viewport_h), (800, 600));
     assert_eq!((rt.columns, rt.column_width, rt.touch_slop), (2, 150, 9));

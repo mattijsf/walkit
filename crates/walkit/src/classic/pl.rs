@@ -101,20 +101,26 @@ impl SkinRuntime {
     }
 
     /// The rows a playlist window `h` tall shows: `(h - 60) / row`.
-    pub(crate) fn classic_pl_rows(h: i32) -> i32 {
-        ((h - 60) / ROW_HEIGHT).max(0)
+    pub(crate) fn classic_pl_rows(&self, h: i32) -> i32 {
+        ((h - 60) / self.classic_row()).max(0)
+    }
+
+    /// A playlist row's height: the font's (Winamp's 15) and what the host adds
+    /// (`Presentation::list_row_extra`).
+    pub(crate) fn classic_row(&self) -> i32 {
+        ROW_HEIGHT + self.list_row_extra
     }
 
     /// The first row shown, clamped to the rows that fit under the list's end.
     pub(crate) fn classic_pl_scroll(&self, h: i32) -> i32 {
-        let past = self.player.tracks().len() as i32 - Self::classic_pl_rows(h);
+        let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
         self.classic_pl_scroll.clamp(0, past.max(0))
     }
 
     /// How far down the track the thumb sits for `scroll` of `count` rows: the track is
     /// `h - 76` long past the thumb, shared out over the rows past the window.
-    pub(crate) fn classic_pl_thumb(h: i32, count: i32, scroll: i32) -> i32 {
-        let past = count - Self::classic_pl_rows(h);
+    pub(crate) fn classic_pl_thumb(&self, h: i32, count: i32, scroll: i32) -> i32 {
+        let past = count - self.classic_pl_rows(h);
         if past <= 0 {
             return 0;
         }
@@ -179,7 +185,8 @@ impl SkinRuntime {
         // the list's background, under the frame, and the rows on it: "n. Title" with the
         // length at the right, the current song in its own color
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
-        let rows = Self::classic_pl_rows(h);
+        let rows = self.classic_pl_rows(h);
+        let row = self.classic_row();
         // in the skin's letters, the rows go into one block of pixels over the list
         let ink = if self.skin_list_font {
             self.classic_list_ink()
@@ -189,7 +196,7 @@ impl SkinRuntime {
         let block_w = w - 32;
         let mut block = ink
             .as_ref()
-            .map(|_| vec![0u32; (block_w.max(0) * rows.max(0) * ROW_HEIGHT) as usize]);
+            .map(|_| vec![0u32; (block_w.max(0) * rows.max(0) * row) as usize]);
         let mut lettered = false;
         let selected = self.classic_selected_row;
         let scroll = self.classic_pl_scroll(h).max(0) as usize;
@@ -199,9 +206,9 @@ impl SkinRuntime {
             .skip(scroll)
             .take(rows.max(0) as usize)
         {
-            let y = ROW_TOP + (i - scroll) as i32 * ROW_HEIGHT;
+            let y = ROW_TOP + (i - scroll) as i32 * row;
             if selected == Some(i as i32) {
-                p.fill(12, y, w - 32, ROW_HEIGHT, style.selected_bg);
+                p.fill(12, y, w - 32, row, style.selected_bg);
             }
             let color = if i as i32 == current {
                 style.current
@@ -211,8 +218,7 @@ impl SkinRuntime {
             let time = time_text(t.length_ms / 1000);
             if let (Some(ink), Some(block)) = (ink.as_deref(), block.as_mut()) {
                 if listfont::covers(&t.title) {
-                    let top =
-                        (i - scroll) as i32 * ROW_HEIGHT + (ROW_HEIGHT - listfont::CELL_H) / 2;
+                    let top = (i - scroll) as i32 * row + (row - listfont::CELL_H) / 2;
                     Self::letter_row(ink, block, block_w, top, i + 1, &t.title, &time, color.0);
                     lettered = true;
                     continue;
@@ -222,23 +228,17 @@ impl SkinRuntime {
             p.text(
                 &format!("{}. {}", i + 1, t.title),
                 font,
-                (12, y, w - 32, ROW_HEIGHT),
+                (12, y, w - 32, row),
                 color,
                 Align::Left,
             );
-            p.text(
-                &time,
-                font,
-                (12, y, w - 32, ROW_HEIGHT),
-                color,
-                Align::Right,
-            );
+            p.text(&time, font, (12, y, w - 32, row), color, Align::Right);
         }
         if let Some(block) = block.filter(|_| lettered) {
             p.out.push(DrawCmd::Pixels {
-                rect: Rect::new(at.left + 12, at.top + ROW_TOP, block_w, rows * ROW_HEIGHT),
+                rect: Rect::new(at.left + 12, at.top + ROW_TOP, block_w, rows * row),
                 w: block_w,
-                h: rows * ROW_HEIGHT,
+                h: rows * row,
                 argb: std::rc::Rc::from(block.into_boxed_slice()),
                 alpha: 255,
                 stable: false,
@@ -297,7 +297,7 @@ impl SkinRuntime {
         }
         // the scrollbar's thumb: down the track by the scroll's share of the
         // rows past the window, pressed while a finger holds it
-        let thumb = Self::classic_pl_thumb(h, tracks.len() as i32, scroll as i32);
+        let thumb = self.classic_pl_thumb(h, tracks.len() as i32, scroll as i32);
         let held = self
             .classic_press_on(o)
             .is_some_and(|p| p.control == Control::PlScroll);
