@@ -326,14 +326,34 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        self.z_windows()
+        self.drawings()
             .into_iter()
-            .map(|l| {
-                let cmds = self.draw_layout(l);
-                let cmds = self.scaled_cmds(l, cmds);
-                (self.window_rect_of(l), cmds)
-            })
+            .map(|(l, cmds, _)| (self.window_rect_of(l), self.scaled_cmds(l, cmds)))
             .collect()
+    }
+
+    /// Every window's drawing, bottom to top, with the object that drew each command. After a
+    /// tick in which only the clock moved, the windows that do not read it keep their last
+    /// drawing.
+    fn drawings(&mut self) -> Vec<(ObjId, Vec<DrawCmd>, Vec<Option<ObjId>>)> {
+        let clock_only = self.clock_dirty && !self.dirty;
+        self.clock_dirty = false;
+        let moved = std::mem::take(&mut self.clock_windows);
+        let mut out = Vec::new();
+        for l in self.z_windows() {
+            let kept = self
+                .window_drawings
+                .get(&l)
+                .filter(|_| clock_only && !moved.contains(&l))
+                .cloned();
+            let (cmds, owners) = kept.unwrap_or_else(|| {
+                let drawn = self.draw_layout_owned(l);
+                self.window_drawings.insert(l, drawn.clone());
+                drawn
+            });
+            out.push((l, cmds, owners));
+        }
+        out
     }
 
     /// Window `l`'s drawing at its scale.
@@ -362,13 +382,12 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        self.z_windows()
+        self.drawings()
             .into_iter()
-            .map(|l| {
-                let rect = self.window_rect_of(l);
-                let (cmds, owners) = self.draw_layout_owned(l);
-                let cmds = self.scaled_cmds(l, cmds);
-                DrawnWindow { rect, cmds, owners }
+            .map(|(l, cmds, owners)| DrawnWindow {
+                rect: self.window_rect_of(l),
+                cmds: self.scaled_cmds(l, cmds),
+                owners,
             })
             .collect()
     }

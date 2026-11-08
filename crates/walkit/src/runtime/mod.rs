@@ -260,6 +260,17 @@ pub struct SkinRuntime {
     pub(crate) touch: bool,
     pub(crate) last_pointer: (i32, i32),
     dirty: bool,
+    /// The clock alone moved a classic window (its title, time, vis): the next draw redraws only
+    /// the windows that read the clock and keeps the others' last drawing.
+    clock_dirty: bool,
+    /// When a classic window next changes by itself; 0 for at once.
+    classic_next_at: i64,
+    /// The windows the clock alone moved since the last draw.
+    clock_windows: HashSet<ObjId>,
+    /// The second a classic playlist's time showed when it last drew, and whether it counted down.
+    clock_second: (i32, bool),
+    /// Each window's last drawing, for the windows a clock-only draw keeps.
+    window_drawings: HashMap<ObjId, (Vec<DrawCmd>, Vec<Option<ObjId>>)>,
     needs_layout: bool,
     scripts_started: bool,
     last_status: Status,
@@ -271,6 +282,9 @@ pub struct SkinRuntime {
     last_eq_on: bool,
     last_preamp: i32,
     last_bands: Vec<i32>,
+    last_pan: i32,
+    last_format: (i32, i32, i32),
+    last_position: i32,
     /// Every object of a window, in drawing order, from the last layout pass.
     pub(crate) all_objects: Vec<ObjId>,
     sliders: Vec<ObjId>,
@@ -321,6 +335,13 @@ impl SkinRuntime {
         let last_eq_on = player.eq_enabled();
         let last_preamp = player.eq_preamp();
         let last_bands = player.eq_bands();
+        let last_pan = player.pan();
+        let last_format = (
+            player.bitrate_kbps(),
+            player.sample_rate_khz(),
+            player.channels(),
+        );
+        let last_position = player.position_ms();
         SkinRuntime {
             files,
             classic_regions: HashMap::new(),
@@ -424,6 +445,11 @@ impl SkinRuntime {
             classic_list_ink_read: false,
             last_pointer: (0, 0),
             dirty: true,
+            clock_dirty: false,
+            classic_next_at: 0,
+            clock_windows: HashSet::new(),
+            clock_second: (-1, false),
+            window_drawings: HashMap::new(),
             needs_layout: true,
             scripts_started: false,
             last_status,
@@ -435,6 +461,9 @@ impl SkinRuntime {
             last_eq_on,
             last_preamp,
             last_bands,
+            last_pan,
+            last_format,
+            last_position,
             all_objects: Vec::new(),
             sliders: Vec::new(),
             texts: Vec::new(),

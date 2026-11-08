@@ -2715,3 +2715,41 @@ fn double_size_keeps_every_window_docked_there_and_back() {
     rt.ensure_layout();
     assert_eq!(tops(&mut rt), start);
 }
+
+#[test]
+fn between_title_steps_nothing_is_due_and_only_the_clock_windows_draw_again() {
+    use crate::classic::main::TITLE_STEP_MS;
+    let now = Rc::new(std::cell::Cell::new(0i64));
+    let at = now.clone();
+    let clock: Clock = Rc::new(move || at.get());
+    let mut player = FakePlayer::new(clock.clone());
+    Player::set_track(
+        &mut player,
+        "A rather long song title that scrolls across the window",
+        600_000,
+    );
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    assert!(rt.tick(), "the first tick draws");
+    let first = rt.draw_windows();
+    now.set(TITLE_STEP_MS / 2);
+    assert!(
+        !rt.tick(),
+        "halfway to the title's next step nothing changes"
+    );
+    now.set(TITLE_STEP_MS);
+    assert!(rt.tick(), "the title steps");
+    let stepped = rt.draw_windows();
+    assert_ne!(
+        first[0].1, stepped[0].1,
+        "the main window drew its title on"
+    );
+    assert_eq!(first[1].1, stepped[1].1, "the equalizer kept its drawing");
+    // what a clock-only draw kept is what a fresh drawing gives
+    rt.repaint();
+    assert_eq!(rt.draw_windows()[1].1, stepped[1].1);
+    // a balance the host changes draws at once, playing or not
+    rt.player.set_pan(60);
+    assert!(rt.tick());
+}
