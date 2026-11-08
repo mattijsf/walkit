@@ -26,8 +26,11 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
-/// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it.
-pub(super) const ROW_FONT: i32 = 12;
+/// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it:
+/// Winamp's playlist font is `pe_fontsize` pixels to the em at 96 dpi;
+/// a host reads a size as points, so it goes out as 4/3 of that (16 for an em
+/// of 12 pixels).
+pub(super) const ROW_FONT: i32 = 12 * 4 / 3;
 /// A row's height: the font's `tmHeight`, 15 for Arial at 12 in the reference
 /// VM, where 3 rows fill a playlist 116 tall.
 pub(crate) const ROW_HEIGHT: i32 = 15;
