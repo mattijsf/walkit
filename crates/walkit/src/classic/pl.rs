@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! The classic playlist editor's frame, pixel for pixel as Winamp 5.666 paints it:
-//! the title bar of corners, tiles and the title, the sides
-//! tiled down, and the bottom bar with its buttons, the list's background between them.
+//! The classic playlist editor's frame, pixel for pixel as Winamp 5.666 paints it: the title bar
+//! of corners, tiles and the title, the sides tiled down, and the bottom bar with its buttons,
+//! the list's background between them.
 
 use crate::classic::font;
 use crate::classic::listfont::{self, ListInk};
@@ -33,7 +33,7 @@ fn minutes_text(seconds: i32) -> String {
 }
 
 /// Entry `n` (1 the first) of `count` as the list numbers it, padded with spaces to the
-/// count's digits ("%2d. " from 10 entries).
+/// count's digits (" 1. " in a list of 10 or more).
 fn numbered(n: usize, count: usize, title: &str) -> String {
     let width = count.max(1).to_string().len();
     format!("{n:>width$}. {title}")
@@ -42,7 +42,7 @@ fn numbered(n: usize, count: usize, title: &str) -> String {
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
-/// least between the title and the length, as Andamp's own playlist sets them.
+/// least between the title and the length, as Andamp's own playlist (a phone's) sets them.
 const LIST_LEFT: i32 = 2;
 const LIST_RIGHT: i32 = 3;
 const LIST_GAP: i32 = 4;
@@ -153,7 +153,7 @@ impl SkinRuntime {
         }
     }
 
-    /// 2.91's song line (in cells): `(w - 40) / 5` cells from x 5 less the
+    /// 2.91's song line, in cells: `(w - 40) / 5` cells from x 5 less the
     /// length's and one, a cut title ending on the ellipsis; when the title fits, blanks fill
     /// those cells and one more; then a blank, and "m:ss" from `w - 29` less its cells.
     fn shade_line_291(p: &mut Painter, w: i32, line: &str, secs: i32) {
@@ -189,12 +189,12 @@ impl SkinRuntime {
         }
     }
 
-    /// The rows a playlist window `h` tall shows: `(h - 60) / row`.
+    /// The rows a playlist window `h` tall shows : `(h - 60) / row`.
     pub(crate) fn classic_pl_rows(&self, h: i32) -> i32 {
         ((h - 60) / self.classic_row()).max(0)
     }
 
-    /// A playlist row's height: the font's `tmHeight`, Arial's 5/4 of the em
+    /// A playlist row's height: the font's full height, Arial's 5/4 of the em
     /// (15 at Winamp's 12, where 3 rows fill a playlist 116 tall), and what the host adds
     /// (`Presentation::list_row_extra`).
     pub(crate) fn classic_row(&self) -> i32 {
@@ -207,8 +207,7 @@ impl SkinRuntime {
     }
 
     /// Sets the playlist font's size, pixels to the em, as Winamp's "playlist font size"
-    /// preference does (`pe_fontsize`: the font is that many pixels to the em); its rows grow
-    /// and shrink with it.
+    /// preference does (`pe_fontsize`, the em in pixels); its rows grow and shrink with it.
     pub fn set_classic_list_font_size(&mut self, px: i32) {
         let px = px.clamp(6, 40);
         if px != self.classic_list_font {
@@ -331,7 +330,6 @@ impl SkinRuntime {
                 }
             }
             // " m:ss " right-aligned at the row's end, and the title up to it, cut short on "..."
-            // (as Windows ends a cut line with an ellipsis)
             let face = Some(&style.font);
             let def = Self::classic_pl_font(&style.font);
             let time = format!(" {} ", minutes_text(t.length_ms / 1000));
@@ -503,8 +501,8 @@ impl SkinRuntime {
                 p.blit("text.bmp", 142, 0, 5, 6, x, y);
             }
         } else {
-            // the time played, or the time left with a minus before it (the minus drawn as
-            // 3 columns of text.bmp's "-" where the blank goes)
+            // the time played, or the time left with a minus before it (the minus drawn as 3
+            // columns of text.bmp's "-" where the blank goes)
             let length = self.player.length_ms();
             let remaining = self.classic_remaining && length > 0;
             let ms = if remaining {

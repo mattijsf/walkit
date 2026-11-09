@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! A classic skin's cursors: which of its 29 cursor files Winamp shows over each part of each
-//! window, and the files themselves decoded. Winamp 5.666 loads each
-//! (as Windows loads a cursor file, so a `.cur` name may hold an animated cursor) and picks one per
-//! part of the main window, the equalizer, the playlist,
-//! the video window and the gen windows.
+//! window, and the files themselves decoded. Winamp 5.666 loads each as Windows loads a cursor
+//! file, so a `.cur` name may hold an animated cursor, and picks one per part of the main window,
+//! the equalizer, the playlist, the video window and the gen windows.
 
 use super::style::ClassicStyle;
 use super::ClassicWindow;
 
 /// What a skin's cursor stands for, and what the host shows when the skin has no file for it
-/// and no base skin is behind it (Winamp then shows its own arrow with a small sign: resources
-/// 205 to 210).
+/// and no base skin is behind it (Winamp then shows its own arrow with a small sign).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorKind {
     /// The plain arrow.
@@ -29,7 +27,7 @@ pub enum CursorKind {
 
 impl CursorKind {
     /// The base skin's file (under [`crate::files::BASE_PREFIX`]) that holds Winamp's own cursor
-    /// of this kind: base 2.91's look exactly like Winamp's own.
+    /// of this kind (base 2.91's cursors are the ones Winamp shows when a skin has none).
     fn winamps_own(self) -> &'static str {
         match self {
             CursorKind::Move => "wasabi-base/titlebar.cur",
@@ -42,7 +40,8 @@ impl CursorKind {
     }
 }
 
-/// The cursor files Winamp loads, in its slot order, each with what it stands for.
+/// The cursor files a classic skin holds, one entry per place a classic window shows one, each
+/// with what it stands for.
 pub const CURSOR_FILES: [(&str, CursorKind); 29] = {
     use CursorKind::{Arrow, Close, HorizontalSlide, Move, Resize, VerticalSlide};
     [
@@ -78,7 +77,7 @@ pub const CURSOR_FILES: [(&str, CursorKind); 29] = {
     ]
 };
 
-/// A box the cursor tables hold: left, top, right, bottom, inclusive; a negative value counts
+/// A box a cursor covers: left, top, right, bottom, inclusive; a negative value counts
 /// from the window's right or bottom edge.
 type Box4 = (i32, i32, i32, i32);
 

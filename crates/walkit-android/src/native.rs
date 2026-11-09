@@ -1212,6 +1212,46 @@ pub fn rt_right_click<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong,
         .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// Makes the moves and the release of the press now held land exactly where they say.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_pointer_precise<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    precise: jboolean,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.set_pointer_precise(precise)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// The controls of the window the press now held is on: left, top, width, height and 1 when it
+/// asks for the magnifier, five ints each, in stack pixels.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_press_controls<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let v: Vec<i32> = with_rt(env, h, |r| {
+            r.rt.press_controls()
+                .iter()
+                .flat_map(|c| {
+                    [
+                        c.rect.left,
+                        c.rect.top,
+                        c.rect.width,
+                        c.rect.height,
+                        i32::from(c.magnify),
+                    ]
+                })
+                .collect()
+        })?;
+        jints(env, &v)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// Ends the press under the finger without a release.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_pointer_cancel<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {

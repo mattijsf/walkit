@@ -8,8 +8,8 @@ use crate::draw::Rgb;
 /// The palette: 24 colors.
 pub type Palette = [Rgb; 24];
 
-/// Winamp's own palette, for a skin without `viscolor.txt`: the colors Winamp shows then
-/// (the same 24 colors in 5.666 and 2.91).
+/// Winamp's own palette, for a skin without `viscolor.txt` (the same 24 colors in 2.91 and
+/// 5.666, as their analyzers show them).
 pub const BASE: Palette = [
     Rgb(0x000000),
     Rgb(0x181829),

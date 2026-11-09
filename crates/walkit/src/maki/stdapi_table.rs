@@ -2,7 +2,24 @@
 
 //! The MAKI standard library as a table: each class by GUID, with its name, its parent and each
 //! method with its parameter count and return kind. Transcribed from std.mi through Webamp
-//! Modern's reading of it (MIT, Jordan Eldredge).
+//! Modern's reading of it, under the MIT License:
+//!
+//! Copyright (c) 2015 Jordan Eldredge
+//!
+//! Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//! and associated documentation files (the "Software"), to deal in the Software without
+//! restriction, including without limitation the rights to use, copy, modify, merge, publish,
+//! distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+//! Software is furnished to do so, subject to the following conditions:
+//!
+//! The above copyright notice and this permission notice shall be included in all copies or
+//! substantial portions of the Software.
+//!
+//! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+//! BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+//! NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+//! DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /// Return kinds: I int, F float, D double, B boolean, S string, V void, O object, A any.
 #[rustfmt::skip]

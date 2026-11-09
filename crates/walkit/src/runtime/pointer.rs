@@ -93,6 +93,9 @@ pub(crate) struct PointerState {
     /// What `has_skin_menu` answered for each object since the last layout pass.
     pub(crate) skin_menus: HashMap<ObjId, bool>,
     skin_menu_reads: i64,
+    /// Whether the moves and the release of the press now held land exactly where they say: a
+    /// host's magnifier steers them, so no touch slop keeps the press on its control.
+    pub(crate) precise: bool,
 }
 
 impl SkinRuntime {
@@ -217,8 +220,13 @@ impl SkinRuntime {
         ) || self.is_grip(o)
     }
 
+    /// Whether a classic stack stretches to fill the view, where its grips size nothing.
+    pub(crate) fn classic_filled(&self) -> bool {
+        self.stretch_last && self.view_size.is_some() && !self.free_windows()
+    }
+
     /// Whether `o` is a window's resize grip: its `resize`, as a script last set it, names an edge, and it lies in a window.
-    fn is_grip(&self, o: ObjId) -> bool {
+    pub(crate) fn is_grip(&self, o: ObjId) -> bool {
         let Some(edges) = self.objects[o]
             .base
             .attr("resize")
@@ -376,19 +384,22 @@ impl SkinRuntime {
     }
 
     /// Squared distance from a point to `o`'s rectangle; 0 inside.
-    fn distance2(&self, o: ObjId, x: i32, y: i32) -> i64 {
+    pub(crate) fn distance2(&self, o: ObjId, x: i32, y: i32) -> i64 {
         let r = self.objects[o].base.rect;
         let dx = (r.left - x).max(0).max(x - (r.right() - 1)) as i64;
         let dy = (r.top - y).max(0).max(y - (r.bottom() - 1)) as i64;
         dx * dx + dy * dy
     }
 
-    /// What a finger at a point means; see the Kotlin engine's `touchTarget` for the order.
+    /// What a finger at a point means, in the order of the reference engine's `touchTarget`.
     pub(crate) fn touch_target(&mut self, sx: i32, sy: i32) -> Option<ObjId> {
         let window = self.window_at(sx, sy)?;
         let (x, y) = self.layout_point(window, sx, sy);
         let hit = self.hit_test(window, x, y);
         if let Some(h) = hit {
+            if let Some(grip) = self.classic_grip_near(h, x, y) {
+                return Some(grip);
+            }
             // a status bar is hit only on its command buttons, which sit over the frame's
             // resize corner in MMD3
             if self.is_control(h)
@@ -458,6 +469,7 @@ impl SkinRuntime {
         self.gesture(true, |rt| {
             rt.aim_menu(sx, sy, seq);
             rt.pointer.move_seq = None;
+            rt.pointer.precise = false;
             // apart, a press raises its window; a press on the desktop between the windows
             // reaches no window (window_at falls back to the nearest one for the stack)
             if rt.free_windows() {
@@ -522,10 +534,8 @@ impl SkinRuntime {
         self.captured = Some(target);
         if let Some(window) = self.layout_object(target) {
             // a classic stack stretched to fill the view keeps its size: its grip sizes nothing
-            let filled = self.stretch_last
-                && self.view_size.is_some()
-                && !self.free_windows()
-                && self.objects[target].base.id.starts_with("classic.");
+            let filled =
+                self.classic_filled() && self.objects[target].base.id.starts_with("classic.");
             if self.is_grip(target) && !filled {
                 let edges = self.objects[target]
                     .base
@@ -591,7 +601,7 @@ impl SkinRuntime {
             let dx = sx - d.sx;
             let dy = sy - d.sy;
             // still a tap or a long press
-            if dx * dx + dy * dy <= self.touch_slop * self.touch_slop {
+            if !self.pointer.precise && dx * dx + dy * dy <= self.touch_slop * self.touch_slop {
                 return;
             }
             self.send_deferred();
@@ -641,7 +651,11 @@ impl SkinRuntime {
         };
         // a finger that drifts a little still counts as on the control
         let r = self.objects[target].base.rect;
-        let slop = self.touch_slop;
+        let slop = if self.pointer.precise {
+            0
+        } else {
+            self.touch_slop
+        };
         let inside = x >= r.left - slop
             && x < r.right() + slop
             && y >= r.top - slop
@@ -938,6 +952,47 @@ impl SkinRuntime {
         picked.unwrap_or(0)
     }
 
+    /// Makes the moves and the release of the press now held land exactly where they say, as a
+    /// mouse's do: no touch slop keeps the press on its control or a finger on a button. For a
+    /// host's magnifier, which steers the press with a finger geared down; the next
+    /// `pointer_down` turns it off.
+    pub fn set_pointer_precise(&mut self, precise: bool) {
+        self.pointer.precise = precise;
+    }
+
+    /// The controls of the window the press now held is on, in stack pixels, for a host's
+    /// magnifier to show and to steer the press between; empty without a press. A classic
+    /// window lists each control by the box it answers in, and, while one of its playlist
+    /// buttons is held, the pictures of its menu, which ask for the magnifier.
+    pub fn press_controls(&mut self) -> Vec<crate::host::TouchControl> {
+        if let Some(press) = self.classic_press {
+            return self.classic_controls(press);
+        }
+        let Some(held) = self.captured else {
+            return Vec::new();
+        };
+        let Some(window) = self.layout_object(held) else {
+            return Vec::new();
+        };
+        let at = self.window_rect_of(window);
+        self.all_objects
+            .clone()
+            .into_iter()
+            .filter(|o| {
+                self.layout_object(*o) == Some(window)
+                    && self.is_control(*o)
+                    && self.touchable(*o, false)
+            })
+            .map(|o| {
+                let r = self.objects[o].base.rect;
+                crate::host::TouchControl {
+                    rect: Rect::new(at.left + r.left, at.top + r.top, r.width, r.height),
+                    magnify: false,
+                }
+            })
+            .collect()
+    }
+
     /// Ends the press under the finger without a release.
     pub fn pointer_cancel(&mut self) {
         self.gesture(false, |rt| rt.end_press());
@@ -1175,7 +1230,6 @@ impl SkinRuntime {
     }
 }
 
-/// `v` kept to at least `min` and at most `max` (none when 0) and `view`, the view's side winning over a minimum.
 /// `v` rounded up to a whole number of `step`s, or down when the next step does not fit.
 fn stepped(v: i32, step: i32, fit: impl Fn(i32) -> i32) -> i32 {
     let up = crate::classic::touch::classic_step_up(v, step);
@@ -1186,6 +1240,8 @@ fn stepped(v: i32, step: i32, fit: impl Fn(i32) -> i32) -> i32 {
     }
 }
 
+/// `v` kept to at least `min` and at most `max` (none when 0) and `view`, the view's side winning
+/// over a minimum.
 fn within(v: i32, min: i32, max: i32, view: i32) -> i32 {
     let top = if max > 0 { max.min(view) } else { view };
     v.min(top).max(min.min(top)).max(1)

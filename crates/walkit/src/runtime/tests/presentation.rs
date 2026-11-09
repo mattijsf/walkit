@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! How the host shows a skin's windows, as one value (the reference's `PresentationTest`).
+//! How the host shows a skin's windows, as one value (Andamp's `PresentationTest`).
 
 use super::runtime;
 use crate::host::Presentation;

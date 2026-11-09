@@ -3,7 +3,7 @@
 //! How a phone sets out a skin's windows as one stack: each window docked under what shows of
 //! the main one at its natural height, the last list window filling the height upright, list
 //! windows in a second column beside the main one when the host asks for two columns, and a
-//! touch beside the stack meaning the nearest window (the reference's `StackArrangeTest`).
+//! touch beside the stack meaning the nearest window (Andamp's `StackArrangeTest`).
 
 use super::runtime;
 use crate::draw::Rect;

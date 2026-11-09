@@ -103,7 +103,7 @@ impl ClassicStyle {
     }
 
     /// How long the title row's text ("Volume: 50%") stays after it last changed: 5.666
-    /// keeps it for a second after each change and
+    /// shows it for a second after each change and
     /// keeps it past the release; 2.91 has no timer and gives the title back on release.
     pub(crate) fn status_hold_ms(self) -> Option<i64> {
         match self {
@@ -113,11 +113,11 @@ impl ClassicStyle {
     }
 
     /// The title row's text while equalizer slider `n` (0 the preamp) is dragged to step
-    /// `step` 0..=63: dB = (step - 31.5) / 31.5 * -12, within 0.32 of zero shown as zero.
-    /// 5.666 writes "EQ: 70Hz: +3.0 dB"; 2.91 "EQ: 60Hz: +3.0 db" with its
-    /// own band names and the tenths rounded from the hundredths.
-    pub(crate) fn eq_text(self, n: usize, step: i32) -> String {
-        let db = (f64::from(step) - 31.5) / 31.5 * -12.0;
+    /// `band_step` 0..=63: dB = (step - 31.5) / 31.5 * -12, within 0.32 of zero shown as zero.
+    /// 5.666 writes "EQ: 70Hz: +3.0 dB"; 2.91 "EQ: 60Hz: +3.0 db" with its own band names and
+    /// the tenths rounded from the hundredths.
+    pub(crate) fn eq_text(self, n: usize, band_step: i32) -> String {
+        let db = (f64::from(band_step) - 31.5) / 31.5 * -12.0;
         let db = if (-0.32..0.32).contains(&db) { 0.0 } else { db };
         match self {
             Self::Winamp291 => {

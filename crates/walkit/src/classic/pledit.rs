@@ -76,7 +76,7 @@ pub fn parse(text: &str) -> PleditStyle {
     s
 }
 
-/// A color as Winamp reads one: an optional '#', then the hex digits, of any
+/// A color as Winamp reads one: an optional '#', then as many hex digits as there are, of any
 /// count (`#fff` is 0x000fff; past 0x7fffffff it stops there), the low 24 bits as RGB.
 fn color(value: &str) -> Option<Rgb> {
     let hex = value.trim();
@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn a_color_is_read_as_winamp_reads_hex() {
+    fn a_color_is_read_as_hex_up_to_its_last_digit() {
         let normal = |v: &str| parse(&format!("[Text]\nNormal={v}\n")).normal;
         assert_eq!(normal("#1a2b3c"), Rgb(0x1a2b3c));
         assert_eq!(normal("1a2b3c"), Rgb(0x1a2b3c), "the '#' may be left out");

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! The generic window of a classic skin, framed with `gen.bmp`: Winamp's media library and the
-//! windows plug-ins embed. Drawn as Winamp 5.666 draws its embed window:
-//! the frame, the title bar, the close button and
-//! the font.
+//! windows plug-ins embed. Drawn as Winamp 5.666 draws its embed window: the frame, the title
+//! bar, the close button and the font.
 
 use super::main::Painter;
 use crate::draw::{DrawCmd, Rect, Rgb};

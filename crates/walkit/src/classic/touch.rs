@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Touches on the classic windows, as Winamp's classic windows handle the mouse: each
-//! control answers on its own box (in the main window,
-//! the equalizer and the playlist), most act on release over
-//! the control and a few on the press, the sliders follow the finger from where they were
-//! grabbed, the control buttons hand the press along as the finger slides over them, a drag on
-//! any place without a control moves the window, and double taps do what Winamp's double clicks
-//! do.
+//! Touches on the classic windows, as Winamp's classic windows handle the mouse: each control
+//! answers on its own box in the main window, the equalizer and the playlist, most act on
+//! release over the control and a few on the press, the sliders follow the finger from where
+//! they were grabbed, the control buttons hand the press along as the finger slides over them, a
+//! drag on any place without a control moves the window, and double taps do what Winamp's double
+//! clicks do.
 
 use crate::classic::ClassicWindow;
 use crate::draw::Rect;
@@ -14,7 +13,7 @@ use crate::player::Status;
 use crate::runtime::SkinRuntime;
 
 /// A control of a classic window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Control {
     /// The bar a drag moves the window by.
     TitleBar,
@@ -114,7 +113,7 @@ pub enum Control {
 }
 
 /// The playlist's bottom buttons, each with a menu of stacked pictures from `pledit.bmp`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlMenu {
     /// ADD: a URL, a folder, files.
     Add,
@@ -249,6 +248,9 @@ pub struct ClassicPress {
     pub dragged: bool,
     /// Whether the press landed on a picture of a menu a tap left open, under touch.
     pub on_open_menu: bool,
+    /// The point of the control the press took: where it began, or, under touch, the point of
+    /// the control nearest to a finger that landed beside it.
+    pub aim: (i32, i32),
 }
 
 /// How far a finger moves on the playlist's rows before the press scrolls them instead of
@@ -302,10 +304,8 @@ pub fn control_at(
     match w {
         ClassicWindow::Main => {
             // the box each control answers in (probed in the VM): title buttons, clutter bar,
-            // time and vis, sliders,
-            // position bar, control buttons, eject,
-            // shuffle and repeat, the window toggles, the
-            // logo, the title row
+            // time and vis, sliders, position bar, control buttons, eject, shuffle and repeat,
+            // the window toggles, the logo, the title row
             let boxes: [(Control, i32, i32, i32, i32); 26] = [
                 (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
@@ -342,9 +342,8 @@ pub fn control_at(
             Some(if y < 14 { TitleBar } else { Background })
         }
         ClassicWindow::MainShade => {
-            // the bar's transport buttons split x 168..=224 at 176, 186, 195, 204 and 215
-            // and its mini position bar is x 228..=242, its time
-            // x 129..=157, its small vis x 78..=116
+            // the bar's transport buttons split x 168..=224 at 176, 186, 195, 204 and 215; its
+            // mini position bar is x 228..=242, its time x 129..=157, its small vis x 78..=116
             let boxes: [(Control, i32, i32, i32, i32); 13] = [
                 (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
@@ -511,6 +510,58 @@ pub fn control_at(
     }
 }
 
+/// Under touch, the control a finger at `x`, `y` of window `w` (sized `width` x `height`, its
+/// playlist rows `row` tall) means when it lands beside every control: the nearest that `takes`
+/// accepts within `reach`, with its point nearest the finger and the square of the distance. A
+/// slider is reached only across its track, never past its ends, so the finger takes it at the
+/// value under the finger.
+pub(crate) fn nearest_control(
+    w: ClassicWindow,
+    (width, height, row): (i32, i32, i32),
+    (x, y): (i32, i32),
+    reach: i32,
+    takes: impl Fn(Control) -> bool,
+) -> Option<(Control, (i32, i32), i32)> {
+    let mut best: Option<(Control, (i32, i32), i32)> = None;
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            let d2 = dx * dx + dy * dy;
+            if d2 > reach * reach || best.is_some_and(|(_, _, b)| d2 >= b) {
+                continue;
+            }
+            let (cx, cy) = (x + dx, y + dy);
+            if cx < 0 || cy < 0 || cx >= width || cy >= height {
+                continue;
+            }
+            let Some(c) = control_at(w, width, height, row, cx, cy) else {
+                continue;
+            };
+            let across = match c {
+                Control::Volume
+                | Control::Balance
+                | Control::Position
+                | Control::ShadeVolume
+                | Control::ShadeBalance
+                | Control::ShadePosition => dx == 0,
+                Control::EqSlider(_) | Control::PlScroll => dy == 0,
+                _ => true,
+            };
+            if across && takes(c) {
+                best = Some((c, (cx, cy), d2));
+            }
+        }
+    }
+    best
+}
+
+/// Whether `c` is one of a title bar's buttons.
+fn is_title_button(c: Control) -> bool {
+    matches!(
+        c,
+        Control::Menu | Control::Minimize | Control::Shade | Control::Close
+    )
+}
+
 impl SkinRuntime {
     /// The classic window kind of object `o`.
     fn classic_kind(&self, o: ObjId) -> Option<ClassicWindow> {
@@ -525,6 +576,136 @@ impl SkinRuntime {
         self.classic_press.filter(|p| p.object == o)
     }
 
+    /// What a press at `px`, `py` of classic window `o` (of kind `w`) takes, and the point of
+    /// it: the control there, the main window's vis only while something plays. Under touch a
+    /// finger on a place without a control takes the nearest control within the touch slop, and
+    /// one on the title bar the nearest of its buttons; farther off, the press moves the window.
+    pub(crate) fn classic_touch_control(
+        &self,
+        o: ObjId,
+        w: ClassicWindow,
+        px: i32,
+        py: i32,
+    ) -> Option<(Control, (i32, i32))> {
+        let rect = self.objects[o].base.rect;
+        let size = (rect.width, rect.height, self.classic_row());
+        let playing = self.player.status() == Status::Playing;
+        let shown = |c: Control| c != Control::Vis || playing;
+        let mut control = control_at(w, size.0, size.1, size.2, px, py)?;
+        if !shown(control) {
+            control = Control::Background;
+        }
+        if !self.touch {
+            return Some((control, (px, py)));
+        }
+        let near = match control {
+            // the equalizer's level labels set every band, too much for a finger beside them
+            Control::Background => nearest_control(w, size, (px, py), self.touch_slop, |c| {
+                shown(c)
+                    && !matches!(
+                        c,
+                        Control::Background | Control::TitleBar | Control::EqLevel(_)
+                    )
+            }),
+            Control::TitleBar => {
+                nearest_control(w, size, (px, py), self.touch_slop, is_title_button)
+            }
+            _ => None,
+        };
+        Some(near.map_or((control, (px, py)), |(c, at, _)| (c, at)))
+    }
+
+    /// Under touch, the corner grip of classic window `o`'s window that a finger at `px`, `py`
+    /// of it means: where the window has no control there and the grip lies within the touch
+    /// slop, nearer than any control.
+    pub(crate) fn classic_grip_near(&self, o: ObjId, px: i32, py: i32) -> Option<ObjId> {
+        let w = self.classic_kind(o)?;
+        let window = self.layout_object(o)?;
+        let rect = self.objects[o].base.rect;
+        let (x, y) = (px - rect.left, py - rect.top);
+        let size = (rect.width, rect.height, self.classic_row());
+        if !self.touch
+            || self.classic_filled()
+            || control_at(w, size.0, size.1, size.2, x, y) != Some(Control::Background)
+        {
+            return None;
+        }
+        let slop2 = i64::from(self.touch_slop) * i64::from(self.touch_slop);
+        let (grip, d) = self
+            .all_objects
+            .iter()
+            .copied()
+            .filter(|g| {
+                self.layout_object(*g) == Some(window)
+                    && self.is_grip(*g)
+                    && self.touchable(*g, true)
+            })
+            .map(|g| (g, self.distance2(g, px, py)))
+            .min_by_key(|(_, d)| *d)
+            .filter(|(_, d)| *d <= slop2)?;
+        let control = nearest_control(w, size, (x, y), self.touch_slop, |c| {
+            !matches!(c, Control::Background | Control::TitleBar)
+        });
+        control
+            .is_none_or(|(_, _, c)| d <= i64::from(c))
+            .then_some(grip)
+    }
+
+    /// The controls of the classic window `press` is on, in stack pixels, each by the box it
+    /// answers in; while a playlist button is held, its menu's pictures too.
+    pub(crate) fn classic_controls(
+        &mut self,
+        press: ClassicPress,
+    ) -> Vec<crate::host::TouchControl> {
+        let o = press.object;
+        let (Some(w), Some(window)) = (self.classic_kind(o), self.layout_object(o)) else {
+            return Vec::new();
+        };
+        let at = self.window_rect_of(window);
+        let r = self.objects[o].base.rect;
+        let row = self.classic_row();
+        let mut boxes: Vec<(Control, (i32, i32, i32, i32))> = Vec::new();
+        let mut index: std::collections::HashMap<Control, usize> = std::collections::HashMap::new();
+        for y in 0..r.height {
+            for x in 0..r.width {
+                let Some(c) = control_at(w, r.width, r.height, row, x, y) else {
+                    continue;
+                };
+                if matches!(c, Control::Background | Control::TitleBar) {
+                    continue;
+                }
+                if let Some(i) = index.get(&c) {
+                    let b = &mut boxes[*i].1;
+                    *b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+                } else {
+                    index.insert(c, boxes.len());
+                    boxes.push((c, (x, y, x, y)));
+                }
+            }
+        }
+        let left = at.left + r.left;
+        let top = at.top + r.top;
+        let mut out: Vec<crate::host::TouchControl> = boxes
+            .into_iter()
+            .map(|(_, (l, t, rr, b))| crate::host::TouchControl {
+                rect: Rect::new(left + l, top + t, rr - l + 1, b - t + 1),
+                magnify: false,
+            })
+            .collect();
+        if let Control::PlButton(b) = press.control {
+            // pl_menu_item_at: 22 by 18, the lowest ending at height - 12
+            let x = b.menu_left(r.width) + 3;
+            for i in 0..b.items() {
+                let bottom = r.height - 12 - 18 * i;
+                out.push(crate::host::TouchControl {
+                    rect: Rect::new(left + x, top + bottom - 17, 22, 18),
+                    magnify: true,
+                });
+            }
+        }
+        out
+    }
+
     /// Whether a drag from the press on `o` moves the window: it began on the title bar or on
     /// a place without a control.
     pub(crate) fn classic_moves_window(&self, o: ObjId) -> bool {
@@ -534,8 +715,8 @@ impl SkinRuntime {
 
     /// Whether a classic window's corner grip (the playlist's, a gen window's) takes a press at
     /// `px`, `py` of its window: the corner's triangle where the distances to the right and
-    /// bottom edges add up to 30 or less, as Winamp
-    /// has it; the rest of the 20 by 20 square goes to the window.
+    /// bottom edges add up to 30 or less, as Winamp has it; the rest of the 20 by 20 square goes
+    /// to the window.
     pub(crate) fn classic_grip_takes(&self, o: ObjId, px: i32, py: i32) -> bool {
         let id = self.objects[o].base.id.as_str();
         if !matches!(
@@ -588,6 +769,7 @@ impl SkinRuntime {
                         acted: false,
                         dragged: false,
                         on_open_menu: true,
+                        aim: (px, py),
                     });
                     return;
                 }
@@ -596,16 +778,9 @@ impl SkinRuntime {
             }
             self.classic_open_menu = None;
         }
-        let Some(mut control) = control_at(w, rect.width, rect.height, self.classic_row(), px, py)
-        else {
+        let Some((control, aim)) = self.classic_touch_control(o, w, px, py) else {
             return;
         };
-        let playing = self.player.status() == Status::Playing;
-        // the main window's vis answers only while something plays; else it is a place to
-        // move the window by
-        if control == Control::Vis && !playing {
-            control = Control::Background;
-        }
         let mut press = ClassicPress {
             object: o,
             control,
@@ -619,6 +794,7 @@ impl SkinRuntime {
             acted: false,
             dragged: false,
             on_open_menu: false,
+            aim,
         };
         self.classic_grab(&mut press, px);
         self.classic_follow(&mut press, px, py);
@@ -761,7 +937,7 @@ impl SkinRuntime {
     /// down.
     fn classic_near(&self, press: &ClassicPress, px: i32, py: i32) -> bool {
         let (dx, dy) = (px - press.from.0, py - press.from.1);
-        dx * dx + dy * dy <= self.touch_slop * self.touch_slop
+        !self.pointer.precise && dx * dx + dy * dy <= self.touch_slop * self.touch_slop
     }
 
     pub(crate) fn classic_pointer_up(&mut self, o: ObjId, px: i32, py: i32, inside: bool) {
@@ -859,11 +1035,11 @@ impl SkinRuntime {
         self.action(o, "MENU", None, None);
     }
 
-    /// A double tap, as Winamp's double clicks go (main window,
-    /// equalizer, playlist): the title row toggles the shade bar;
-    /// the main window's song title asks for the file info; its vis puts the mode back to what
-    /// it was before the taps and asks for the visualization plugin; a playlist row plays its
-    /// song; a playlist bottom button picks its lowest item.
+    /// A double tap, as Winamp's double clicks go in the main window, the equalizer and the
+    /// playlist: the title row toggles the shade bar; the main window's song title asks for the
+    /// file info; its vis puts the mode back to what it was before the taps and asks for the
+    /// visualization plugin; a playlist row plays its song; a playlist bottom button picks its
+    /// lowest item.
     pub(crate) fn classic_double_tap(&mut self, o: ObjId, px: i32, py: i32) {
         let Some(w) = self.classic_kind(o) else {
             return;
@@ -1050,8 +1226,8 @@ impl SkinRuntime {
         ));
     }
 
-    /// What the clutter bar's letter at `px`, `py` says while held (Winamp's own texts,
-    /// as the VM shows them), the always-on-top and double size ones by what a press would do.
+    /// What the clutter bar's letter at `px`, `py` says while held, the always-on-top and
+    /// double size ones by what a press would do.
     fn classic_clutter_text(&mut self, px: i32, py: i32) -> Option<String> {
         let row = self.classic_row();
         let on = |rt: &mut Self, kind| rt.host.window_open(kind) == Some(true);
@@ -1068,16 +1244,16 @@ impl SkinRuntime {
         Some(text.to_string())
     }
 
-    /// The title row's text for equalizer slider `n` (0 the preamp) at step `step`.
-    fn classic_say_eq(&mut self, n: usize, step: i32) {
-        self.classic_say(self.classic_style.eq_text(n, step));
+    /// The title row's text for equalizer slider `n` (0 the preamp) at step `band_step`.
+    fn classic_say_eq(&mut self, n: usize, band_step: i32) {
+        self.classic_say(self.classic_style.eq_text(n, band_step));
     }
 
     /// What a release over the pressed control does.
     fn classic_act(&mut self, o: ObjId, w: ClassicWindow, press: ClassicPress) {
         // a menu the control opens goes against the control
         let r = self.objects[o].base.rect;
-        self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.from)
+        self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.aim)
             .and_then(|b| {
                 let l = self.layout_object(o)?;
                 let b = Rect::new(r.left + b.left, r.top + b.top, b.width, b.height);

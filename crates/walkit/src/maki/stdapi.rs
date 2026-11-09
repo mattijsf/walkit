@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! The MAKI standard library: class GUIDs, their parents and each method's arity and return kind.
+//! The MAKI standard library: class GUIDs, their parents and each method's arity and return kind
+//! (the table in `stdapi_table`, transcribed from std.mi).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

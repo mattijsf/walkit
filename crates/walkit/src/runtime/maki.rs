@@ -129,7 +129,8 @@ fn same_guid(a: Option<&str>, b: &str) -> bool {
     })
 }
 
-/// A value read as a number as Winamp reads one from text: an optional sign and the leading digits, 0 for none.
+/// A value read as a number as Winamp reads one from text: an optional sign and the leading
+/// digits, 0 for none.
 pub(crate) fn wtoi(s: &str) -> i32 {
     let t = s.trim_start();
     let neg = t.starts_with('-');

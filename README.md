@@ -17,16 +17,19 @@ a generated layout and the host draws the same draw list.
 
 ## Status
 
-Early. The engine is ported from Andamp's Kotlin engine and checked by a trace of everything
-each engine does in a scripted run (see `ENGINEERING.md`): every scenario of the reference set
-(45 runs over 12 skins, scripts included) records the same trace in both engines, natively and
-through the wasm build in node, Chrome, Safari and Firefox, and `web/player.html` plays a skin
-in the browser on the same frames the Android library draws. Nothing is published yet.
+Early. The engine is ported from the Kotlin engine of
+[Andamp](https://github.com/mattijsf/andamp) (its `:modernskin` module, the reference engine)
+and checked by a trace of everything each engine does in a scripted run (see
+`ENGINEERING.md`): every scenario of the reference set (dozens of runs over 16 skins, scripts
+included) records the same trace in both engines, natively and through the wasm build in node,
+Chrome, Safari and Firefox, and `web/player.html` plays a skin in the browser on the same frames
+the Android library draws. No crate or AAR is released yet.
 
-The reference set is local: the skins are the `.wal` files of Andamp's `modernskin/src/test/
-resources`, the default element set a zip of Winamp's `wasabi` folder, and the fonts the
-default-set fonts folder of an Andamp checkout at current main (DejaVu Sans Condensed and
-Liberation Sans). None of it is in this repository.
+The reference set is local: the skins are other people's `.wal` files, the default element set
+a zip of Winamp's `wasabi` folder, and the fonts the free stand-ins Andamp ships for Windows'
+system fonts (DejaVu Sans Condensed and Liberation Sans, in Andamp's
+`modernskin/src/main/resources/nl/mattix/andamp/modernskin/defaultset/fonts`). None of the
+skins or the default set is in this repository.
 
 ## Building
 

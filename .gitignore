@@ -5,6 +5,3 @@ target/
 # traces of a local run, diffed by tools/trace-diff.sh, never committed
 traces/
 /web/dist/
-
-# the desktop app's dev-server config, with paths of this machine
-.claude/launch.json

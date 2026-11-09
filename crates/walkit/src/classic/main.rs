@@ -16,8 +16,7 @@ const TITLE_RIGHT: i32 = 265;
 const TITLE_TOP: i32 = 27;
 /// A title this wide or wider scrolls, with `  ***  ` between its turns.
 const SCROLL_FROM: i32 = 147;
-/// The title scrolls a cell every 200 ms (the VM showed 5 px steps every
-/// 205 ms on average).
+/// The title scrolls a cell every 200 ms (the VM showed 5 px steps every 205 ms on average).
 pub(crate) const TITLE_STEP_MS: i64 = 200;
 const TITLE_STEP_PX: i32 = 5;
 /// Paused, the time digits go dark and light again in turns of this long (the VM showed
@@ -243,8 +242,8 @@ impl SkinRuntime {
         if status != Status::Stopped {
             let length = self.player.length_ms();
             let dragging = press.filter(|(c, _, _)| *c == Control::Position);
-            // the thumb at the bar's 0..=219: the song's place out of 256 times 219 / 256
-            // or where the finger holds it
+            // the thumb at the bar's 0..=219: the song's place out of 256 times 219 / 256, or
+            // where the finger holds it
             let x = match dragging {
                 Some((_, _, p)) => p,
                 None if length > 0 => {
@@ -274,9 +273,8 @@ impl SkinRuntime {
         p.blit("cbuttons.bmp", 114, eject_y, 22, 16, 136, 89);
     }
 
-    /// The main window's shade bar (`titlebar.bmp` y 29 or 42, its digits and position bar
-    /// in shade mode): the strip, the time in small `text.bmp` digits at y 4, and the mini
-    /// position bar while something plays.
+    /// The main window's shade bar (`titlebar.bmp` y 29 or 42): the strip, the time in small
+    /// `text.bmp` digits at y 4, and the mini position bar while something plays.
     fn draw_classic_main_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let status = self.player.status();
         let active = self
@@ -608,10 +606,9 @@ impl Painter<'_> {
         });
     }
 
-    /// `text` in the platform's font at `size`, in the box `dx`, `dy`, `w` x `h`, `align`ed.
-    #[allow(clippy::too_many_arguments)]
     /// `text` in the system font `face` (the playlist's `pledit.txt` font, a system font named
     /// by its face; none for the host's own) in the box (x, y, width, height) of the window.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn text(
         &mut self,
         text: &str,

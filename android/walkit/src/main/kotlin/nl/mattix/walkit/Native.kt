@@ -348,6 +348,14 @@ internal object Native {
     @JvmStatic external fun rtPointerCancel(h: Long)
 
     @JvmStatic
+    external fun rtSetPointerPrecise(
+        h: Long,
+        precise: Boolean,
+    )
+
+    @JvmStatic external fun rtPressControls(h: Long): IntArray
+
+    @JvmStatic
     external fun rtGestureBegin(
         h: Long,
         fresh: Boolean,

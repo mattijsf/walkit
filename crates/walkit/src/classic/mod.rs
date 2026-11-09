@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Classic skins (`.wsz`: `main.bmp`, `cbuttons.bmp`, `titlebar.bmp`, `text.bmp`, `numbers.bmp`
 //! and the rest), drawn as Winamp 5.666 draws them: each window is a generated container with
-//! one classic window object whose drawing and touches are the ones Winamp does, pixel for
-//! pixel (matched against Winamp 5.666 and confirmed
-//! on the reference VM). The windows themselves, their docking, raising and the touch routing
-//! are the engine's, as for a modern skin.
+//! one classic window object whose drawing and touches are the ones Winamp does, pixel for pixel
+//! (matched against Winamp 5.666 in the reference VM). The windows themselves, their docking,
+//! raising and the touch routing are the engine's, as for a modern skin.
 
 use std::rc::Rc;
 

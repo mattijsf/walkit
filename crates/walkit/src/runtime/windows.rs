@@ -607,7 +607,6 @@ impl SkinRuntime {
         }
     }
 
-    /// Closes the window opened last.
     /// Shows window `id`'s container in the layout named (`normal`, `shade`), as Winamp's
     /// windowshade toggle does; nothing when the container has no such layout.
     pub fn set_window_layout(&mut self, id: WindowId, layout: &str) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! A classic skin's main window, drawn pixel for pixel as Winamp draws it (as
-//! Winamp 5.666 shows it in the reference VM).
+//! A classic skin's main window, drawn pixel for pixel as Winamp draws it (as Winamp 5.666 shows
+//! it in the reference VM).
 
 use std::rc::Rc;
 
@@ -2913,4 +2913,170 @@ fn between_title_steps_nothing_is_due_and_only_the_clock_windows_draw_again() {
     // a balance the host changes draws at once, playing or not
     rt.player.set_pan(60);
     assert!(rt.tick());
+}
+
+/// Turns touch on, the slop `slop` skin pixels.
+fn touched(rt: &mut SkinRuntime, slop: i32) {
+    rt.set_presentation(&crate::host::Presentation {
+        touch: true,
+        touch_slop: slop,
+        ..rt.presentation()
+    });
+}
+
+#[test]
+fn under_touch_a_finger_beside_a_control_takes_it() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    // x 8 is left of the clutter bar's I (x 11..=19, y 40..=47): a mouse there moves the window
+    rt.pointer_down(8, 44, 1);
+    rt.pointer_up(8, 44);
+    assert!(actions.borrow().is_empty());
+    touched(&mut rt, 6);
+    rt.pointer_down(8, 44, 2);
+    rt.pointer_up(8, 44);
+    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+}
+
+#[test]
+fn under_touch_a_finger_beside_a_slider_takes_it_only_across_its_track() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    rt.player.set_volume(0);
+    // under the volume slider (y 58..=66): taken at the x the finger has
+    rt.pointer_down(150, 69, 1);
+    rt.pointer_up(150, 69);
+    let set = rt.player.volume();
+    assert!(set > 0, "taken from below");
+    // past its left end (x 107): not taken, the volume stays
+    rt.pointer_down(103, 62, 2);
+    rt.pointer_up(103, 62);
+    assert_eq!(rt.player.volume(), set);
+}
+
+#[test]
+fn under_touch_a_finger_beside_the_equalizer_labels_sets_no_band() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    touched(&mut rt, 21);
+    // x 70 is three right of "+12" (x 42..=67, y 33..=42), which sends every band to the top
+    rt.pointer_down(70, 116 + 35, 1);
+    rt.pointer_up(70, 116 + 35);
+    assert!(rt.player.eq_bands().iter().take(10).all(|v| *v != 255));
+}
+
+#[test]
+fn under_touch_a_menu_taken_beside_its_button_goes_against_the_button() {
+    let (mut rt, actions, froms) = classic_recording_froms();
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    // three under PRESETS (y 18..=30)
+    rt.pointer_down(230, 116 + 33, 1);
+    rt.pointer_up(230, 116 + 33);
+    assert_eq!(*actions.borrow(), vec!["EQ_PRESETS"]);
+    assert_eq!(
+        froms.borrow()[0],
+        Some(crate::host::ActionFrom {
+            rect: Rect::new(217, 116 + 18, 45, 13),
+            point: Some((230, 116 + 33)),
+        })
+    );
+}
+
+#[test]
+fn under_touch_the_playlist_grip_takes_its_square_and_a_finger_beside_it() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    // 19 and 19 from the corner: outside the triangle a mouse has, the press moves the window
+    assert_eq!(pl_drag(&mut rt, (256, 97), (281, 97)), (275, 116));
+    touched(&mut rt, 6);
+    assert_eq!(pl_drag(&mut rt, (256, 97), (281, 97)), (300, 116));
+    // three left of the grip's square (x 280.. at width 300), nearer it than LIST (x 256..=278,
+    // y 86..=102)
+    assert_eq!(pl_drag(&mut rt, (277, 110), (302, 110)), (325, 116));
+}
+
+#[test]
+fn under_touch_a_finger_on_the_title_bar_beside_close_takes_close() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    let pl = rt.container("pledit").expect("the playlist");
+    // close answers x 265..=274, y 3..=12; one row above it is the title bar
+    rt.pointer_down(270, 116 + 1, 1);
+    rt.pointer_up(270, 116 + 1);
+    assert!(!rt.is_open(pl), "taken by close");
+}
+
+#[test]
+fn a_precise_press_leaves_its_control_as_a_mouse_does() {
+    let (mut rt, actions) = classic_recording();
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    // as the wobble test, but steered by a magnifier: 3 px down onto D has left I
+    rt.pointer_down(15, 46, 1);
+    rt.set_pointer_precise(true);
+    rt.pointer_move(15, 49);
+    rt.pointer_up(15, 49);
+    assert!(actions.borrow().is_empty(), "{:?}", actions.borrow());
+    // the next press is a finger's again
+    rt.pointer_down(15, 46, 2);
+    rt.pointer_move(15, 49);
+    rt.pointer_up(15, 49);
+    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+}
+
+#[test]
+fn the_press_controls_are_the_boxes_of_its_window() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    assert!(rt.press_controls().is_empty(), "no press");
+    rt.pointer_down(15, 44, 1);
+    let controls = rt.press_controls();
+    let has = |r: Rect| controls.iter().any(|c| c.rect == r && !c.magnify);
+    assert!(
+        has(Rect::new(11, 40, 9, 8)),
+        "the clutter bar's I: {controls:?}"
+    );
+    assert!(has(Rect::new(264, 3, 9, 10)), "close");
+    assert!(has(Rect::new(107, 58, 69, 9)), "volume");
+    rt.pointer_up(15, 44);
+}
+
+#[test]
+fn a_held_playlist_button_lists_its_menu_pictures_for_the_magnifier() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    touched(&mut rt, 6);
+    rt.pointer_down(20, 116 + 95, 1);
+    let pictures: Vec<Rect> = rt
+        .press_controls()
+        .iter()
+        .filter(|c| c.magnify)
+        .map(|c| c.rect)
+        .collect();
+    // ADD's three, 22 by 18 at x 14, the lowest ending 12 above the bottom
+    assert_eq!(
+        pictures,
+        vec![
+            Rect::new(14, 116 + 87, 22, 18),
+            Rect::new(14, 116 + 69, 22, 18),
+            Rect::new(14, 116 + 51, 22, 18)
+        ]
+    );
+    // steered precisely up onto the top picture, the release picks it
+    rt.set_pointer_precise(true);
+    rt.pointer_move(20, 116 + 55);
+    rt.pointer_up(20, 116 + 55);
+    assert!(rt.classic_open_menu.is_none(), "picked, not left open");
+    assert!(
+        actions.borrow().iter().any(|a| a.starts_with("PLAYLIST ")),
+        "{:?}",
+        actions.borrow()
+    );
 }

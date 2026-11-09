@@ -204,9 +204,6 @@ impl SkinRuntime {
         if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
             return self.classic_double_tap(o, px, py);
         }
-        if matches!(self.objects[o].kind, Kind::ClassicWindow(_)) {
-            return self.classic_double_tap(o, px, py);
-        }
         self.dispatch(
             Handle::Gui(o),
             "onleftbuttondblclk",

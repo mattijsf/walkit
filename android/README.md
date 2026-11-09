@@ -11,7 +11,7 @@ changes its imports and little else.
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.15
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.17
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
@@ -23,7 +23,7 @@ say where each one is.
 
 The AAR ships consumer ProGuard rules for what the native side reaches by name, so a
 consumer's shrinker needs no rule of its own. Its test fixtures
-(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.15"))`) carry the engine built
+(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.17"))`) carry the engine built
 for the machine that published them (`cargoBuildHost`, a plain `cargo build`), so a consumer's
 JVM unit tests run skins on it: `SkinRuntime` loads `libwalkit.so` on Android and falls back to
 that build on a JVM (`HostLibrary`). The fixtures also carry `nl.mattix.walkit.fixtures`, helpers
@@ -67,11 +67,11 @@ the boundary once per `drawWindows`, as one packed buffer decoded here into `Dra
 the like) are read from the skin's files, so a host layers its default set, with those fonts,
 under the skin as Andamp does.
 
-Every member of `SkinRuntime` is carried. The engine plans each frame as the reference's planner
-does (`drawPlanned`): which stretches of a window change from frame to frame and may be kept apart,
-and a version for the rest. Only the commands that changed since the frame before cross the
-boundary; a command unchanged is the same object as in that frame, so a host may keep what it made
-from it.
+Every member of `SkinRuntime` is carried. The engine plans each frame as the reference engine's
+planner does (`drawPlanned`): which stretches of a window change from frame to frame and may be
+kept apart, and a version for the rest. Only the commands that changed since the frame before
+cross the boundary; a command unchanged is the same object as in that frame, so a host may keep
+what it made from it.
 
 ## The parity run on a device
 
@@ -83,16 +83,15 @@ byte compare. The inputs are the ones `ENGINEERING.md` names, pushed to the devi
 ADB="adb -s emulator-5690"                                   # a probe emulator, never a phone
 D=/data/local/tmp/walkit
 $ADB shell mkdir -p $D/skins $D/small $D/fonts
-$ADB push <andamp>/modernskin/src/test/resources/*.wal $D/skins/
-$ADB push ~/Development/winamp-vm/skins/*.wal $D/small/
-$ADB push ~/Development/winamp-vm/wasabi-defaults.zip ~/Development/winamp-vm/scenarios.json \
-  ~/Development/winamp-vm/scenarios-small.json $D/
+$ADB push <corpus skins>/*.wal $D/skins/
+$ADB push <small skins>/*.wal $D/small/
+$ADB push <wasabi-defaults.zip> <scenarios.json> <scenarios-small.json> $D/
 $ADB push <fonts>/*.ttf $D/fonts/
 ANDROID_SERIAL=emulator-5690 ./gradlew :walkit:connectedAndroidTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true   # the traces go with the APK otherwise
 $ADB pull /sdcard/Android/data/nl.mattix.walkit.test/files/traces traces-device
 $ADB uninstall nl.mattix.walkit.test
-WALKIT_REFERENCE_TRACES=~/Development/winamp-vm/traces-kotlin ../tools/trace-diff.sh traces-device
+WALKIT_REFERENCE_TRACES=<reference traces> ../tools/trace-diff.sh traces-device
 ```
 
 The native binary can be checked on the device as well, without the AAR: `cargo ndk -t
