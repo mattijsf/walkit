@@ -25,7 +25,7 @@ engine of the [Andamp](https://andamp.nl) music player.
 | A web page | [Web](web.md) |
 | An Android app | [Android](android.md) |
 | A renderer for another platform | [The draw list](draw-list.md) |
-| Changes to the engine | [Trace parity](trace-parity.md) and [Contributing](contributing.md) |
+| Changes to the engine | [Traces](traces.md) and [Contributing](contributing.md) |
 
 ## Status
 

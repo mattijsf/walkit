@@ -6,7 +6,7 @@
 tools/gate.sh            # the push gate: fmt, clippy -D warnings, tests
 cargo test --workspace   # the tests alone
 tools/web-build.sh       # the wasm modules into web/dist/, with their sizes
-tools/trace-diff.sh      # compare traces/ with the reference engine's traces
+tools/trace-diff.sh      # compare traces/ with the last release's traces
 ```
 
 ## Layout
