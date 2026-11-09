@@ -9,8 +9,9 @@ import { Walkit } from "./walkit.mjs";
 import { unpack, siblingName } from "./corpus.mjs";
 import { unzipAsync } from "./zip.mjs";
 import { decodePicture } from "./pictures.mjs";
-import { Pictures, Renderer, normalize, familyOf, inSkinFolder } from "./render.mjs";
+import { Pictures, Renderer, emPixels, normalize, familyOf, inSkinFolder } from "./render.mjs";
 import { FrameReader } from "./frame.mjs";
+import { SkinCursors } from "./cursor.mjs";
 
 const $ = (id) => document.getElementById(id);
 const log = $("log");
@@ -72,7 +73,7 @@ const measure = (typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(1,
 function cssFont(name, size, bold) {
   const [id, file] = name ? name.split("|") : ["", ""];
   const font = name ? { id, file } : null;
-  return `${bold ? "bold " : ""}${size}px ${JSON.stringify(familyOf(font, families))}`;
+  return `${bold ? "bold " : ""}${emPixels(size)}px ${JSON.stringify(familyOf(font, families))}`;
 }
 
 // every archive of the server's folder, by file, once fetched: a skin reads its siblings' files
@@ -277,9 +278,7 @@ async function openSkin(name, entries, { clock = null } = {}) {
   const skinName = name.replace(/\.(wal|wsz)$/i, "");
   const t1 = performance.now();
   state.rt = state.w.runtime(stack, skinName, true, clock === null ? performance.now() : clock);
-  // a new skin brings its cursors
-  cursorCache.clear();
-  cursorShown.slot = -2;
+  state.cursors = new SkinCursors(state.rt);
   state.rt.load();
   const loadMs = performance.now() - t1;
   if (clock === null) applyView();
@@ -439,6 +438,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (!state.rt || e.button !== 0) return;
   canvas.setPointerCapture(e.pointerId);
   const [x, y] = skinPoint(e);
+  state.rt.setTouch(e.pointerType !== "mouse");
   state.down = true;
   state.seq++;
   state.rt.pointerDown(x, y, state.seq);
@@ -451,82 +451,10 @@ canvas.addEventListener("pointerdown", (e) => {
     }
   }, 600);
 });
-// ---- cursors: the classic skin's cursors, as Winamp shows them over each part of a window -------
-
-const cursorKinds = ["default", "move", "ew-resize", "ns-resize", "pointer", "nwse-resize"];
-const cursorCache = new Map();
-const cursorShown = { slot: -2, timer: 0 };
-
-/** The CSS cursor values of cursor slot's frames at the page's zoom, with the steps; null without a picture. */
-function cursorFrames(slot) {
-  const key = `${slot}@${zoom()}`;
-  if (cursorCache.has(key)) return cursorCache.get(key);
-  const img = state.rt.cursorImage(slot);
-  let made = null;
-  if (img) {
-    const z = Math.max(1, Math.min(4, Math.floor(zoom())));
-    const urls = img.frames.map((f) => {
-      const c = document.createElement("canvas");
-      c.width = f.w * z;
-      c.height = f.h * z;
-      const g = c.getContext("2d");
-      const data = new ImageData(f.w, f.h);
-      for (let i = 0; i < f.argb.length; i++) {
-        const v = f.argb[i];
-        data.data[i * 4] = (v >>> 16) & 255;
-        data.data[i * 4 + 1] = (v >>> 8) & 255;
-        data.data[i * 4 + 2] = v & 255;
-        data.data[i * 4 + 3] = v >>> 24;
-      }
-      const small = document.createElement("canvas");
-      small.width = f.w;
-      small.height = f.h;
-      small.getContext("2d").putImageData(data, 0, 0);
-      g.imageSmoothingEnabled = false;
-      g.drawImage(small, 0, 0, c.width, c.height);
-      return `url(${c.toDataURL()}) ${f.hx * z} ${f.hy * z}, ${cursorKinds[state.rt.cursorKind(slot)]}`;
-    });
-    made = { urls, steps: img.steps };
-  }
-  cursorCache.set(key, made);
-  return made;
-}
-
-/** Shows the cursor the skin has for x, y; the browser's of its kind when it has none. */
-function showCursor(x, y) {
-  const slot = state.rt ? state.rt.cursorAt(x, y) : -1;
-  if (slot === cursorShown.slot) return;
-  cursorShown.slot = slot;
-  clearTimeout(cursorShown.timer);
-  if (slot < 0) {
-    canvas.style.cursor = "";
-    return;
-  }
-  const made = cursorFrames(slot);
-  if (!made) {
-    canvas.style.cursor = cursorKinds[state.rt.cursorKind(slot)];
-    return;
-  }
-  let step = 0;
-  const show = () => {
-    const [frame, ms] = made.steps[step];
-    canvas.style.cursor = made.urls[frame] || made.urls[0];
-    if (made.steps.length > 1 && cursorShown.slot === slot) {
-      step = (step + 1) % made.steps.length;
-      cursorShown.timer = setTimeout(show, Math.max(ms, 16));
-    }
-  };
-  show();
-}
-
-canvas.addEventListener("pointerleave", () => {
-  cursorShown.slot = -2;
-  clearTimeout(cursorShown.timer);
-  canvas.style.cursor = "";
-});
+canvas.addEventListener("pointerleave", () => state.cursors?.hide(canvas));
 
 canvas.addEventListener("pointermove", (e) => {
-  if (state.rt && !state.down) showCursor(...skinPoint(e));
+  if (state.rt && !state.down) state.cursors.show(canvas, ...skinPoint(e), zoom());
   if (!state.rt || !state.down) return;
   const [x, y] = skinPoint(e);
   state.rt.pointerMove(x, y);

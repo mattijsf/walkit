@@ -74,13 +74,13 @@ impl SkinHost for JsHost {
         imports::windows_changed(&ids.join(","));
     }
 
-    // the page's import takes the action and its param; it places its menus itself
+    // the page's import takes the action, its param and where it came from, for a menu it opens
     fn host_action(
         &mut self,
         action: &str,
         param: Option<&str>,
-        _from: Option<walkit::host::ActionFrom>,
+        from: Option<walkit::host::ActionFrom>,
     ) {
-        imports::host_action(action, param.unwrap_or(""));
+        imports::host_action(action, param.unwrap_or(""), from);
     }
 }

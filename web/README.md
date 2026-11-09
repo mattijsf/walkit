@@ -34,6 +34,50 @@ The draw list is text in the trace format (`image <file> <x,y,w,h> -> <rect> a=<
 `text`, `clip`, `unclip`, `shape`, `pixels`), the same lines `walkit-trace` writes, from the
 engine's `listing` module; a renderer parses it. The player page takes the packed form below.
 
+## Embedding
+
+`tools/web-pack.sh <dir>` puts the `walkit-web` package together (the modules, their types in
+`embed.d.ts`, and the module as `walkit.wasm`) for a host to vendor. `embed.mjs` is the way in for a page that brings a player and puts the windows where it
+wants them (webamp, say): it loads the module, opens a skin archive, and hands out each
+window's drawing.
+
+```js
+import { loadWalkit } from "walkit-web";      // or "./embed.mjs" from this folder
+const walkit = await loadWalkit({
+  invalidate() {},                   // something changed; draw soon
+  windowOpen(kind) { return null; }, // "doublesize", "ontop": true, false or null
+  player(command, value) {},         // play, pause, stop, next, previous, eject, play_track,
+                                     // seek, volume, pan, shuffle, repeat, eq, preamp, band0..9
+  action(action, param, from) {},    // MENU, CLOSE, MINIMIZE, EQ_PRESETS, PLAYLIST, ...;
+                                     // from.rect is where the button sits, for a menu
+});                                  // walkit.wasm next to embed.mjs, or { wasm: url } after
+const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { defaults }
+skin.rt.setFree(true, innerWidth, innerHeight); // windows apart, docked as on Winamp's desktop
+
+function frame(now) {
+  skin.rt.setPlayerState({ status: "playing", positionMs, lengthMs, title, volume });
+  skin.rt.setPlaylist(tracks);                  // [{ title, lengthMs }], when it changes
+  skin.rt.setVis({ spectrum, waveform, vu });    // 75 levels, 576 samples, [left, right]
+  if (skin.tick(now)) {
+    for (const w of skin.windows()) skin.paint(canvasFor(w), w, devicePixelRatio);
+  }
+  requestAnimationFrame(frame);
+}
+```
+
+Each window is `{id, container, layout, rect}`, bottom to top; a canvas per window at
+`rect` keeps the page between windows clickable. The pointer goes to `skin.rt.pointerDown`,
+`pointerMove`, `pointerUp` and `doubleTap` in viewport pixels. `player` and `action` run once
+the engine call that raised them has returned, so they may call back into the engine. The
+runtime also places, opens and closes windows (`placeWindow`, `openWindow`, `closeWindow`,
+`setWindowLayout`), scales them (`setWindowScale(container, 2)` for Winamp's double size, any
+factor from 0.25 to 8, the windows docked to it staying docked), names a classic frame
+(`setWindowTitle`), says where the page draws its visualizer (`visRect`: a classic skin's
+`avs` window, framed by `gen.bmp`, or a modern skin's AVS holder), says which window has the
+focus (`focusedWindow`), shows the page's playlist selection (`setPlaylistSelection`), scrolls a
+classic playlist (`scrollPlaylist`), and keeps a classic skin's time direction and equalizer auto
+(`timeRemaining`, `eqAuto` and their setters) for a host that has the same settings.
+
 ## The player page
 
 `player.html` shows a skin from the server's folder, or a `.wal` dropped on the page, on the

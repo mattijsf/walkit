@@ -4,10 +4,11 @@
 //! file, so a `.cur` name may hold an animated cursor, and picks one per part of the main window,
 //! the equalizer, the playlist, the video window and the gen windows.
 
+use super::style::ClassicStyle;
 use super::ClassicWindow;
 
 /// What a skin's cursor stands for, and what the host shows when the skin has no file for it
-/// (Winamp then shows an arrow with a small sign).
+/// and no base skin is behind it (Winamp then shows an arrow with a small sign).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorKind {
     /// The plain arrow.
@@ -22,6 +23,21 @@ pub enum CursorKind {
     Close,
     /// Sizes the window.
     Resize,
+}
+
+impl CursorKind {
+    /// The base skin's file (under [`crate::files::BASE_PREFIX`]) that holds Winamp's cursor
+    /// of this kind (base 2.91's cursors are the ones Winamp shows when a skin has none).
+    fn winamps_own(self) -> &'static str {
+        match self {
+            CursorKind::Move => "wasabi-base/titlebar.cur",
+            CursorKind::HorizontalSlide => "wasabi-base/posbar.cur",
+            CursorKind::Close => "wasabi-base/close.cur",
+            CursorKind::Arrow => "wasabi-base/normal.cur",
+            CursorKind::VerticalSlide => "wasabi-base/eqslid.cur",
+            CursorKind::Resize => "wasabi-base/psize.cur",
+        }
+    }
 }
 
 /// The cursor files a classic skin holds, one entry per place a classic window shows one, each
@@ -80,8 +96,15 @@ fn first(boxes: &[Box4], w: i32, h: i32, x: i32, y: i32) -> usize {
 }
 
 /// The cursor slot (an index into [`CURSOR_FILES`]) at `x`, `y` of classic window `win`,
-/// `w` x `h`.
-pub fn slot_at(win: ClassicWindow, w: i32, h: i32, x: i32, y: i32) -> Option<usize> {
+/// `w` x `h`, as `style`'s Winamp picks it.
+pub fn slot_at(
+    win: ClassicWindow,
+    style: ClassicStyle,
+    w: i32,
+    h: i32,
+    x: i32,
+    y: i32,
+) -> Option<usize> {
     Some(match win {
         // volume and balance share one cursor file
         ClassicWindow::Main => first(
@@ -158,8 +181,10 @@ pub fn slot_at(win: ClassicWindow, w: i32, h: i32, x: i32, y: i32) -> Option<usi
             y,
         )],
         ClassicWindow::Gen => {
-            // the boxes stop a pixel short on the right and bottom (probed in the VM)
-            let held = |b: Box4| within((b.0, b.1, b.2 - 1, b.3 - 1), w, h, x, y);
+            // 5.666's boxes stop a pixel short on the right and bottom (probed in the VM); 2.91's
+            // take their edges, as the other windows' do
+            let edge = i32::from(style == ClassicStyle::Winamp5666);
+            let held = |b: Box4| within((b.0, b.1, b.2 - edge, b.3 - edge), w, h, x, y);
             if held((-11, 3, -3, 12)) {
                 16
             } else if held((0, 0, -1, 13)) {
@@ -395,21 +420,28 @@ impl crate::runtime::SkinRuntime {
         let crate::gui::Kind::ClassicWindow(kind) = self.objects[win].kind else {
             return None;
         };
-        let origin = self.window_rect_of(l);
+        let (x, y) = self.layout_point(l, sx, sy);
         let r = self.objects[win].base.rect;
         slot_at(
             kind,
+            self.classic_style,
             r.width,
             r.height,
-            sx - origin.left - r.left,
-            sy - origin.top - r.top,
+            x - r.left,
+            y - r.top,
         )
     }
 
-    /// The skin's picture for cursor `slot`, decoded once; `None` when the skin has no such
-    /// file or it cannot be read, and the host shows a cursor for the slot's [`CursorKind`].
+    /// The skin's picture for cursor `slot`, decoded once. Without that file, Winamp's
+    /// cursor of the slot's kind, from the base skin behind the skin; `None` without either,
+    /// and the host shows a cursor for the [`CursorKind`].
     pub fn classic_cursor(&mut self, slot: usize) -> Option<std::rc::Rc<SkinCursor>> {
-        let (file, _) = CURSOR_FILES.get(slot)?;
+        let &(file, kind) = CURSOR_FILES.get(slot)?;
+        self.cursor_file(file)
+            .or_else(|| self.cursor_file(kind.winamps_own()))
+    }
+
+    fn cursor_file(&mut self, file: &'static str) -> Option<std::rc::Rc<SkinCursor>> {
         if let Some(c) = self.classic_cursors.get(file) {
             return c.clone();
         }
@@ -424,12 +456,12 @@ impl crate::runtime::SkinRuntime {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{decode, slot_at, CURSOR_FILES};
+pub(crate) mod tests {
+    use super::{decode, slot_at, ClassicStyle, CURSOR_FILES};
     use crate::classic::ClassicWindow;
 
     /// A 2 x 2 cursor, 24 bits: red, green / blue, white; the mask keeps the white one out.
-    fn cur(hot: (u16, u16)) -> Vec<u8> {
+    pub(crate) fn cur(hot: (u16, u16)) -> Vec<u8> {
         let mut dib = Vec::new();
         dib.extend(40u32.to_le_bytes());
         dib.extend(2i32.to_le_bytes());
@@ -503,7 +535,17 @@ mod tests {
 
     #[test]
     fn the_main_window_picks_winamps_cursors() {
-        let at = |x, y| slot_at(ClassicWindow::Main, 275, 116, x, y).map(|s| CURSOR_FILES[s].0);
+        let at = |x, y| {
+            slot_at(
+                ClassicWindow::Main,
+                ClassicStyle::Winamp5666,
+                275,
+                116,
+                x,
+                y,
+            )
+            .map(|s| CURSOR_FILES[s].0)
+        };
         assert_eq!(
             at(180, 60),
             Some("volbal.cur"),
@@ -518,7 +560,9 @@ mod tests {
 
     #[test]
     fn the_other_windows_pick_theirs() {
-        let s = |w, ww, hh, x, y| slot_at(w, ww, hh, x, y).map(|s| CURSOR_FILES[s].0);
+        let s = |w, ww, hh, x, y| {
+            slot_at(w, ClassicStyle::Winamp5666, ww, hh, x, y).map(|s| CURSOR_FILES[s].0)
+        };
         assert_eq!(
             s(ClassicWindow::Equalizer, 275, 116, 25, 60),
             Some("eqslid.cur")
@@ -567,5 +611,17 @@ mod tests {
             Some("pnormal.cur")
         );
         assert_eq!(s(ClassicWindow::Gen, 275, 116, 270, 110), Some("psize.cur"));
+    }
+
+    #[test]
+    fn a_2_91_gen_window_takes_its_boxes_edges() {
+        let at = |style, x, y| {
+            slot_at(ClassicWindow::Gen, style, 275, 116, x, y).map(|s| CURSOR_FILES[s].0)
+        };
+        // the close box's right edge, w - 3, and the title's bottom row, 13
+        assert_eq!(at(ClassicStyle::Winamp5666, 272, 5), Some("ptbar.cur"));
+        assert_eq!(at(ClassicStyle::Winamp291, 272, 5), Some("pclose.cur"));
+        assert_eq!(at(ClassicStyle::Winamp5666, 100, 13), Some("pnormal.cur"));
+        assert_eq!(at(ClassicStyle::Winamp291, 100, 13), Some("ptbar.cur"));
     }
 }

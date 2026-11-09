@@ -911,13 +911,15 @@ impl SkinRuntime {
             {
                 press.control = Control::EqSweep;
                 press.inside = false;
-                if self.classic_status.take().is_some() {
-                    self.classic_title_resume(0);
-                }
+                self.classic_status_end();
             }
         }
+        // a press that moves its window shows nothing new: the window only goes along
+        let moving = matches!(press.control, Control::TitleBar | Control::Background);
         self.classic_press = Some(press);
-        self.repaint();
+        if !moving {
+            self.repaint();
+        }
     }
 
     /// Selects playlist row `row` (or none) and tells the host, which keeps the selection the
@@ -990,8 +992,8 @@ impl SkinRuntime {
     /// What ends with any press: the title row's text and its scroll come back, a balance near
     /// the middle snaps to it (within 26 either side).
     fn classic_release(&mut self, press: ClassicPress) {
-        if self.classic_status.take().is_some() {
-            self.classic_title_resume(0);
+        if self.classic_style.status_hold_ms().is_none() {
+            self.classic_status_end();
         }
         match press.control {
             Control::Balance => {
@@ -1011,6 +1013,19 @@ impl SkinRuntime {
             self.classic_title_hold();
         }
         self.classic_status = Some(text);
+        self.classic_status_until = self
+            .classic_style
+            .status_hold_ms()
+            .map_or(i64::MAX, |ms| self.now() + ms);
+    }
+
+    /// Gives the title row back to the song, its scroll going on.
+    pub(crate) fn classic_status_end(&mut self) {
+        if self.classic_status.take().is_some() {
+            self.classic_title_resume(0);
+            self.repaint();
+        }
+        self.classic_status_until = i64::MAX;
     }
 
     /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
@@ -1030,20 +1045,22 @@ impl SkinRuntime {
             return;
         };
         let rect = self.objects[o].base.rect;
+        let at = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
+        // the shade bar is all title row: its buttons, time and vis take a double tap as
+        // another press (or the vis's revert) rather than a toggle of the shade
         let title_row = py < 15
             && px
                 < match w {
                     ClassicWindow::Main | ClassicWindow::MainShade => 244,
                     ClassicWindow::Equalizer | ClassicWindow::EqualizerShade => 252,
                     _ => rect.width - 20,
-                };
+                }
+            && (w != ClassicWindow::MainShade
+                || matches!(at, Some(Control::TitleBar | Control::Menu)));
         if title_row {
             return self.classic_toggle_shade(o, w);
         }
-        match (
-            w,
-            control_at(w, rect.width, rect.height, self.classic_row(), px, py),
-        ) {
+        match (w, at) {
             (ClassicWindow::Main, Some(Control::TitleText)) if (25..35).contains(&py) => {
                 self.action(o, "TRACKINFO", None, None);
             }
@@ -1079,6 +1096,16 @@ impl SkinRuntime {
     /// position bar only notes where it is; the title row scrolls with the finger.
     fn classic_follow(&mut self, press: &mut ClassicPress, px: i32, py: i32) {
         match press.control {
+            Control::ClutterO
+            | Control::ClutterA
+            | Control::ClutterI
+            | Control::ClutterD
+            | Control::ClutterV => {
+                // the letter under the held finger names what it does on the title row
+                if let Some(text) = self.classic_clutter_text(px, py) {
+                    self.classic_say(text);
+                }
+            }
             Control::Volume => {
                 let v = ((px - press.grab - 107) * 255 / 51).clamp(0, 255);
                 self.player.set_volume(v);
@@ -1087,7 +1114,7 @@ impl SkinRuntime {
             Control::Balance => {
                 // the thumb's place 0..=24; a step either side of the middle snaps to it
                 let at = (px - press.grab - 177).clamp(0, 24);
-                let b = if (11..=13).contains(&at) {
+                let b = if self.classic_style.balance_snap().contains(&at) {
                     0
                 } else {
                     (at - 12) * 127 / 12
@@ -1110,11 +1137,10 @@ impl SkinRuntime {
                 self.classic_say_volume();
             }
             Control::ShadeBalance => {
-                // 42 columns from x 164, no grab; 8 either side of the middle
-                // snaps to it while dragged (unless Shift, which a touch never holds), and the
-                // release keeps what the drag gave
-                let b = ((px - 164).clamp(0, 42) * 255 / 42 - 127).min(127);
-                let b = if (-8..=8).contains(&b) { 0 } else { b };
+                // 42 columns from x 164, no grab; near the middle snaps to it while dragged
+                // (5.666 skips that with Shift, which a touch never holds), and the release
+                // keeps what the drag gave
+                let b = self.classic_style.shade_balance((px - 164).clamp(0, 42));
                 self.player.set_pan(b);
                 self.classic_say_balance();
             }
@@ -1200,20 +1226,27 @@ impl SkinRuntime {
         ));
     }
 
-    /// "EQ: 70Hz: +3.0 dB" for slider `n` (0 the preamp) at step `step` 0..=63
-    /// ((step - 31.5) / 31.5 * -12 dB, within 0.32 of zero shown as zero).
-    fn classic_say_eq(&mut self, n: usize, step: i32) {
-        const BANDS: [&str; 10] = ["70", "180", "320", "600", "1", "3", "6", "12", "14", "16"];
-        let db = (f64::from(step) - 31.5) / 31.5 * -12.0;
-        let db = if (-0.32..0.32).contains(&db) { 0.0 } else { db };
-        let sign = if db < 0.0 { "" } else { "+" };
-        let name = if n == 0 {
-            "Preamp".to_string()
-        } else {
-            let unit = if n >= 5 { "KHz" } else { "Hz" };
-            format!("{}{unit}", BANDS[n - 1])
+    /// What the clutter bar's letter at `px`, `py` says while held, the always-on-top and
+    /// double size ones by what a press would do.
+    fn classic_clutter_text(&mut self, px: i32, py: i32) -> Option<String> {
+        let row = self.classic_row();
+        let on = |rt: &mut Self, kind| rt.host.window_open(kind) == Some(true);
+        let text = match control_at(ClassicWindow::Main, 275, 116, row, px, py)? {
+            Control::ClutterO => "Options Menu",
+            Control::ClutterA if on(self, "ontop") => "Disable Always-On-Top",
+            Control::ClutterA => "Enable Always-On-Top",
+            Control::ClutterI => "File Info Box",
+            Control::ClutterD if on(self, "doublesize") => "Disable Doublesize Mode",
+            Control::ClutterD => "Enable Doublesize Mode",
+            Control::ClutterV => "Visualization Menu",
+            _ => return None,
         };
-        self.classic_say(format!("EQ: {name}: {sign}{db:.1} dB"));
+        Some(text.to_string())
+    }
+
+    /// The title row's text for equalizer slider `n` (0 the preamp) at step `band_step`.
+    fn classic_say_eq(&mut self, n: usize, band_step: i32) {
+        self.classic_say(self.classic_style.eq_text(n, band_step));
     }
 
     /// What a release over the pressed control does.
@@ -1222,13 +1255,9 @@ impl SkinRuntime {
         let r = self.objects[o].base.rect;
         self.action_from = control_box(w, r.width, r.height, self.classic_row(), press.aim)
             .and_then(|b| {
-                let at = self.window_rect_of(self.layout_object(o)?);
-                Some(Rect::new(
-                    at.left + r.left + b.left,
-                    at.top + r.top + b.top,
-                    b.width,
-                    b.height,
-                ))
+                let l = self.layout_object(o)?;
+                let b = Rect::new(r.left + b.left, r.top + b.top, b.width, b.height);
+                Some(self.stack_rect_in(l, b))
             });
         self.classic_act_on(o, w, &press);
         self.action_from = None;
@@ -1302,10 +1331,11 @@ impl SkinRuntime {
             Control::PlScrollUp | Control::PlScrollDown => {
                 let h = self.objects[o].base.rect.height;
                 let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+                let rows = self.classic_style.arrow_rows();
                 let step = if press.control == Control::PlScrollUp {
-                    -1
+                    -rows
                 } else {
-                    1
+                    rows
                 };
                 self.classic_pl_scroll = (self.classic_pl_scroll(h) + step).clamp(0, past.max(0));
             }

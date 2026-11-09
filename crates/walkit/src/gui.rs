@@ -966,6 +966,8 @@ pub struct LayoutStatusData {
     pub exclude: Vec<String>,
     /// `bg="0"`: no field.
     pub background: bool,
+    /// The command button held down, by its place among the buttons.
+    pub pressed: Option<usize>,
 }
 
 impl Default for LayoutStatusData {
@@ -974,6 +976,7 @@ impl Default for LayoutStatusData {
             include_only: None,
             exclude: Vec::new(),
             background: true,
+            pressed: None,
         }
     }
 }
@@ -1148,6 +1151,8 @@ pub struct Container {
     pub default_y: i32,
     /// Whether the skin gave the container a spot (`default_x` or `default_y`).
     pub has_default_spot: bool,
+    /// Screen pixels per layout pixel of its windows: 2 for Winamp's double size.
+    pub scale: f32,
 }
 
 impl Container {
@@ -1170,6 +1175,7 @@ impl Container {
                 .and_then(|v| to_int_lenient(&v))
                 .unwrap_or(0),
             has_default_spot: attr("default_x").is_some() || attr("default_y").is_some(),
+            scale: 1.0,
             attrs,
             layouts: Vec::new(),
             current: None,

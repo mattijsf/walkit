@@ -278,7 +278,7 @@ impl Frames {
         let s = rt.stats();
         let t = now - START;
         let mut frame = String::new();
-        let ids = rt.window_ids();
+        let ids = rt.drawn_window_ids();
         let t2 = perf();
         let drawn = rt.draw_windows();
         let t3 = perf();

@@ -118,6 +118,10 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
+        self.settle_holders();
+        if t >= self.classic_status_until {
+            self.classic_status_end();
+        }
         for o in self.sliders.clone() {
             self.slider_sync(o);
         }
@@ -142,17 +146,52 @@ impl SkinRuntime {
                 self.dirty = true;
             }
         }
-        // a classic window paints its time, vis and position bar straight from the player and the
-        // clock: playing or paused it changes with every tick that a host asks for
-        if matches!(status, Status::Playing | Status::Paused) || self.classic_title_scrolls_now() {
-            for o in self.classic_shown() {
+        self.classic_clock(t, status);
+        // a size that changed with what moved may move other things: everything draws again
+        if self.needs_layout {
+            self.dirty = true;
+            self.do_layout();
+        }
+        self.dirty || self.moved_dirty
+    }
+
+    /// A classic window paints its title, time, vis and position bar straight from the player
+    /// and the clock: they change when the title's next step, the time's next blink or the vis's
+    /// next frame is due. Then only the windows that show them draw again, unless something
+    /// else changed too.
+    fn classic_clock(&mut self, t: i64, status: Status) {
+        if self.dirty {
+            self.classic_next_at = t;
+        }
+        if t < self.classic_next_at {
+            return;
+        }
+        self.classic_next_at = self.classic_next_due_at(t).unwrap_or(i64::MAX);
+        if !matches!(status, Status::Playing | Status::Paused) && !self.classic_title_scrolls_now()
+        {
+            return;
+        }
+        // the playlist shows the time to the second
+        let second = (self.player.position_ms() / 1000, self.classic_remaining);
+        let second_changed = second != self.clock_second;
+        self.clock_second = second;
+        for o in self.classic_shown() {
+            if self.classic_moved_by_clock(o, second_changed) {
                 self.moved(o);
             }
         }
-        if self.needs_layout {
-            self.do_layout();
+    }
+
+    /// Whether the clock moved classic window object `o`: the main window and its shade bar
+    /// with every step of their title, time and vis, the playlist when its time shows another
+    /// second.
+    fn classic_moved_by_clock(&self, o: ObjId, second_changed: bool) -> bool {
+        use crate::classic::ClassicWindow;
+        match self.objects[o].kind {
+            Kind::ClassicWindow(ClassicWindow::Main | ClassicWindow::MainShade) => true,
+            Kind::ClassicWindow(ClassicWindow::Playlist) => second_changed,
+            _ => false,
         }
-        self.dirty
     }
 
     /// The classic window objects on screen now.
@@ -175,9 +214,17 @@ impl SkinRuntime {
         main && self.classic_title_scrolls()
     }
 
+    /// Object `o` moved by itself: its window draws again.
     fn moved(&mut self, o: ObjId) {
-        self.dirty = true;
         self.tick_changed.push(o);
+        match self.layout_object(o) {
+            Some(l) => {
+                self.moved_windows.insert(l);
+                self.moved_objects.push(o);
+                self.moved_dirty = true;
+            }
+            None => self.dirty = true,
+        }
     }
 
     /// Refills every script's step budget, then moves animations and target slides and fires
@@ -364,6 +411,28 @@ impl SkinRuntime {
             self.last_track_index = index;
             self.dirty = true;
         }
+        let pan = self.player.pan();
+        if pan != self.last_pan {
+            self.last_pan = pan;
+            self.dirty = true;
+        }
+        let format = (
+            self.player.bitrate_kbps(),
+            self.player.sample_rate_khz(),
+            self.player.channels(),
+        );
+        if format != self.last_format {
+            self.last_format = format;
+            self.dirty = true;
+        }
+        // playing, the clock redraws the position; otherwise only a seek moves it
+        let position = self.player.position_ms();
+        if position != self.last_position {
+            self.last_position = position;
+            if status != Status::Playing {
+                self.dirty = true;
+            }
+        }
     }
 }
 
@@ -385,6 +454,10 @@ impl SkinRuntime {
         let mut due = None;
         if shown.contains(&ClassicWindow::Main) && self.classic_title_scrolls() {
             due = self.classic_title_next_step(now);
+        }
+        if self.classic_status.is_some() && self.classic_status_until < i64::MAX {
+            let until = self.classic_status_until;
+            due = Some(due.map_or(until, |d: i64| d.min(until)));
         }
         if !shown.is_empty() && self.player.status() == Status::Paused {
             let blink = (now / PAUSE_BLINK_MS + 1) * PAUSE_BLINK_MS;

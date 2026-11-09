@@ -47,11 +47,17 @@ impl SkinRuntime {
             };
         }
         match &self.objects[o].kind {
-            Kind::Grid(_)
-            | Kind::ProgressGrid(..)
-            | Kind::Unknown { .. }
-            | Kind::Gradient(_)
-            | Kind::LayoutStatus(_) => None,
+            Kind::Grid(_) | Kind::ProgressGrid(..) | Kind::Unknown { .. } | Kind::Gradient(_) => {
+                None
+            }
+            // only its command buttons take a touch; the rest of the bar moves the window
+            Kind::LayoutStatus(_) => {
+                if self.takes_touch_at(o, px, py) && self.status_button_at(o, px, py).is_some() {
+                    Some(o)
+                } else {
+                    None
+                }
+            }
             Kind::Layer(l) | Kind::AnimatedLayer(l, _) => {
                 // clicks pass through transparent pixels, as in Winamp
                 let image = l.image.clone();
@@ -80,6 +86,7 @@ impl SkinRuntime {
         match &self.objects[o].kind {
             Kind::ColorThemeList(_) => return self.themes_pointer_down(o, py),
             Kind::PlaylistView(_) => return self.pl_pointer_down(o, py),
+            Kind::LayoutStatus(_) => return self.status_pointer_down(o, px, py),
             Kind::Button(_) => {
                 self.button_mut(o).pressed = true;
                 self.repaint();
@@ -118,6 +125,7 @@ impl SkinRuntime {
         match self.objects[o].kind {
             Kind::ColorThemeList(_) => self.themes_pointer_up(o, py, inside),
             Kind::PlaylistView(_) => self.pl_pointer_up(o, py, inside),
+            Kind::LayoutStatus(_) => self.status_pointer_up(o, px, py),
             Kind::Button(_) => {
                 self.button_mut(o).pressed = false;
                 self.repaint();

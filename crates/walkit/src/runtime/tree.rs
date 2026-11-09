@@ -2,9 +2,11 @@
 //! The object tree: finding objects, adding children, showing and hiding, actions on windows,
 //! the layout pass and the draw lists.
 
+use std::rc::Rc;
+
 use super::{
     toggle_guid, ContainerId, DrawCmd, DrawnWindow, Handle, ObjId, Rect, SkinRuntime, Value,
-    MAX_LAYOUT_PASSES, TOGGLE_GUIDS,
+    WindowDrawing, MAX_LAYOUT_PASSES, TOGGLE_GUIDS,
 };
 
 impl SkinRuntime {
@@ -181,6 +183,7 @@ impl SkinRuntime {
 
     /// A frame gives a hidden pane's room to the other one.
     fn shown_changed(&mut self, o: ObjId) {
+        self.holders_stale = true;
         let in_frame = self.objects[o]
             .base
             .parent
@@ -262,6 +265,15 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
+        self.settle_holders();
+    }
+
+    /// Hands components to the holders that showed since the last look (see
+    /// `hand_components_to_holders`), laying out again when a window closed.
+    pub(crate) fn settle_holders(&mut self) {
+        if std::mem::take(&mut self.holders_stale) && self.hand_components_to_holders() {
+            self.do_layout();
+        }
     }
 
     /// Lays out until scripts stop changing the tree (a few passes at most).
@@ -271,6 +283,10 @@ impl SkinRuntime {
             self.layout_pass();
             passes += 1;
             if !(self.needs_layout && passes < MAX_LAYOUT_PASSES) {
+                self.holders_stale = false;
+                if self.hand_components_to_holders() && passes < MAX_LAYOUT_PASSES {
+                    continue;
+                }
                 break;
             }
         }
@@ -326,9 +342,114 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
+        self.drawings()
+            .into_iter()
+            .map(|(l, d)| (self.window_rect_of(l), Rc::unwrap_or_clone(d.cmds)))
+            .collect()
+    }
+
+    /// Every window's drawing at its scale, bottom to top, with the object that drew each
+    /// command. After a tick in which only objects that move by themselves changed, the other
+    /// windows keep their last drawing, and those objects alone draw again in theirs.
+    fn drawings(&mut self) -> Vec<(ObjId, WindowDrawing)> {
+        let moved_only = self.moved_dirty && !self.dirty;
+        self.moved_dirty = false;
+        let moved = std::mem::take(&mut self.moved_windows);
+        let objects = std::mem::take(&mut self.moved_objects);
+        let mut out = Vec::new();
+        for l in self.z_windows() {
+            let kept = if !moved_only {
+                None
+            } else if moved.contains(&l) {
+                self.redraw_moved(l, &objects)
+            } else {
+                self.window_drawings.get(&l).cloned()
+            };
+            let drawing = kept.unwrap_or_else(|| {
+                let mut d = self.draw_layout_owned(l);
+                d.cmds = self.scaled(l, d.cmds);
+                d
+            });
+            self.window_drawings.insert(l, drawing.clone());
+            out.push((l, drawing));
+        }
+        out
+    }
+
+    /// Window `l`'s last drawing with the `objects` of it that moved by themselves drawn again
+    /// in their places; `None` when one of them has no single place there, or draws nothing.
+    fn redraw_moved(&mut self, l: ObjId, objects: &[ObjId]) -> Option<WindowDrawing> {
+        let mut d = self.window_drawings.remove(&l)?;
+        let mut done: Vec<ObjId> = Vec::new();
+        for &o in objects {
+            if done.contains(&o) || self.layout_object(o) != Some(l) {
+                continue;
+            }
+            done.push(o);
+            let &(from, to) = d.spans.get(&o)?;
+            if from == usize::MAX || from == to {
+                return None;
+            }
+            let (cmds, owners) = self.redraw_object(l, o);
+            if cmds.is_empty() {
+                return None;
+            }
+            let s = self.layout_scale(l);
+            let n = cmds.len();
+            Rc::make_mut(&mut d.cmds).splice(
+                from..to,
+                cmds.into_iter()
+                    .map(|c| if s == 1.0 { c } else { c.scaled(s) }),
+            );
+            Rc::make_mut(&mut d.owners).splice(from..to, owners);
+            // the objects after it, and the ones around it, move by the difference
+            if n != to - from {
+                for span in d.spans.values_mut() {
+                    if span.0 == usize::MAX {
+                        continue;
+                    }
+                    if span.0 >= to {
+                        span.0 = span.0 + n - (to - from);
+                    }
+                    if span.1 >= to {
+                        span.1 = span.1 + n - (to - from);
+                    }
+                }
+            }
+        }
+        #[cfg(debug_assertions)]
+        {
+            let mut full = self.draw_layout_owned(l);
+            full.cmds = self.scaled(l, full.cmds);
+            assert_eq!(
+                d.cmds, full.cmds,
+                "window {l} drawn in parts differs from drawn whole"
+            );
+            assert_eq!(
+                d.owners, full.owners,
+                "window {l}'s owners drawn in parts differ"
+            );
+        }
+        Some(d)
+    }
+
+    /// Window `l`'s commands at its scale.
+    fn scaled(&self, l: ObjId, cmds: Rc<Vec<DrawCmd>>) -> Rc<Vec<DrawCmd>> {
+        let s = self.layout_scale(l);
+        if s == 1.0 {
+            return cmds;
+        }
+        Rc::new(cmds.iter().map(|c| c.scaled(s)).collect())
+    }
+
+    /// The windows in the order [`SkinRuntime::draw_windows`] draws them, bottom to top: the
+    /// stack's order, or the raised order while the windows are apart, which differs from
+    /// [`SkinRuntime::window_ids`] once a window was raised. A host pairs the drawn windows
+    /// with these.
+    pub fn drawn_window_ids(&mut self) -> Vec<crate::host::WindowId> {
         self.z_windows()
             .into_iter()
-            .map(|l| (self.window_rect_of(l), self.draw_layout(l)))
+            .map(|l| self.window_id_of(l))
             .collect()
     }
 
@@ -338,14 +459,40 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        self.z_windows()
+        self.drawings()
             .into_iter()
-            .map(|l| {
-                let rect = self.window_rect_of(l);
-                let (cmds, owners) = self.draw_layout_owned(l);
-                DrawnWindow { rect, cmds, owners }
+            .map(|(l, d)| DrawnWindow {
+                rect: self.window_rect_of(l),
+                cmds: d.cmds,
+                owners: d.owners,
             })
             .collect()
+    }
+
+    /// When the windows only moved since they were last drawn, where each one shows now, bottom
+    /// to top as [`SkinRuntime::draw_windows_owned`] gives them, and the move taken as drawn: a
+    /// host places its windows again and keeps their drawings. `None` when something needs
+    /// drawing, which [`SkinRuntime::draw_windows_owned`] then does.
+    pub fn take_placed_only(&mut self) -> Option<Vec<(crate::host::WindowId, Rect)>> {
+        if !self.moved_dirty
+            || self.dirty
+            || self.needs_layout
+            || !self.moved_windows.is_empty()
+            || !self.tick_changed.is_empty()
+        {
+            return None;
+        }
+        let windows = self.z_windows();
+        if !windows.iter().all(|l| self.window_drawings.contains_key(l)) {
+            return None;
+        }
+        self.moved_dirty = false;
+        Some(
+            windows
+                .into_iter()
+                .map(|l| (self.window_id_of(l), self.window_rect_of(l)))
+                .collect(),
+        )
     }
 
     /// The objects the last tick found moving by themselves (a ticker stepping, a visualizer, a

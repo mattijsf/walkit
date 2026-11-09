@@ -172,7 +172,7 @@ impl SkinRuntime {
     /// Works out once how much of the part `b` names lies on its sheet; a sheet whose size is
     /// not known yet leaves it to the next frame.
     fn fit_part(&mut self, b: &BitmapDef) -> Option<Fit> {
-        let (sheet_w, sheet_h) = self.host.image_size(&b.file)?;
+        let (sheet_w, sheet_h) = self.image_size(&b.file)?;
         let sw = b.w.unwrap_or(sheet_w - b.x);
         let sh = b.h.unwrap_or(sheet_h - b.y);
         let fw = sw.min(sheet_w - b.x);
