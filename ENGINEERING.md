@@ -24,6 +24,7 @@ add wasm32-unknown-unknown`). `wasm-opt` (from binaryen) is optional.
 | `android/` | The AAR `nl.mattix.walkit:walkit` and its Kotlin API. |
 | `web/` | The JS host: the embedding package, the player page and the trace runners. |
 | `tools/` | The gate, the trace diff and the web build. |
+| `docs/` | The documentation site: an mdBook, published with the API reference to GitHub Pages. |
 
 ## Traces
 
