@@ -175,6 +175,9 @@ pub struct SkinRuntime {
     pub(crate) classic_list_ink_read: bool,
     /// The classic playlist's selected row.
     pub(crate) classic_selected_row: Option<i32>,
+    /// The rows the host selected besides [`Self::classic_selected_row`], as its select-all and
+    /// invert leave them; a tap on a row or a pick that clears the selection empties it.
+    pub(crate) classic_selected_more: Vec<i32>,
     pub(crate) host: Box<dyn SkinHost>,
     pub(crate) player: Box<dyn Player>,
     clock: Clock,
@@ -385,6 +388,7 @@ impl SkinRuntime {
             classic_open_menu: None,
             classic_remaining: false,
             classic_selected_row: None,
+            classic_selected_more: Vec::new(),
             host,
             player,
             clock,

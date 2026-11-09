@@ -16,6 +16,7 @@ use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::{jni_mangle, Env, EnvUnowned};
+use walkit::classic::vis::VisMode;
 use walkit::host::{
     Edge, OptionEntry, OptionKey, Presentation, SavedSettings, SkinSetup, WindowId,
 };
@@ -1222,6 +1223,72 @@ pub fn rt_set_pointer_precise<'l>(
 ) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.set_pointer_precise(precise)))
         .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// A classic skin's switches: 1 when the time counts down, 1 when the equalizer's auto is on,
+/// and the vis mode (0 analyzer, 1 oscilloscope, 2 off).
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_classic_switches<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> JIntArray<'l> {
+    env.with_env(|env| {
+        let v = with_rt(env, h, |r| {
+            let vis = match r.rt.classic_vis_mode() {
+                VisMode::Analyzer => 0,
+                VisMode::Scope => 1,
+                VisMode::Off => 2,
+            };
+            [
+                i32::from(r.rt.classic_time_remaining()),
+                i32::from(r.rt.classic_eq_auto()),
+                vis,
+            ]
+        })?;
+        jints(env, &v)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Sets a classic skin's switches, as [`rt_classic_switches`] reads them.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_classic_switches<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    time_remaining: jboolean,
+    eq_auto: jboolean,
+    vis_mode: jint,
+) {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            r.rt.set_classic_time_remaining(time_remaining);
+            r.rt.set_classic_eq_auto(eq_auto);
+            r.rt.set_classic_vis_mode(match vis_mode {
+                1 => VisMode::Scope,
+                2 => VisMode::Off,
+                _ => VisMode::Analyzer,
+            });
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Shows `rows` as the classic playlist's selection.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_classic_playlist_selection<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    rows: JIntArray<'l>,
+) {
+    env.with_env(|env| {
+        let mut buf = vec![0; rows.len(env)?];
+        rows.get_region(env, 0, &mut buf)?;
+        with_rt(env, h, |r| r.rt.set_classic_playlist_selection(&buf))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// The controls of the window the press now held is on: left, top, width, height and 1 when it

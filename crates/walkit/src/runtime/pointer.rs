@@ -761,6 +761,9 @@ impl SkinRuntime {
     fn menu_aim_at(&mut self, sx: i32, sy: i32, seq: i32) -> Option<MenuAim> {
         let window = self.window_at(sx, sy)?;
         let (x, y) = self.layout_point(window, sx, sy);
+        if let Some(target) = self.classic_row_menu_at(window, x, y) {
+            return Some(MenuAim { seq, target, x, y });
+        }
         let target = self.menu_object_at(window, x, y)?;
         Some(MenuAim { seq, target, x, y })
     }
@@ -1103,13 +1106,15 @@ impl SkinRuntime {
                     self.close_container(c);
                 }
             }
-            // VID_1X..VID_MISC and the last four are a classic skin's: its video window's
-            // buttons, its presets button, its playlist's bottom buttons, the clutter bar's A and D;
+            // VID_1X..ABOUT are a classic skin's: its video window's buttons, its presets
+            // button, its playlist's bottom buttons, selection and row menu, the clutter bar's A
+            // and D, its logo;
             // PE_ADD..PE_LIST are a modern skin's playlist buttons, whose menus the app shows
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
             | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "VID_1X" | "VID_2X" | "VID_TV"
-            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "ALWAYS_ON_TOP"
-            | "DOUBLESIZE" | "ABOUT" | "PE_ADD" | "PE_REM" | "PE_SEL" | "PE_MISC" | "PE_LIST" => {
+            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "PLAYLIST_MENU"
+            | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" | "PE_ADD" | "PE_REM" | "PE_SEL"
+            | "PE_MISC" | "PE_LIST" => {
                 if self.host_actions {
                     self.host.host_action(&a, param, from);
                 }

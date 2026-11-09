@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! The switches of a classic skin a host keeps in step with the host's settings: the time
-//! counting down, the equalizer's auto, the playlist's scroll.
+//! counting down, the equalizer's auto, the vis mode, the playlist's selection and scroll.
 
+use crate::classic::vis::VisMode;
 use crate::runtime::SkinRuntime;
 
 impl SkinRuntime {
@@ -27,6 +28,39 @@ impl SkinRuntime {
     pub fn set_classic_eq_auto(&mut self, on: bool) {
         if self.classic_eq_auto != on {
             self.classic_eq_auto = on;
+            self.repaint();
+        }
+    }
+
+    /// What the main window's vis shows, as a press on it steps it.
+    pub fn classic_vis_mode(&self) -> VisMode {
+        self.classic_vis_mode
+    }
+
+    /// Makes the main window's vis show `mode`.
+    pub fn set_classic_vis_mode(&mut self, mode: VisMode) {
+        if self.classic_vis_mode != mode {
+            self.classic_vis_mode = mode;
+            self.repaint();
+        }
+    }
+
+    /// Shows `rows` as the classic playlist's selection, as the host's playlist has it after its
+    /// select all or invert; rows past the list are left out, and the host is not told back.
+    pub fn set_classic_playlist_selection(&mut self, rows: &[i32]) {
+        let len = self.player.tracks().len() as i32;
+        let mut rows: Vec<i32> = rows
+            .iter()
+            .copied()
+            .filter(|&r| r >= 0 && r < len)
+            .collect();
+        rows.sort_unstable();
+        rows.dedup();
+        let first = rows.first().copied();
+        let more = rows.into_iter().skip(1).collect::<Vec<_>>();
+        if self.classic_selected_row != first || self.classic_selected_more != more {
+            self.classic_selected_row = first;
+            self.classic_selected_more = more;
             self.repaint();
         }
     }

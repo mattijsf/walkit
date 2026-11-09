@@ -925,6 +925,10 @@ impl SkinRuntime {
     /// Selects playlist row `row` (or none) and tells the host, which keeps the selection the
     /// bottom buttons' picks act on (`PLAYLIST_SELECT` with the row, or no param for none).
     fn classic_select_row(&mut self, o: ObjId, row: Option<i32>) {
+        if !self.classic_selected_more.is_empty() {
+            self.classic_selected_more.clear();
+            self.repaint();
+        }
         if self.classic_selected_row == row {
             return;
         }
@@ -1028,10 +1032,60 @@ impl SkinRuntime {
         self.classic_status_until = i64::MAX;
     }
 
-    /// A right click, or a long press: the host's menu, as the title bar's menu button opens it.
-    pub(crate) fn classic_right_click(&mut self, o: ObjId) {
+    /// The classic playlist of layout `window` when `x`, `y` of it is on one of its rows, whose
+    /// long press pops Winamp's item menu ([`Self::classic_right_click`]); `None` elsewhere, where
+    /// a long press is the host's.
+    pub(crate) fn classic_row_menu_at(&self, window: ObjId, x: i32, y: i32) -> Option<ObjId> {
+        // a bottom button's menu of pictures lies over the rows while it is open
+        if self.classic_open_menu.is_some() {
+            return None;
+        }
+        let o = self.all_objects.iter().copied().find(|&o| {
+            self.layout_object(o) == Some(window)
+                && matches!(
+                    self.objects[o].kind,
+                    Kind::ClassicWindow(ClassicWindow::Playlist)
+                )
+        })?;
+        let rect = self.objects[o].base.rect;
+        let row = control_at(
+            ClassicWindow::Playlist,
+            rect.width,
+            rect.height,
+            self.classic_row(),
+            x - rect.left,
+            y - rect.top,
+        );
+        matches!(row, Some(Control::PlRow(_))).then_some(o)
+    }
+
+    /// A right click, or a long press, at `px`, `py` of `o`: on a playlist row, that row selected
+    /// and the host's menu for it (`PLAYLIST_MENU` with the row), as Winamp's playlist pops its
+    /// item menu; anywhere else the host's menu, as the title bar's menu button opens it.
+    pub(crate) fn classic_right_click(&mut self, o: ObjId, px: i32, py: i32) {
         // the menu pops where the finger held
-        self.action_from = self.press_point().map(|(x, y)| Rect::new(x, y, 1, 1));
+        let from = self.press_point().map(|(x, y)| Rect::new(x, y, 1, 1));
+        if let Some(w @ ClassicWindow::Playlist) = self.classic_kind(o) {
+            let rect = self.objects[o].base.rect;
+            if let Some(Control::PlRow(i)) =
+                control_at(w, rect.width, rect.height, self.classic_row(), px, py)
+            {
+                let index = self.classic_pl_scroll(rect.height) + i;
+                if (index as usize) < self.player.tracks().len() {
+                    // the selection first: the host's menu acts on it, so a row outside it
+                    // becomes the selection, and a row in it keeps the rows selected with it
+                    let selected = self.classic_selected_row == Some(index)
+                        || self.classic_selected_more.contains(&index);
+                    if !selected {
+                        self.classic_select_row(o, Some(index));
+                    }
+                    self.action_from = from;
+                    self.action(o, "PLAYLIST_MENU", Some(&index.to_string()), None);
+                    return;
+                }
+            }
+        }
+        self.action_from = from;
         self.action(o, "MENU", None, None);
     }
 
