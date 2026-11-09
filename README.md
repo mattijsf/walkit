@@ -32,6 +32,11 @@ tools/web-build.sh       # the wasm modules (needs the wasm32-unknown-unknown ta
 [android/README.md](android/README.md) covers the Android library and
 [web/README.md](web/README.md) the web build.
 
+## Documentation
+
+The guide and the API reference are at <https://mattijsf.github.io/walkit/>. Their sources are
+in `docs/` (an mdBook) and the engine's doc comments.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
