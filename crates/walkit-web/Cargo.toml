@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["trace"]
-# the reference scenarios recorded on the fixed trace host (`wk_record`), for the parity check
+# the trace scenarios recorded on the fixed trace host (`wk_record`), for the parity check
 # and the measurements; a page that shows a skin does without
 trace = ["dep:walkit-trace"]
 

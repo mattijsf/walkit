@@ -84,7 +84,7 @@ in Winamp 5.666. The frame's window rects say where each one is.
 
 ## The trace run on a device
 
-`CorpusTraceTest`, an instrumented test, runs every reference scenario through the AAR and
+`CorpusTraceTest`, an instrumented test, runs every trace scenario through the AAR and
 writes a trace of each, to compare byte for byte with the traces the same commit writes on a
 desktop.
 Push the inputs [ENGINEERING.md](../ENGINEERING.md) describes to the device first:
@@ -104,6 +104,6 @@ $ADB uninstall nl.mattix.walkit.test
 WALKIT_REFERENCE_TRACES=<desktop traces> ../tools/trace-diff.sh traces-device
 ```
 
-To check the desktop build on the device without the AAR, build it with `cargo ndk -t arm64-v8a
+To run `walkit-trace` itself on the device, without the AAR, build it with `cargo ndk -t arm64-v8a
 build -p walkit-trace --release`, push `target/aarch64-linux-android/release/walkit-trace`
 beside the inputs, run it there as on a desktop, and pull `traces/`.

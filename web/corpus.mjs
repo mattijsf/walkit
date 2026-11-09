@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Runs the reference scenarios through the wasm module as walkit-trace runs them on a desktop:
+// Runs the trace scenarios through the wasm module as walkit-trace runs them on a desktop:
 // each skin from its archive with the sibling skins of the folder and Winamp's default set,
 // the stand-in fonts, pictures decoded by the host (png.mjs), and the run timed on the host's
 // clock. Shared by the node runner and the browser page; they differ only in how bytes arrive.

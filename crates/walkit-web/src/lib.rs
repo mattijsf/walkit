@@ -11,7 +11,7 @@
 //!   frame comes out as text (`wk_rt_draw`, one command per line, no pixel data) or as the
 //!   packed frame of `walkit::packed` (`wk_rt_draw_frame`): every window with its plan and
 //!   only the commands that changed since the frame before, pixels included, for a renderer.
-//! - `wk_record`: a scenario of the reference set run on the fixed trace host, timed on the
+//! - `wk_record`: a trace scenario run on the fixed trace host, timed on the
 //!   host's clock, for the parity check and the measurements. The pictures still come from the
 //!   host (`host_decode`), as the trace host decodes none itself.
 //!
@@ -299,7 +299,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     sorted[i.min(sorted.len() - 1)]
 }
 
-/// One run's timing as a JSON object, the same shape the desktop build writes.
+/// One run's timing as a JSON object, the same shape `walkit-trace` writes on a desktop.
 #[cfg(feature = "trace")]
 fn stats_json(name: &str, s: &walkit_trace::Stats) -> String {
     let sorted = |v: &[f64]| {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Runs each scenario of a reference set through the engine on a stepped clock and
+//! Runs each scenario of a scenario set through the engine on a stepped clock and
 //! writes what the engine did as a trace (`trace v1`), one file per scenario, for a
-//! line-by-line diff against the traces of another engine.
+//! line-by-line diff against the traces of the last release.
 //!
 //! ```text
 //! walkit-trace <scenarios.json> <out dir> [--skins <dir>] [--defaults <zip>] [--fonts <dir>] [--stats <file>]

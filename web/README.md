@@ -5,7 +5,7 @@ build step and no npm. `tools/web-build.sh` writes the modules to `web/dist/`:
 
 - `walkit-release` and `walkit-small`: the page builds, tuned for speed and for size.
 - `walkit-release-trace` and `walkit-small-trace`: the same with the trace recorder
-  (`wk_record`, the `trace` feature), for the reference scenarios.
+  (`wk_record`, the `trace` feature), for the trace scenarios.
 - a `.opt` copy of each when `wasm-opt` is installed.
 
 The script prints each module's size raw, gzipped and brotli-compressed.
@@ -128,14 +128,14 @@ pixels in red:
 node web/pngdiff.mjs snapshots/Bento-check.png <other>.png --out diff.png
 ```
 
-## The reference scenarios
+## The trace scenarios
 
-`corpus.mjs` runs the reference scenarios through a module built with the recorder
+`corpus.mjs` runs the trace scenarios through a module built with the recorder
 (`walkit-*-trace`), the same way `walkit-trace` runs them on a desktop, and times every tick and
 draw list.
 
 ```bash
-# in node: writes traces to compare with the desktop build's
+# in node: writes traces to compare with the desktop walkit-trace's
 node web/node.mjs <scenarios.json> traces-wasm \
   --wasm web/dist/walkit-release-trace.wasm \
   --skins <skins dir> \

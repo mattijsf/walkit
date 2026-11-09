@@ -1,6 +1,6 @@
 [package]
 name = "walkit-trace"
-description = "Runs the reference scenarios through walkit and writes each run's trace"
+description = "Runs the trace scenarios through walkit and writes each run's trace"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

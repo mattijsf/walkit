@@ -67,7 +67,7 @@ class TraceScenario(
          * The run the Winamp reference screenshots were taken with: start-up timers run out, the
          * music plays two seconds and stops, then each tap with three seconds after it.
          */
-        @Suppress("LongParameterList") // one for each thing a reference scenario sets
+        @Suppress("LongParameterList") // one for each thing a trace scenario sets
         fun winampReference(
             name: String,
             files: SkinFiles,

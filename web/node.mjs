@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Runs the reference scenarios through the wasm module in node and writes each run's trace,
-// for a byte compare with the desktop build's:
+// Runs the trace scenarios through the wasm module in node and writes each run's trace,
+// for a byte compare with the traces walkit-trace writes on a desktop:
 //
 //   node web/node.mjs <scenarios.json> <out dir> --wasm <file> [--skins <dir>] [--defaults <zip>]
 //                     [--fonts <dir>] [--stats <file>]

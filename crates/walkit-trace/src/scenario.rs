@@ -68,7 +68,7 @@ impl Scenario {
         s
     }
 
-    /// A scenario from its `spec` lines; what is missing takes the reference run's defaults.
+    /// A scenario from its `spec` lines; what is missing takes the trace run's defaults.
     pub fn from_spec(spec: &str) -> Scenario {
         let mut sc = Scenario {
             name: String::new(),
