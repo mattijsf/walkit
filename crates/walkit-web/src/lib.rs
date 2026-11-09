@@ -928,7 +928,7 @@ pub extern "C" fn wk_rt_wheel_playlist(id: i32, notches: i32) -> i32 {
 pub extern "C" fn wk_rt_playlist_selection(id: i32, index: i32) -> i32 {
     with_rt(id, |r| {
         r.engine
-            .set_playlist_selection((index >= 0).then_some(index))
+            .set_playlist_selection((index >= 0).then_some(index));
     })
     .map(|()| 1)
     .unwrap_or(0)
