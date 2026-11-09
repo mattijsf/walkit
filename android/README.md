@@ -9,7 +9,7 @@ API in package `nl.mattix.walkit`.
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.6.0
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.7.0
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
@@ -33,7 +33,7 @@ consumer's shrinker needs no extra rules.
 
 ## Test fixtures
 
-`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.6.0"))` adds the engine built for
+`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.7.0"))` adds the engine built for
 the publishing machine (the `cargoBuildHost` task, a plain `cargo build`), so a consumer's JVM
 unit tests can run skins.
 

@@ -96,6 +96,9 @@ pub(crate) struct PointerState {
     /// Whether the moves and the release of the press now held land exactly where they say: a
     /// host's magnifier steers them, so no touch slop keeps the press on its control.
     pub(crate) precise: bool,
+    /// The keys held with the press now held, as the host said before it went down: Ctrl, and Shift.
+    pub(crate) ctrl: bool,
+    pub(crate) shift: bool,
 }
 
 impl SkinRuntime {
@@ -963,6 +966,15 @@ impl SkinRuntime {
         self.pointer.precise = precise;
     }
 
+    /// The keys held with the next press, from a keyboard beside a mouse or a finger: Ctrl and
+    /// Shift. A classic playlist's row takes them as Winamp's does, Ctrl adding a row to the
+    /// selection or taking it out, Shift selecting the rows from the last one picked. They hold
+    /// until the host says again.
+    pub fn set_pointer_modifiers(&mut self, ctrl: bool, shift: bool) {
+        self.pointer.ctrl = ctrl;
+        self.pointer.shift = shift;
+    }
+
     /// The controls of the window the press now held is on, in stack pixels, for a host's
     /// magnifier to show and to steer the press between; empty without a press. A classic
     /// window lists each control by the box it answers in, and, while one of its playlist
@@ -1107,14 +1119,14 @@ impl SkinRuntime {
                 }
             }
             // VID_1X..ABOUT are a classic skin's: its video window's buttons, its presets
-            // button, its playlist's bottom buttons, selection and row menu, the clutter bar's A
+            // button, its playlist's bottom buttons, selections and row menu, the clutter bar's A
             // and D, its logo;
             // PE_ADD..PE_LIST are a modern skin's playlist buttons, whose menus the app shows
             "MINIMIZE" | "SYSMENU" | "CONTROLMENU" | "MENU" | "TRACKINFO" | "VIS_NEXT"
             | "VIS_PREV" | "VIS_MENU" | "VIS_FS" | "VID_FS" | "VID_1X" | "VID_2X" | "VID_TV"
-            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "PLAYLIST_MENU"
-            | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" | "PE_ADD" | "PE_REM" | "PE_SEL"
-            | "PE_MISC" | "PE_LIST" => {
+            | "VID_MISC" | "EQ_PRESETS" | "PLAYLIST" | "PLAYLIST_SELECT" | "PLAYLIST_SELECTION"
+            | "PLAYLIST_MENU" | "ALWAYS_ON_TOP" | "DOUBLESIZE" | "ABOUT" | "PE_ADD" | "PE_REM"
+            | "PE_SEL" | "PE_MISC" | "PE_LIST" => {
                 if self.host_actions {
                     self.host.host_action(&a, param, from);
                 }

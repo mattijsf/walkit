@@ -16,6 +16,7 @@ use jni::errors::{Error, Result, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JLongArray, JObject, JObjectArray, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::{jni_mangle, Env, EnvUnowned};
+use walkit::classic::marks::{MarkPlace, RowMark, RowMarks};
 use walkit::classic::vis::VisMode;
 use walkit::host::{
     Edge, OptionEntry, OptionKey, Presentation, SavedSettings, SkinSetup, WindowId,
@@ -25,7 +26,7 @@ use walkit::packed::{FrameWindow, FrameWriter};
 use walkit::plan::DrawPlanner;
 use walkit::SkinRuntime;
 
-use crate::bridge::{bytes_of, jints, jstring, throw, Bridge, Failure, Thrown};
+use crate::bridge::{bytes_of, jints, jstring, strings_of, throw, Bridge, Failure, Thrown};
 use crate::files::JniFiles;
 use crate::host::{HostCache, JniHost};
 use crate::player::{JniPlayer, PlayerCache};
@@ -1287,6 +1288,70 @@ pub fn rt_set_classic_playlist_selection<'l>(
         let mut buf = vec![0; rows.len(env)?];
         rows.get_region(env, 0, &mut buf)?;
         with_rt(env, h, |r| r.rt.set_classic_playlist_selection(&buf))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Lets the classic windows switch to their shade bars, or not.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_classic_shades<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    on: jboolean,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.set_classic_shades(on)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// The keys held with the next press: Ctrl and Shift.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_pointer_modifiers<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    ctrl: jboolean,
+    shift: jboolean,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.set_pointer_modifiers(ctrl, shift)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Puts marks on the classic playlist's rows: each mark's picture (its rows of pixels joined by
+/// newlines, empty for none) and text, each row's mark (-1 for none), and where they go (0 before
+/// the title, 1 ahead of the length).
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_classic_row_marks<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    pictures: JObject<'l>,
+    texts: JObject<'l>,
+    rows: JIntArray<'l>,
+    place: jint,
+) {
+    env.with_env(|env| {
+        let pictures = strings_of(env, pictures)?.unwrap_or_default();
+        let texts = strings_of(env, texts)?.unwrap_or_default();
+        let mut buf = vec![0; rows.len(env)?];
+        rows.get_region(env, 0, &mut buf)?;
+        let marks = RowMarks {
+            marks: pictures
+                .into_iter()
+                .zip(texts)
+                .map(|(p, text)| RowMark {
+                    pixels: p.lines().map(str::to_string).collect(),
+                    text,
+                })
+                .collect(),
+            rows: buf.into_iter().map(|m| u16::try_from(m).ok()).collect(),
+            place: if place == 0 {
+                MarkPlace::Before
+            } else {
+                MarkPlace::After
+            },
+        };
+        with_rt(env, h, |r| r.rt.set_classic_row_marks(marks))
     })
     .resolve::<ThrowRuntimeExAndDefault>();
 }

@@ -925,6 +925,7 @@ impl SkinRuntime {
     /// Selects playlist row `row` (or none) and tells the host, which keeps the selection the
     /// bottom buttons' picks act on (`PLAYLIST_SELECT` with the row, or no param for none).
     fn classic_select_row(&mut self, o: ObjId, row: Option<i32>) {
+        self.classic_select_anchor = row;
         if !self.classic_selected_more.is_empty() {
             self.classic_selected_more.clear();
             self.repaint();
@@ -935,6 +936,44 @@ impl SkinRuntime {
         self.classic_selected_row = row;
         let param = row.map(|r| r.to_string());
         self.action(o, "PLAYLIST_SELECT", param.as_deref(), None);
+    }
+
+    /// A press on row `row` with Ctrl or Shift held, as Winamp takes it: Ctrl adds the row to the
+    /// selection or takes it out, Shift selects the rows from the last one picked to this one
+    /// (Ctrl with it adds them to the selection). The host hears the whole selection
+    /// (`PLAYLIST_SELECTION` with the rows, "1,4,5", or no param for none).
+    fn classic_extend_selection(&mut self, o: ObjId, row: i32) {
+        let (ctrl, shift) = (self.pointer.ctrl, self.pointer.shift);
+        let mut rows: Vec<i32> = self
+            .classic_selected_row
+            .into_iter()
+            .chain(self.classic_selected_more.iter().copied())
+            .collect();
+        if shift {
+            let from = self.classic_select_anchor.unwrap_or(row);
+            if !ctrl {
+                rows.clear();
+            }
+            rows.extend(from.min(row)..=from.max(row));
+        } else if let Some(at) = rows.iter().position(|&r| r == row) {
+            rows.remove(at);
+            self.classic_select_anchor = Some(row);
+        } else {
+            rows.push(row);
+            self.classic_select_anchor = Some(row);
+        }
+        rows.sort_unstable();
+        rows.dedup();
+        self.classic_selected_row = rows.first().copied();
+        self.classic_selected_more = rows.iter().skip(1).copied().collect();
+        self.repaint();
+        let param = rows
+            .iter()
+            .map(i32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let param = (!param.is_empty()).then_some(param);
+        self.action(o, "PLAYLIST_SELECTION", param.as_deref(), None);
     }
 
     /// Whether the finger at `px`, `py` is still within the touch slop of where `press` went
@@ -1420,7 +1459,11 @@ impl SkinRuntime {
                 let h = self.objects[o].base.rect.height;
                 let index = self.classic_pl_scroll(h) + i;
                 if (index as usize) < self.player.tracks().len() {
-                    self.classic_select_row(o, Some(index));
+                    if self.pointer.ctrl || self.pointer.shift {
+                        self.classic_extend_selection(o, index);
+                    } else {
+                        self.classic_select_row(o, Some(index));
+                    }
                 }
             }
             _ => {}
@@ -1450,6 +1493,9 @@ impl SkinRuntime {
 
     /// Shows the window of `o` in its other look: the shade bar, or the normal layout again.
     fn classic_toggle_shade(&mut self, o: ObjId, w: ClassicWindow) {
+        if !self.classic_shades {
+            return;
+        }
         let Some(l) = self.layout_object(o) else {
             return;
         };

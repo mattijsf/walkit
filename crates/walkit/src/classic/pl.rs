@@ -6,6 +6,7 @@
 use crate::classic::font;
 use crate::classic::listfont::{self, ListInk};
 use crate::classic::main::Painter;
+use crate::classic::marks::{MarkPlace, RowMark, RowMarks, MARK_GAP};
 use crate::classic::style::ClassicStyle;
 use crate::classic::touch::Control;
 use crate::draw::{Align, DrawCmd, Rect};
@@ -249,7 +250,8 @@ impl SkinRuntime {
 
     /// One row in the skin's letters, its letters' tops at `top` of `block` (`width` wide):
     /// "n. " and the title from the left, the length against the right, a title too long for
-    /// the room between ending on the ellipsis.
+    /// the room between ending on the ellipsis, and the row's `mark` in a cell `cell` wide where
+    /// `place` puts it.
     #[allow(clippy::too_many_arguments)]
     fn letter_row(
         ink: &ListInk,
@@ -260,21 +262,132 @@ impl SkinRuntime {
         title: &str,
         time: &str,
         rgb: u32,
+        mark: Option<&RowMark>,
+        cell: i32,
+        place: MarkPlace,
     ) {
         let number = format!("{number}. ");
         ink.write(&number, (LIST_LEFT, top), rgb, block, width, width);
-        let left = LIST_LEFT + number.chars().count() as i32 * listfont::CELL_W;
+        let mut left = LIST_LEFT + number.chars().count() as i32 * listfont::CELL_W;
         let time_x = width - LIST_RIGHT - time.chars().count() as i32 * listfont::CELL_W;
         ink.write(time, (time_x, top), rgb, block, width, width);
-        let room = (time_x - LIST_GAP - left) / listfont::CELL_W;
+        let mut right = time_x - LIST_GAP;
+        if cell > 0 {
+            let x = if place == MarkPlace::Before {
+                left += cell + MARK_GAP;
+                left - cell - MARK_GAP
+            } else {
+                right -= cell + MARK_GAP;
+                right + MARK_GAP
+            };
+            if let Some(m) = mark {
+                Self::letter_mark(ink, block, width, (x, top), cell, m, rgb);
+            }
+        }
+        let room = (right - left) / listfont::CELL_W;
         ink.write(
             &listfont::fitted(title, room),
             (left, top),
             rgb,
             block,
             width,
-            time_x,
+            right.max(left),
         );
+    }
+
+    /// `mark` into `block`, centered in a cell `cell` wide from `x`, on letters whose tops are
+    /// at `top`: its picture a pixel to the pixel, or its text in the skin's letters.
+    fn letter_mark(
+        ink: &ListInk,
+        block: &mut [u32],
+        width: i32,
+        (x, top): (i32, i32),
+        cell: i32,
+        mark: &RowMark,
+        rgb: u32,
+    ) {
+        let w = mark.pixel_width();
+        if w == 0 {
+            let tw = mark.text.chars().count() as i32 * listfont::CELL_W;
+            ink.write(
+                &mark.text,
+                (x + (cell - tw) / 2, top),
+                rgb,
+                block,
+                width,
+                x + cell,
+            );
+            return;
+        }
+        let rows = block.len() as i32 / width.max(1);
+        let x0 = x + (cell - w) / 2;
+        // centered on the letters' ink, which leaves a cell's last row empty
+        let y0 = top + (listfont::CELL_H - 1 - mark.pixel_height()) / 2;
+        let picture = mark.picture(0xff00_0000 | (rgb & 0xff_ffff));
+        for py in 0..mark.pixel_height() {
+            for px in 0..w {
+                let (dx, dy) = (x0 + px, y0 + py);
+                let a = picture[(py * w + px) as usize];
+                if a != 0 && (0..width).contains(&dx) && (0..rows).contains(&dy) {
+                    block[(dy * width + dx) as usize] = a;
+                }
+            }
+        }
+    }
+
+    /// `mark` in the outline font's row at `x`, `y` of the window, centered in a cell `cell`
+    /// wide and `row` tall: its picture a pixel to the skin's pixel, or its text in that font.
+    fn outline_mark(
+        p: &mut Painter,
+        (x, y): (i32, i32),
+        (cell, row): (i32, i32),
+        mark: &RowMark,
+        color: crate::draw::Rgb,
+        face: Option<&String>,
+        size: i32,
+    ) {
+        let (w, h) = (mark.pixel_width(), mark.pixel_height());
+        if w == 0 {
+            p.text(
+                &mark.text,
+                face,
+                size,
+                (x, y, cell, row),
+                color,
+                Align::Center,
+            );
+            return;
+        }
+        let rect = Rect::new(
+            p.at.left + x + (cell - w) / 2,
+            p.at.top + y + (row - h) / 2,
+            w,
+            h,
+        );
+        p.out.push(DrawCmd::Pixels {
+            rect,
+            w,
+            h,
+            argb: std::rc::Rc::from(
+                mark.picture(0xff00_0000 | (color.0 & 0xff_ffff))
+                    .into_boxed_slice(),
+            ),
+            alpha: 255,
+            stable: false,
+        });
+    }
+
+    /// How wide a mark's cell is: the widest of the marks set, as `text_w` measures a mark's text.
+    fn mark_cell(marks: &RowMarks, mut text_w: impl FnMut(&str) -> i32) -> i32 {
+        marks
+            .marks
+            .iter()
+            .map(|m| match m.pixel_width() {
+                0 => text_w(&m.text),
+                w => w,
+            })
+            .max()
+            .unwrap_or(0)
     }
 
     pub(crate) fn draw_classic_pl(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
@@ -303,6 +416,14 @@ impl SkinRuntime {
             .as_ref()
             .map(|_| vec![0u32; (block_w.max(0) * rows.max(0) * row) as usize]);
         let mut lettered = false;
+        let marks = self.classic_row_marks.clone();
+        let face = Some(&style.font);
+        let def = Self::classic_pl_font(&style.font);
+        // a mark's cell in the skin's letters, and in the outline font
+        let letter_cell = Self::mark_cell(&marks, |t| t.chars().count() as i32 * listfont::CELL_W);
+        let outline_cell = Self::mark_cell(&marks, |t| {
+            self.host.text_width(t, def.as_ref(), font_size, false)
+        });
         let selected = self.classic_selected_row;
         let scroll = self.classic_pl_scroll(h).max(0) as usize;
         for (i, t) in tracks
@@ -324,23 +445,77 @@ impl SkinRuntime {
             if let (Some(ink), Some(block)) = (ink.as_deref(), block.as_mut()) {
                 if listfont::covers(&t.title) {
                     let top = (i - scroll) as i32 * row + (row - listfont::CELL_H) / 2;
-                    Self::letter_row(ink, block, block_w, top, i + 1, &t.title, &time, color.0);
+                    Self::letter_row(
+                        ink,
+                        block,
+                        block_w,
+                        top,
+                        i + 1,
+                        &t.title,
+                        &time,
+                        color.0,
+                        marks.of(i),
+                        letter_cell,
+                        marks.place,
+                    );
                     lettered = true;
                     continue;
                 }
             }
             // " m:ss " right-aligned at the row's end, and the title up to it, cut short on "..."
-            let face = Some(&style.font);
-            let def = Self::classic_pl_font(&style.font);
             let time = format!(" {} ", minutes_text(t.length_ms / 1000));
             let time_w = self.host.text_width(&time, def.as_ref(), font_size, false);
-            let line = numbered(i + 1, tracks.len(), &t.title);
-            let title = self.classic_pl_fitted(&line, def.as_ref(), block_w - time_w);
+            let mut left = 0;
+            let mut right = block_w - time_w;
+            let line = if outline_cell > 0 {
+                let number = numbered(i + 1, tracks.len(), "");
+                let x = if marks.place == MarkPlace::Before {
+                    p.text(
+                        &number,
+                        face,
+                        font_size,
+                        (12, y, w - 32, row),
+                        color,
+                        Align::Left,
+                    );
+                    let at = self
+                        .host
+                        .text_width(&number, def.as_ref(), font_size, false);
+                    left = at + outline_cell + MARK_GAP;
+                    at
+                } else {
+                    right -= outline_cell + MARK_GAP;
+                    right + MARK_GAP
+                };
+                if let Some(m) = marks.of(i) {
+                    Self::outline_mark(
+                        &mut p,
+                        (12 + x, y),
+                        (outline_cell, row),
+                        m,
+                        color,
+                        face,
+                        font_size,
+                    );
+                }
+                if marks.place == MarkPlace::Before {
+                    t.title.clone()
+                } else {
+                    numbered(i + 1, tracks.len(), &t.title)
+                }
+            } else {
+                numbered(i + 1, tracks.len(), &t.title)
+            };
+            let title = self.classic_pl_fitted(&line, def.as_ref(), right - left);
             p.text(
                 &title,
                 face,
                 font_size,
-                (12, y, w - 32, row),
+                if outline_cell > 0 {
+                    (12 + left, y, right - left, row)
+                } else {
+                    (12, y, w - 32, row)
+                },
                 color,
                 Align::Left,
             );

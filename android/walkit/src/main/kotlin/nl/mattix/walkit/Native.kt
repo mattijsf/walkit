@@ -369,6 +369,28 @@ internal object Native {
         rows: IntArray,
     )
 
+    @JvmStatic
+    external fun rtSetClassicShades(
+        h: Long,
+        on: Boolean,
+    )
+
+    @JvmStatic
+    external fun rtSetPointerModifiers(
+        h: Long,
+        ctrl: Boolean,
+        shift: Boolean,
+    )
+
+    @JvmStatic
+    external fun rtSetClassicRowMarks(
+        h: Long,
+        pictures: Array<String>,
+        texts: Array<String>,
+        rows: IntArray,
+        place: Int,
+    )
+
     @JvmStatic external fun rtPressControls(h: Long): IntArray
 
     @JvmStatic

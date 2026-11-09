@@ -3135,3 +3135,153 @@ fn the_host_selects_several_rows_and_a_tap_selects_one_again() {
     assert_eq!(rt.classic_selected_row, Some(0));
     assert!(rt.classic_selected_more.is_empty());
 }
+
+fn three_songs() -> SkinRuntime {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = ["One", "Two", "Three"]
+        .iter()
+        .map(|t| Track {
+            title: (*t).into(),
+            length_ms: 60_000,
+        })
+        .collect();
+    classic_with(player, clock)
+}
+
+#[test]
+fn with_shades_off_the_shade_button_and_title_do_nothing_and_a_shaded_window_opens_up() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    rt.pointer_down(258, 7, 1);
+    rt.pointer_up(258, 7);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 14), "shaded");
+    rt.set_classic_shades(false);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(
+        rt.window_size(main),
+        (275, 116),
+        "back in its normal layout"
+    );
+    rt.pointer_down(258, 7, 2);
+    rt.pointer_up(258, 7);
+    rt.double_tap(100, 7, 3);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(
+        rt.window_size(main),
+        (275, 116),
+        "the shade button and the title shade nothing"
+    );
+    rt.set_classic_shades(true);
+    rt.double_tap(100, 7, 4);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 14));
+}
+
+#[test]
+fn ctrl_and_shift_select_rows_as_in_winamp_and_the_host_hears_them_all() {
+    let mut rt = three_songs();
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let froms: Froms = Rc::new(RefCell::new(Vec::new()));
+    rt.host = Box::new(RecordingHost(actions.clone(), froms));
+    rt.host_actions = true;
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let press = |rt: &mut SkinRuntime, row: i32, ctrl: bool, shift: bool, seq: i32| {
+        rt.set_pointer_modifiers(ctrl, shift);
+        let y = 116 + 22 + row * rt.classic_row() + 2;
+        rt.pointer_down(30, y, seq);
+        rt.pointer_up(30, y);
+    };
+    press(&mut rt, 0, false, false, 1);
+    press(&mut rt, 2, true, false, 2);
+    assert_eq!(
+        (rt.classic_selected_row, rt.classic_selected_more.clone()),
+        (Some(0), vec![2])
+    );
+    press(&mut rt, 0, true, false, 3);
+    assert_eq!(
+        (rt.classic_selected_row, rt.classic_selected_more.clone()),
+        (Some(2), vec![])
+    );
+    press(&mut rt, 2, false, true, 4);
+    assert_eq!(
+        (rt.classic_selected_row, rt.classic_selected_more.clone()),
+        (Some(0), vec![1, 2]),
+        "Shift selects from the row last picked with Ctrl"
+    );
+    press(&mut rt, 1, false, false, 5);
+    assert!(
+        rt.classic_selected_more.is_empty(),
+        "a plain press picks one row"
+    );
+    assert_eq!(
+        *actions.borrow(),
+        vec![
+            "PLAYLIST_SELECT 0",
+            "PLAYLIST_SELECTION 0,2",
+            "PLAYLIST_SELECTION 2",
+            "PLAYLIST_SELECTION 0,1,2",
+            "PLAYLIST_SELECT 1"
+        ]
+    );
+}
+
+#[test]
+fn a_row_mark_takes_its_cell_before_the_title_or_ahead_of_the_length() {
+    use crate::classic::marks::{MarkPlace, RowMark, RowMarks};
+    let mut rt = three_songs();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let picture = RowMark {
+        pixels: vec!["#.#".into(), ".#.".into()],
+        text: "A".into(),
+    };
+    rt.set_classic_row_marks(RowMarks {
+        marks: vec![picture],
+        rows: vec![Some(0), None, None],
+        place: MarkPlace::Before,
+    });
+    let pixels = |rt: &mut SkinRuntime| -> Vec<(Rect, Vec<u32>)> {
+        let windows = rt.draw_windows();
+        let (_, cmds) = windows
+            .iter()
+            .find(|(r, _)| r.top == 116)
+            .expect("the playlist");
+        cmds.iter()
+            .filter_map(|c| match c {
+                DrawCmd::Pixels { rect, argb, .. } => Some((*rect, argb.to_vec())),
+                _ => None,
+            })
+            .collect()
+    };
+    let marks = pixels(&mut rt);
+    assert_eq!(marks.len(), 1, "one mark, on the first row: {marks:?}");
+    let (rect, argb) = &marks[0];
+    assert_eq!((rect.width, rect.height), (3, 2));
+    assert_eq!(
+        argb.iter().map(|&p| p != 0).collect::<Vec<_>>(),
+        vec![true, false, true, false, true, false]
+    );
+    let before_x = rect.left;
+    rt.set_classic_row_marks(RowMarks {
+        marks: vec![RowMark {
+            pixels: vec!["#.#".into(), ".#.".into()],
+            text: "A".into(),
+        }],
+        rows: vec![Some(0), None, None],
+        place: MarkPlace::After,
+    });
+    let after = pixels(&mut rt);
+    assert!(
+        after[0].0.left > before_x + 100,
+        "ahead of the length, at the right"
+    );
+    rt.set_classic_row_marks(RowMarks::default());
+    assert!(pixels(&mut rt).is_empty(), "no marks, no pictures");
+}
