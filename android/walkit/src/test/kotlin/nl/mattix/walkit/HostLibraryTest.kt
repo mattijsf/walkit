@@ -47,4 +47,16 @@ class HostLibraryTest {
             assertEquals(1, rt.drawWindows().size)
         }
     }
+
+    @Test
+    fun `a host sets the classic switches and reads them back`() {
+        SkinRuntime(files, host, FakePlayer(), clock = { 0L }).use { rt ->
+            rt.load()
+            assertEquals(ClassicSwitches(), rt.classicSwitches)
+            val set = ClassicSwitches(timeRemaining = true, eqAuto = true, visMode = ClassicVisMode.SCOPE)
+            rt.classicSwitches = set
+            assertEquals(set, rt.classicSwitches)
+            rt.setClassicPlaylistSelection(listOf(0, 3))
+        }
+    }
 }
