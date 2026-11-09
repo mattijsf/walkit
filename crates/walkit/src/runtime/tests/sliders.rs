@@ -29,8 +29,8 @@ fn loaded() -> SkinRuntime {
 #[test]
 fn the_balance_snaps_to_its_middle_within_its_reach() {
     let mut rt = loaded();
-    // taken beside the thumb at the far left, then dragged right a pixel at a time: the VM
-    // read -24, -19, then 0 for 7 pixels, then 19, 24
+    // taken beside the thumb at the far left, then dragged right a pixel at a time: Winamp in
+    // the VM gave -24, -19, then 0 for 7 pixels, then 19, 24
     rt.pointer_down(5, 6, 1);
     assert_eq!(rt.player.pan(), -127);
     let mut seen = Vec::new();

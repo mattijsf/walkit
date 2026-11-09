@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The engine on skins of the reference corpus, checked against what the reference engine does
-//! on the same skins where the trace cannot show it. The corpus is the `.wal` files of Andamp's
-//! `modernskin/src/test/resources` (`WALKIT_CORPUS_SKINS`, or `../andamp/...` beside this
-//! repository); without it every test here passes without checking anything.
+//! on the same skins where the trace cannot show it. The corpus is a folder of `.wal` files
+//! (`WALKIT_CORPUS_SKINS`, or the test resources of an Andamp checkout beside this repository,
+//! where a local corpus lives); without it every test here passes without checking anything.
 
 #![cfg(feature = "native")]
 

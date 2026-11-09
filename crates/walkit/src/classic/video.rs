@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! The video window of a classic skin, framed with `video.bmp`. Drawn as Winamp 5.666 draws
-//! it: the title bar, the sides and the bottom bar,
-//! the buttons, the close button, the status line.
+//! it: the title bar, the sides and the bottom bar, the buttons, the close button, the status
+//! line.
 
 use super::main::Painter;
 use super::touch::Control;

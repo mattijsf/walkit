@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! The classic playlist editor's frame, pixel for pixel as Winamp 5.666 paints it:
-//! the title bar of corners, tiles and the title, the sides
-//! tiled down, and the bottom bar with its buttons, the list's background between them.
+//! The classic playlist editor's frame, pixel for pixel as Winamp 5.666 paints it: the title bar
+//! of corners, tiles and the title, the sides tiled down, and the bottom bar with its buttons,
+//! the list's background between them.
 
 use crate::classic::font;
 use crate::classic::listfont::{self, ListInk};
@@ -27,9 +27,8 @@ fn time_text(seconds: i32) -> String {
 }
 
 /// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it:
-/// Winamp's playlist font is `pe_fontsize` pixels to the em at 96 dpi;
-/// a host reads a size as points, so it goes out as 4/3 of that (16 for an em
-/// of 12 pixels).
+/// Winamp's playlist font is `pe_fontsize` pixels to the em at 96 dpi; a host reads a size as
+/// points, so it goes out as 4/3 of that (16 for an em of 12 pixels).
 pub(super) const ROW_FONT: i32 = 12 * 4 / 3;
 /// A row's height: the font's `tmHeight`, 15 for Arial at 12 in the reference
 /// VM, where 3 rows fill a playlist 116 tall.
@@ -37,7 +36,7 @@ pub(crate) const ROW_HEIGHT: i32 = 15;
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
-/// least between the title and the length, as Andamp's playlist sets them.
+/// least between the title and the length, as Andamp's playlist (a phone's) sets them.
 const LIST_LEFT: i32 = 2;
 const LIST_RIGHT: i32 = 3;
 const LIST_GAP: i32 = 4;
@@ -382,8 +381,8 @@ impl SkinRuntime {
                 p.blit("text.bmp", 142, 0, 5, 6, x, y);
             }
         } else {
-            // the time played, or the time left with a minus before it (the minus drawn as
-            // 3 columns of text.bmp's "-" where the blank goes)
+            // the time played, or the time left with a minus before it (the minus drawn as 3
+            // columns of text.bmp's "-" where the blank goes)
             let length = self.player.length_ms();
             let remaining = self.classic_remaining && length > 0;
             let ms = if remaining {

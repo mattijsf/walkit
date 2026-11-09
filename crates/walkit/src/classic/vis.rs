@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! The classic main window's analyzer and oscilloscope, as Winamp paints them
-//! (in 5.666) into a 76 x 16 picture over the viscolor palette: the dot grid on
+//! The classic main window's analyzer and oscilloscope, as Winamp 5.666 paints them
+//! into a 76 x 16 picture over the viscolor palette: the dot grid on
 //! the odd rows and even columns; the analyzer's thick bars three columns wide with the fourth
 //! empty, each bar's base two rows under the picture so its bottom row carries color 15 and each
 //! row up one color less, and peak marks in color 23, with falloff, peaks and their speeds as
@@ -275,9 +275,9 @@ impl ClassicVis {
                 .get(b)
                 .map_or(0, |v| (v.clamp(0.0, 1.0) * 15.0).round() as i32)
         };
-        // a group of four columns starting at g shows bands 2g..2g+3, skipping
-        // the bands between groups, column c falling as band 2c does; the main window's
-        // analyzer falls with it, as the two do in the VM
+        // a group of four columns starting at g shows bands 2g..2g+3, skipping the bands
+        // between groups, and column c falls as band 2c of the main window's analyzer falls:
+        // the two analyzers share one falloff, as they do in the VM
         for col in 0..SHADE_BANDS {
             let v = if style.thin_bars {
                 ((level(col * 2) + level(col * 2 + 1)) / 2).min(15)

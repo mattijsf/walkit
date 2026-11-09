@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! What a skin keeps between runs moves in and out as one value: `restore_settings` before the
-//! skin loads, `saved_settings` whenever the host saves (the reference's `SavedSettingsTest`).
+//! skin loads, `saved_settings` whenever the host saves (Andamp's `SavedSettingsTest`).
 
 use super::runtime;
 use crate::host::SavedSettings;

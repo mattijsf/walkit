@@ -588,7 +588,8 @@ impl SkinRuntime {
                     alpha,
                 });
             }
-            // text from 1 px inside the component's left edge to 18 px inside its right edge
+            // text from `PL_TEXT_LEFT` inside the component's left edge to `PL_TEXT_RIGHT` inside
+            // its right edge
             let inner = Rect::new(
                 rect.left + PL_TEXT_LEFT,
                 row.top,

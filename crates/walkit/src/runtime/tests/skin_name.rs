@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A skin names itself in `<skininfo><name>`, which the host falls back on when it has no name
-//! for it (the reference's `SkinInfoNameTest`), and the host may name it at any time.
+//! for it (Andamp's `SkinInfoNameTest`), and the host may name it at any time.
 
 use super::runtime_files;
 use crate::host::SkinSetup;
