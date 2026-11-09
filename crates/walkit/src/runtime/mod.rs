@@ -721,6 +721,11 @@ pub(crate) fn names_for(id: &str) -> Vec<String> {
 pub(crate) fn is_grouped(k: &Kind) -> bool {
     matches!(
         k,
-        Kind::Group | Kind::Layout(_) | Kind::Frame(_) | Kind::Bucket(_) | Kind::XFade(_)
+        Kind::Group
+            | Kind::Layout(_)
+            | Kind::Frame(_)
+            | Kind::Bucket(_)
+            | Kind::XFade(_)
+            | Kind::LayoutStatus(_)
     )
 }

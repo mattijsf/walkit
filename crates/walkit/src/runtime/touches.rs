@@ -17,6 +17,11 @@ impl SkinRuntime {
         if !self.objects[o].base.visible {
             return None;
         }
+        // a status bar's command buttons lie over its field; the rest of the bar moves the window
+        if matches!(self.objects[o].kind, Kind::LayoutStatus(_)) {
+            return (self.takes_touch_at(o, px, py) && self.status_button_at(o, px, py).is_some())
+                .then_some(o);
+        }
         if self.objects[o].group.is_some() {
             match &self.objects[o].kind {
                 // entries scrolled out of the strip are not drawn there, and take no touch
@@ -50,14 +55,7 @@ impl SkinRuntime {
             Kind::Grid(_) | Kind::ProgressGrid(..) | Kind::Unknown { .. } | Kind::Gradient(_) => {
                 None
             }
-            // only its command buttons take a touch; the rest of the bar moves the window
-            Kind::LayoutStatus(_) => {
-                if self.takes_touch_at(o, px, py) && self.status_button_at(o, px, py).is_some() {
-                    Some(o)
-                } else {
-                    None
-                }
-            }
+            Kind::LayoutStatus(_) => None,
             Kind::Layer(l) | Kind::AnimatedLayer(l, _) => {
                 // clicks pass through transparent pixels, as in Winamp
                 let image = l.image.clone();

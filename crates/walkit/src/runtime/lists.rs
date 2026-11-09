@@ -48,9 +48,8 @@ const STATUS_LEFT: [&str; 4] = ["Add", "Rem", "Sel", "Misc"];
 const STATUS_RIGHT: [&str; 1] = ["List"];
 /// Winamp's buttons: Arial at text size 14, which draws at 11 px (Wasabi SDK buttwnd).
 const STATUS_FONT_SIZE: i32 = 14;
-/// Buttons 1 px into the bar; a cell at least 8 wide, its last 2 px the bar's.
+/// A button at least 8 wide.
 const STATUS_MIN_W: i32 = 8;
-const STATUS_CELL_MARGIN: i32 = 2;
 
 #[allow(clippy::too_many_arguments)]
 fn text_cmd(
@@ -899,58 +898,53 @@ impl SkinRuntime {
     }
 
     /// The command buttons, left ones then right ones, each with its box, and the field
-    /// between the two groups. Buttons are as tall as the bar less a pixel above and below
-    /// (13 px in the default set's 15 px bar, 15 in MMD3's 17).
+    /// between the two groups. The buttons fill the bar's height and sit edge to edge from
+    /// its ends, as the reference VM shows in MMD3 and the default set alike.
     fn status_cells(&mut self, o: ObjId) -> (Vec<(&'static str, Rect)>, Rect) {
         let rect = self.objects[o].base.rect;
         let (left, right) = self.status_commands(o);
-        let top = rect.top + 1;
-        let h = (rect.height - 2).max(0);
+        let (top, h) = (rect.top, rect.height);
         let mut cells = Vec::new();
-        // the cells sit edge to edge; each button leaves the last 2 px of its cell to the bar (Wasabi SDK buttbar: no spacer)
-        let mut x = rect.left + 1;
+        let mut x = rect.left;
         for c in left {
             let w = self.status_button_width(c);
-            cells.push((c, Rect::new(x, top, w - STATUS_CELL_MARGIN, h)));
+            cells.push((c, Rect::new(x, top, w, h)));
             x += w;
         }
-        let mut r = rect.right() - 1;
+        let mut r = rect.right();
         let mut right_cells = Vec::new();
         for c in right.into_iter().rev() {
             let w = self.status_button_width(c);
             r -= w;
-            right_cells.push((c, Rect::new(r, top, w - STATUS_CELL_MARGIN, h)));
+            right_cells.push((c, Rect::new(r, top, w, h)));
         }
         right_cells.reverse();
         cells.extend(right_cells);
         (cells, Rect::new(x, top, (r - x).max(0), h))
     }
 
-    /// The status bar's drawing: the command buttons and the field between them.
+    /// Lays the status bar's field group out between its two groups of buttons.
+    pub(crate) fn status_lay_out_field(&mut self, o: ObjId) {
+        let alpha = self.objects[o].base.effective_alpha;
+        let (_, field) = self.status_cells(o);
+        for c in self.objects[o].children().to_vec() {
+            self.layout_in(c, field, alpha);
+        }
+    }
+
+    /// The status bar's command buttons, drawn over its field.
     pub(crate) fn draw_status_bar(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
         let rect = self.objects[o].base.rect;
         if rect.width <= 0 || rect.height <= 0 {
             return;
         }
         let alpha = self.objects[o].base.effective_alpha;
-        let (background, pressed) = match &self.objects[o].kind {
-            Kind::LayoutStatus(d) => (d.background, d.pressed),
-            _ => (true, None),
+        let pressed = match &self.objects[o].kind {
+            Kind::LayoutStatus(d) => d.pressed,
+            _ => None,
         };
-        let left = self.status_commands(o).0.len();
-        let (cells, field) = self.status_cells(o);
-        for (i, (c, r)) in cells.iter().copied().enumerate().take(left) {
-            self.status_button(out, c, r, alpha, pressed == Some(i));
-        }
-        // the status text field between the two groups of buttons
-        if background {
-            out.push(DrawCmd::Fill {
-                rect: field,
-                color: Rgb(0),
-                alpha,
-            });
-        }
-        for (i, (c, r)) in cells.into_iter().enumerate().skip(left) {
+        let (cells, _) = self.status_cells(o);
+        for (i, (c, r)) in cells.into_iter().enumerate() {
             self.status_button(out, c, r, alpha, pressed == Some(i));
         }
     }
@@ -968,6 +962,14 @@ impl SkinRuntime {
             .enumerate()
             .find(|(_, (_, r))| r.contains(px, py))
             .map(|(i, (c, _))| (i, c))
+    }
+
+    /// The command of the first status bar's button under a point, for the tests.
+    #[cfg(test)]
+    pub(crate) fn status_button_at_for_test(&mut self, px: i32, py: i32) -> Option<&'static str> {
+        let bar = (0..self.objects.len())
+            .find(|&o| matches!(self.objects[o].kind, Kind::LayoutStatus(_)))?;
+        self.status_button_at(bar, px, py).map(|(_, c)| c)
     }
 
     fn status_set_pressed(&mut self, o: ObjId, pressed: Option<usize>) {
@@ -1022,12 +1024,13 @@ impl SkinRuntime {
         pressed: bool,
     ) {
         self.draw_framed_button(out, r, alpha, pressed);
+        let color = self.color("wasabi.button.text").unwrap_or(Rgb(0));
         out.push(text_cmd(
             text.to_string(),
             Some(FontDef::new("arial", "")),
             STATUS_FONT_SIZE,
-            Rgb(0),
-            Rect::new(r.left + 1, r.top + 1, r.width - 2, r.height - 2),
+            color,
+            r,
             Align::Center,
             alpha,
             false,

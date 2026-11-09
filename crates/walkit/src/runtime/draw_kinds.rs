@@ -17,8 +17,11 @@ impl SkinRuntime {
         let alpha = self.objects[o].base.effective_alpha;
         if self.objects[o].group.is_some() {
             self.draw_group(o, out);
-            if matches!(self.objects[o].kind, Kind::Frame(_)) {
-                self.frame_draw_divider(o, out);
+            match self.objects[o].kind {
+                Kind::Frame(_) => self.frame_draw_divider(o, out),
+                // the buttons lie over the field
+                Kind::LayoutStatus(_) => self.draw_status_bar(o, out),
+                _ => {}
             }
             return;
         }

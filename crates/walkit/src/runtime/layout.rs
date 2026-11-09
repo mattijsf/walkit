@@ -746,6 +746,8 @@ impl SkinRuntime {
         self.objects[o].base.effective_alpha = alpha;
         if matches!(self.objects[o].kind, Kind::Frame(_)) {
             self.frame_lay_out_children(o);
+        } else if matches!(self.objects[o].kind, Kind::LayoutStatus(_)) {
+            self.status_lay_out_field(o);
         } else if self.objects[o].group.is_some() {
             for c in self.objects[o].children().to_vec() {
                 self.lay_out(c, rect, alpha);
