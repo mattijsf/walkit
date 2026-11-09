@@ -3,7 +3,7 @@
 
 use super::objects::{label_font, LABEL_SIZE};
 use super::SkinRuntime;
-use crate::draw::{Align, DrawCmd, Rect, Rgb, TextCmd, VAlign};
+use crate::draw::{Align, BitmapDef, DrawCmd, Rect, Rgb, TextCmd, VAlign};
 use crate::gui::{ButtonKind, Kind, ObjId};
 use crate::maki::{Handle, Value};
 
@@ -205,8 +205,7 @@ impl SkinRuntime {
     }
 
     /// Winamp's button frame, as it draws the buttons it makes itself and `borders="1"`
-    /// buttons: a black outline round the default set's `wasabi.button` picture (or its pressed
-    /// one), stretched from 2 px corners.
+    /// buttons: the nine `wasabi.button` pictures (or the pressed ones) over the button's box.
     pub(crate) fn draw_framed_button(
         &mut self,
         out: &mut Vec<DrawCmd>,
@@ -214,49 +213,66 @@ impl SkinRuntime {
         alpha: i32,
         pressed: bool,
     ) {
-        out.push(DrawCmd::Fill {
-            rect: r,
-            color: Rgb(0),
-            alpha,
-        });
         let base = if pressed {
             "wasabi.button.pressed"
         } else {
             "wasabi.button"
         };
-        // 2 px corners whatever the size of the corner picture (the default set's and MMD3's
-        // are 4 px), the fill named "middle" or, in older skins (MMD3), "center"
         let part = |rt: &mut SkinRuntime, part: &str| {
-            rt.bitmap(&format!("{base}.{part}"))
-                .or_else(|| rt.bitmap(&format!("wasabi.button.{part}")))
+            let name = format!("{base}.{part}");
+            let bm = rt.bitmap(&name)?;
+            let size = rt.bitmap_size(&name).unwrap_or((0, 0));
+            Some((bm, size))
         };
-        let (cw, ch) = (2, 2);
-        let l = r.left + 1;
-        let t = r.top + 1;
-        let mw = r.width - 2 - 2 * cw;
-        let mh = r.height - 2 - 2 * ch;
-        let mut put = |rt: &mut SkinRuntime, name: &str, x: i32, y: i32, w: i32, h: i32| {
-            if w <= 0 || h <= 0 {
-                return;
+        // nine pictures over the whole box: the corners at their own sizes, the edges and the
+        // fill (the picture named "middle") stretched between them
+        let parts: Vec<Option<(BitmapDef, (i32, i32))>> = [
+            "top.left",
+            "top",
+            "top.right",
+            "left",
+            "middle",
+            "right",
+            "bottom.left",
+            "bottom",
+            "bottom.right",
+        ]
+        .iter()
+        .map(|p| part(self, p))
+        .collect();
+        let size = |i: usize| parts[i].as_ref().map_or((0, 0), |p| p.1);
+        let (tl, tr, l_, r_, bl, b_, br) = (
+            size(0),
+            size(2),
+            size(3),
+            size(5),
+            size(6),
+            size(7),
+            size(8),
+        );
+        let (top, bottom, left, right) = (r.top, r.bottom(), r.left, r.right());
+        let boxes = [
+            (left, top, left + tl.0, top + tl.1),
+            (left + tl.0, top, right - tr.0, top + tl.1),
+            (right - tr.0, top, right, top + tl.1),
+            (left, top + tl.1, left + l_.0, bottom - bl.1),
+            (left + tl.0, top + tl.1, right - tr.0, bottom - bl.1),
+            (right - r_.0, top + tr.1, right, bottom - br.1),
+            (left, bottom - bl.1, left + bl.0, bottom),
+            (left + bl.0, bottom - b_.1, right - br.0, bottom),
+            (right - br.0, bottom - br.1, right, bottom),
+        ];
+        for (p, (x0, y0, x1, y1)) in parts.into_iter().zip(boxes) {
+            if let Some((bm, _)) = p {
+                if x1 > x0 && y1 > y0 {
+                    out.push(DrawCmd::image(
+                        bm,
+                        Rect::new(x0, y0, x1 - x0, y1 - y0),
+                        alpha,
+                    ));
+                }
             }
-            let bm = if name == "middle" {
-                part(rt, "middle").or_else(|| part(rt, "center"))
-            } else {
-                part(rt, name)
-            };
-            if let Some(bm) = bm {
-                out.push(DrawCmd::image(bm, Rect::new(x, y, w, h), alpha));
-            }
-        };
-        put(self, "top.left", l, t, cw, ch);
-        put(self, "top", l + cw, t, mw, ch);
-        put(self, "top.right", l + cw + mw, t, cw, ch);
-        put(self, "left", l, t + ch, cw, mh);
-        put(self, "middle", l + cw, t + ch, mw, mh);
-        put(self, "right", l + cw + mw, t + ch, cw, mh);
-        put(self, "bottom.left", l, t + ch + mh, cw, ch);
-        put(self, "bottom", l + cw, t + ch + mh, mw, ch);
-        put(self, "bottom.right", l + cw + mw, t + ch + mh, cw, ch);
+        }
     }
 
     /// A click on button `o`: onLeftClick, its action, and a toggle's flip.

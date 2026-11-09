@@ -292,21 +292,29 @@ impl SkinRuntime {
                         given.to_string()
                     };
                     let key = id.to_lowercase();
-                    if self.collecting_base {
-                        self.base_bitmaps.insert(key.clone());
-                    } else {
-                        self.base_bitmaps.remove(&key);
+                    // a picture defined under an old name (studio.button.upperLeft) is the
+                    // picture its alias names from then on, as a later definition of that name
+                    // would be: MMD3 defines both, and Winamp draws its buttons with the old ones
+                    let names: Vec<String> = std::iter::once(key.clone())
+                        .chain(self.aliases.get(&key).cloned())
+                        .collect();
+                    for key in names {
+                        if self.collecting_base {
+                            self.base_bitmaps.insert(key.clone());
+                        } else {
+                            self.base_bitmaps.remove(&key);
+                        }
+                        let def = BitmapDef::new(
+                            &key,
+                            &file,
+                            node.get("x").and_then(to_int_lenient).unwrap_or(0),
+                            node.get("y").and_then(to_int_lenient).unwrap_or(0),
+                            node.get("w").and_then(to_int_lenient),
+                            node.get("h").and_then(to_int_lenient),
+                            node.get("gammagroup").map(|g| g.to_lowercase()).as_deref(),
+                        );
+                        self.bitmaps.insert(key, def);
                     }
-                    let def = BitmapDef::new(
-                        &key,
-                        &file,
-                        node.get("x").and_then(to_int_lenient).unwrap_or(0),
-                        node.get("y").and_then(to_int_lenient).unwrap_or(0),
-                        node.get("w").and_then(to_int_lenient),
-                        node.get("h").and_then(to_int_lenient),
-                        node.get("gammagroup").map(|g| g.to_lowercase()).as_deref(),
-                    );
-                    self.bitmaps.insert(key, def);
                     self.bitmap_lookups.clear();
                 }
             }
@@ -712,7 +720,13 @@ impl SkinRuntime {
             "eqvis" => Kind::EqVis(EqVisData::default()),
             "colorthemes:list" => Kind::ColorThemeList(ThemeListData::default()),
             "gradient" => Kind::Gradient(GradientData::default()),
-            "layoutstatus" => Kind::LayoutStatus(LayoutStatusData::default()),
+            "layoutstatus" => {
+                let o = self.new_object(name, Kind::LayoutStatus(LayoutStatusData::default()));
+                self.set_params(o, &node.attrs);
+                self.status_field(o);
+                self.add_child(parent, o);
+                return;
+            }
             "layout" => {
                 let pid = self.objects[parent].base.id.clone();
                 self.host.log(&format!("nested <layout> in {pid} ignored"));
@@ -969,6 +983,20 @@ impl SkinRuntime {
         });
         self.fill_group(g, &spec, Some(id));
         Some(g)
+    }
+
+    /// A status bar's field between its buttons: the skin's `wasabi.statusbar` group, else
+    /// what Winamp's own status bar group draws, the object frame; none with `bg="0"`.
+    fn status_field(&mut self, o: ObjId) {
+        if matches!(&self.objects[o].kind, Kind::LayoutStatus(d) if !d.background) {
+            return;
+        }
+        let field = self
+            .instantiate_group("wasabi.statusbar")
+            .or_else(|| self.instantiate_group("wasabi.objectframe.group"));
+        if let Some(g) = field {
+            self.add_child(o, g);
+        }
     }
 
     /// Scripts that have yet to start, started after a layout pass.

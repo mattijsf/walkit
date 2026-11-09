@@ -139,7 +139,57 @@ fn the_status_bar_buttons_ask_the_host_for_the_same_menus() {
         rt.pointer_up(x, 128);
     }
     assert_eq!(*actions.borrow(), vec!["PE_ADD", "PE_LIST"]);
-    // the menu opens at the button: 1 px into the bar, as tall as the bar less 2
+    // the menu opens at the button, which fills the bar's height from its left end
     let add = froms.borrow()[0].unwrap().rect;
-    assert_eq!((add.left, add.top, add.height), (11, 121, 15));
+    assert_eq!((add.left, add.top, add.height), (10, 120, 17));
+}
+
+/// A skin with its own status bar field and old-style button pictures (MMD3): the field fills
+/// the bar between Misc and List, and the picture defined under the old name is the one used.
+const FIELD_XML: &str = concat!(
+    r#"<elements>"#,
+    r#"<elementalias id="studio.button.upperLeft" target="wasabi.button.top.left"/>"#,
+    r#"<bitmap id="wasabi.button.top.left" file="b.png" x="0" y="0" w="4" h="4"/>"#,
+    r#"<bitmap id="studio.button.upperLeft" file="b.png" x="1" y="1" w="2" h="2"/>"#,
+    r#"</elements>"#,
+    r#"<groupdef id="wasabi.statusbar">"#,
+    r#"<layer id="field" x="0" y="0" w="0" h="0" relatw="1" relath="1"/>"#,
+    r#"</groupdef>"#,
+    r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="300" h="140">"#,
+    r#"<component id="list" param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}" "#,
+    r#"x="0" y="0" w="300" h="110"/>"#,
+    r#"<LayoutStatus id="status" x="10" y="120" w="280" h="17"/>"#,
+    r#"</layout></container>"#,
+);
+
+#[test]
+fn the_status_bar_field_lies_between_the_buttons_and_old_button_names_win() {
+    let (mut rt, actions, froms) = recording_with(FIELD_XML, true);
+    // Misc is the last button on the left, List the one on the right
+    let (misc_x, list_x) = (
+        (10..290)
+            .rev()
+            .find(|&x| rt.status_button_at_for_test(x, 128) == Some("Misc")),
+        (10..290).find(|&x| rt.status_button_at_for_test(x, 128) == Some("List")),
+    );
+    let (misc_x, list_x) = (misc_x.unwrap(), list_x.unwrap());
+    for (seq, x) in [misc_x, list_x].into_iter().enumerate() {
+        rt.pointer_down(x, 128, seq as i32 + 1);
+        rt.pointer_up(x, 128);
+    }
+    assert_eq!(*actions.borrow(), vec!["PE_MISC", "PE_LIST"]);
+    let misc = froms.borrow()[0].unwrap().rect;
+    let list = froms.borrow()[1].unwrap().rect;
+    let field = rt
+        .objects
+        .iter()
+        .find(|o| o.base.id == "field")
+        .expect("the field group's layer")
+        .base
+        .rect;
+    assert_eq!(
+        (field.left, field.right(), field.top, field.height),
+        (misc.right(), list.left, 120, 17)
+    );
+    assert_eq!(rt.bitmap_size("wasabi.button.top.left"), Some((2, 2)));
 }
