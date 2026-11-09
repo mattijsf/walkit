@@ -617,6 +617,27 @@ public class SkinRuntime(
      */
     public fun setPointerPrecise(precise: Boolean): Unit = Native.rtSetPointerPrecise(h(), precise)
 
+    // ---- classic skins -------------------------------------------------------------------------
+
+    /**
+     * A classic skin's switches the host keeps in step with its own settings: a press on the time
+     * or the vis, or on the equalizer's auto, changes them in the skin, and a host reads them back
+     * after a touch; a host's own setting changing sets them. See [ClassicSwitches].
+     */
+    public var classicSwitches: ClassicSwitches
+        get() =
+            Native.rtClassicSwitches(h()).let {
+                ClassicSwitches(it[0] != 0, it[1] != 0, ClassicVisMode.entries.getOrElse(it[2]) { ClassicVisMode.ANALYZER })
+            }
+        set(value) = Native.rtSetClassicSwitches(h(), value.timeRemaining, value.eqAuto, value.visMode.ordinal)
+
+    /**
+     * Shows [rows] as a classic playlist's selection, as the host's playlist has it after its
+     * select all or invert; the host is not told back. A tap on a row selects that one alone again.
+     */
+    public fun setClassicPlaylistSelection(rows: Collection<Int>): Unit =
+        Native.rtSetClassicPlaylistSelection(h(), rows.toIntArray())
+
     /**
      * The controls of the window the press now held is on, in stack pixels, for a host's
      * magnifier to show and steer the press between; empty without a press. A classic window

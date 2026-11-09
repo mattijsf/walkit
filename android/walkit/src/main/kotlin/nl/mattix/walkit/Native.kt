@@ -353,6 +353,22 @@ internal object Native {
         precise: Boolean,
     )
 
+    @JvmStatic external fun rtClassicSwitches(h: Long): IntArray
+
+    @JvmStatic
+    external fun rtSetClassicSwitches(
+        h: Long,
+        timeRemaining: Boolean,
+        eqAuto: Boolean,
+        visMode: Int,
+    )
+
+    @JvmStatic
+    external fun rtSetClassicPlaylistSelection(
+        h: Long,
+        rows: IntArray,
+    )
+
     @JvmStatic external fun rtPressControls(h: Long): IntArray
 
     @JvmStatic

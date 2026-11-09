@@ -810,8 +810,9 @@ impl SkinRuntime {
                 self.pl_selection_changed(o);
             }
         }
-        if self.classic_selected_row != row {
+        if self.classic_selected_row != row || !self.classic_selected_more.is_empty() {
             self.classic_selected_row = row;
+            self.classic_selected_more.clear();
             self.repaint();
         }
     }

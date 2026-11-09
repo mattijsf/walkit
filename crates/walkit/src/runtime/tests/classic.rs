@@ -3080,3 +3080,58 @@ fn a_held_playlist_button_lists_its_menu_pictures_for_the_magnifier() {
         actions.borrow()
     );
 }
+
+#[test]
+fn a_long_press_on_a_playlist_row_selects_it_and_asks_for_its_menu() {
+    let (mut rt, actions) = classic_recording();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt.pointer_down(30, 116 + 25, 1);
+    rt.right_click(1);
+    rt.pointer_up(30, 116 + 25);
+    assert_eq!(rt.classic_selected_row, Some(0));
+    assert_eq!(
+        *actions.borrow(),
+        vec!["PLAYLIST_SELECT 0", "PLAYLIST_MENU 0"]
+    );
+}
+
+#[test]
+fn the_host_sets_the_time_the_eq_auto_and_the_vis_mode() {
+    use crate::classic::vis::VisMode;
+    let (mut rt, _) = classic_recording();
+    rt.set_classic_time_remaining(true);
+    rt.set_classic_eq_auto(true);
+    rt.set_classic_vis_mode(VisMode::Off);
+    assert!(rt.classic_time_remaining());
+    assert!(rt.classic_eq_auto());
+    assert_eq!(rt.classic_vis_mode(), VisMode::Off);
+}
+
+#[test]
+fn the_host_selects_several_rows_and_a_tap_selects_one_again() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = ["One", "Two", "Three"]
+        .iter()
+        .map(|t| Track {
+            title: (*t).into(),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt.set_classic_playlist_selection(&[2, 1, 2, 9]);
+    assert_eq!(rt.classic_selected_row, Some(1));
+    assert_eq!(rt.classic_selected_more, vec![2]);
+    // a long press on a selected row keeps the selection for the host's menu
+    rt.pointer_down(30, 116 + 25 + 13, 1);
+    rt.right_click(1);
+    rt.pointer_up(30, 116 + 25 + 13);
+    assert_eq!(rt.classic_selected_more, vec![2]);
+    rt.pointer_down(30, 116 + 25, 2);
+    rt.pointer_up(30, 116 + 25);
+    assert_eq!(rt.classic_selected_row, Some(0));
+    assert!(rt.classic_selected_more.is_empty());
+}

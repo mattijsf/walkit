@@ -312,7 +312,7 @@ impl SkinRuntime {
             .take(rows.max(0) as usize)
         {
             let y = ROW_TOP + (i - scroll) as i32 * row;
-            if selected == Some(i as i32) {
+            if selected == Some(i as i32) || self.classic_selected_more.contains(&(i as i32)) {
                 p.fill(12, y, w - 32, row, style.selected_bg);
             }
             let color = if i as i32 == current {
