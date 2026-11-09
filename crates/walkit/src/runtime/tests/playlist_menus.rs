@@ -120,11 +120,12 @@ fn the_host_sets_the_selection_without_hearing_it_back() {
 }
 
 /// A skin without playlist buttons of its own (MMD3): Wasabi's status bar shows the playlist's
-/// Add, Rem, Sel, Misc and List under the list.
+/// Add, Rem, Sel, Misc and List under the list, List over the frame's resize corner.
 const STATUS_XML: &str = concat!(
     r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="300" h="140">"#,
     r#"<component id="list" param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}" "#,
     r#"x="0" y="0" w="300" h="110"/>"#,
+    r#"<layer id="corner" x="200" y="100" w="100" h="40" resize="bottomright"/>"#,
     r#"<LayoutStatus id="status" x="10" y="120" w="280" h="17"/>"#,
     r#"</layout></container>"#,
 );

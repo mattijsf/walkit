@@ -389,7 +389,11 @@ impl SkinRuntime {
         let (x, y) = self.layout_point(window, sx, sy);
         let hit = self.hit_test(window, x, y);
         if let Some(h) = hit {
-            if self.is_control(h) || matches!(self.objects[h].kind, Kind::Menu(_)) {
+            // a status bar is hit only on its command buttons, which sit over the frame's
+            // resize corner in MMD3
+            if self.is_control(h)
+                || matches!(self.objects[h].kind, Kind::Menu(_) | Kind::LayoutStatus(_))
+            {
                 return Some(h);
             }
         }
