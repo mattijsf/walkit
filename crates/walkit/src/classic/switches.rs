@@ -65,6 +65,49 @@ impl SkinRuntime {
         }
     }
 
+    /// Whether the classic windows switch to their shade bars, from their shade buttons and a
+    /// double tap on their title bars.
+    pub fn classic_shades(&self) -> bool {
+        self.classic_shades
+    }
+
+    /// Lets the classic windows switch to their shade bars, or not; turning it off puts every
+    /// shaded one back in its normal layout.
+    pub fn set_classic_shades(&mut self, on: bool) {
+        if self.classic_shades == on {
+            return;
+        }
+        self.classic_shades = on;
+        if on {
+            return;
+        }
+        for id in ["main", "equalizer", "pledit"] {
+            let Some(c) = self.container(id) else {
+                continue;
+            };
+            let shade = self.container_layout(c, "shade");
+            if shade.is_none() || self.containers[c].current != shade {
+                continue;
+            }
+            if self.is_open(c) {
+                self.switch_to(c, "normal");
+            } else {
+                // a closed window opens again in its normal layout
+                self.containers[c].current = self.container_layout(c, "normal");
+            }
+        }
+        self.repaint();
+    }
+
+    /// Puts `marks` on the classic playlist's rows, as the host's playlist marks them; the host
+    /// sets them again when its playlist changes. Empty marks take them off.
+    pub fn set_classic_row_marks(&mut self, marks: crate::classic::marks::RowMarks) {
+        if *self.classic_row_marks != marks {
+            self.classic_row_marks = std::rc::Rc::new(marks);
+            self.repaint();
+        }
+    }
+
     /// Scrolls the playlist by `rows`, down for more than 0, within its songs.
     pub fn scroll_classic_playlist(&mut self, rows: i32) {
         let Some(h) = self.object_info("classic.pl").map(|o| o.rect.height) else {

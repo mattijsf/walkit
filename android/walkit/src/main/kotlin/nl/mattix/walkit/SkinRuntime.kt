@@ -639,6 +639,37 @@ public class SkinRuntime(
         Native.rtSetClassicPlaylistSelection(h(), rows.toIntArray())
 
     /**
+     * Lets a classic skin's windows switch to their shade bars, from their shade buttons and a
+     * double tap on their title bars, or not; turning it off puts every shaded one back in its
+     * normal layout. On unless the host says otherwise.
+     */
+    public fun setClassicShades(on: Boolean): Unit = Native.rtSetClassicShades(h(), on)
+
+    /**
+     * Puts [marks] on a classic playlist's rows ([RowMarks]); the host sets them again when its
+     * playlist changes. [RowMarks.NONE] takes them off.
+     */
+    public fun setClassicRowMarks(marks: RowMarks): Unit =
+        Native.rtSetClassicRowMarks(
+            h(),
+            marks.marks.map { it.pixels.joinToString("\n") }.toTypedArray(),
+            marks.marks.map { it.text }.toTypedArray(),
+            marks.rows.map { it ?: -1 }.toIntArray(),
+            marks.place.ordinal,
+        )
+
+    /**
+     * The keys held with the next press, from a keyboard beside a mouse or a finger: a classic
+     * playlist's row takes Ctrl and Shift as Winamp's does, Ctrl adding the row to the selection
+     * or taking it out and Shift selecting the rows from the last one picked. They hold until the
+     * host says again; the host hears the selection as `PLAYLIST_SELECTION` with the rows.
+     */
+    public fun setPointerModifiers(
+        ctrl: Boolean,
+        shift: Boolean,
+    ): Unit = Native.rtSetPointerModifiers(h(), ctrl, shift)
+
+    /**
      * The controls of the window the press now held is on, in stack pixels, for a host's
      * magnifier to show and steer the press between; empty without a press. A classic window
      * lists each control by the box it answers in, and, while one of its playlist buttons is held,

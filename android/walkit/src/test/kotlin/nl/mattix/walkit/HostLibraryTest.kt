@@ -57,6 +57,10 @@ class HostLibraryTest {
             rt.classicSwitches = set
             assertEquals(set, rt.classicSwitches)
             rt.setClassicPlaylistSelection(listOf(0, 3))
+            rt.setClassicShades(false)
+            rt.setPointerModifiers(ctrl = true, shift = false)
+            rt.setClassicRowMarks(RowMarks(listOf(RowMark(listOf("#.#", ".#."), "A"), RowMark(text = "B")), listOf(0, null, 1)))
+            rt.setClassicRowMarks(RowMarks.NONE)
         }
     }
 }

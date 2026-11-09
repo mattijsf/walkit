@@ -178,6 +178,13 @@ pub struct SkinRuntime {
     /// The rows the host selected besides [`Self::classic_selected_row`], as its select-all and
     /// invert leave them; a tap on a row or a pick that clears the selection empties it.
     pub(crate) classic_selected_more: Vec<i32>,
+    /// The row a Shift press selects from: the last row picked alone or with Ctrl.
+    pub(crate) classic_select_anchor: Option<i32>,
+    /// The marks the host put on the classic playlist's rows; empty for none.
+    pub(crate) classic_row_marks: std::rc::Rc<crate::classic::marks::RowMarks>,
+    /// Whether a classic window's shade button and a double tap on its title bar switch it to
+    /// its shade bar; a host's setting can turn that off.
+    pub(crate) classic_shades: bool,
     pub(crate) host: Box<dyn SkinHost>,
     pub(crate) player: Box<dyn Player>,
     clock: Clock,
@@ -389,6 +396,9 @@ impl SkinRuntime {
             classic_remaining: false,
             classic_selected_row: None,
             classic_selected_more: Vec::new(),
+            classic_select_anchor: None,
+            classic_row_marks: std::rc::Rc::default(),
+            classic_shades: true,
             host,
             player,
             clock,

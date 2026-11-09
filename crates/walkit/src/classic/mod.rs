@@ -16,6 +16,7 @@ pub(crate) mod gen;
 pub mod genex;
 pub(crate) mod listfont;
 pub(crate) mod main;
+pub mod marks;
 pub(crate) mod pl;
 pub mod pledit;
 pub mod region;
