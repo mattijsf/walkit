@@ -1,44 +1,40 @@
 # walkit
 
-The engine of a modern Winamp skin, as a library. A modern skin (a `.wal` file) is a zip of
-XML, images and compiled MAKI scripts. walkit reads it, runs the scripts, lays the windows
-out and hands the host a draw list for each frame. The host draws it, on whatever it has: a
-canvas, a view tree, a GPU. The host also owns the images, the fonts, the touch input and
-the player; the engine never touches a screen, a file or a sound.
+A Winamp skin engine, as a library. It reads a modern skin (a `.wal` file: a zip of XML, images
+and compiled MAKI scripts) or a classic skin (a `.wsz` file: the bitmaps of Winamp 2), runs the
+skin's scripts, lays its windows out and hands the host a draw list for each frame.
 
-It is written in Rust, with no unsafe code, and builds for Android, the web (wasm) and the
-desktop. It is the engine behind [Andamp](https://andamp.nl)'s modern skins.
+The host draws that list on whatever it has, and supplies the images, fonts, touch input and
+player. The engine draws nothing, reads no file and plays no sound.
 
-It also draws a classic skin (a `.wsz` file: the bitmaps of Winamp 2): the main window, the
-equalizer and the playlist editor, their shade bars, the analyzer and oscilloscope, and their
-buttons, sliders and lists, each painted as Winamp 5.666 paints it and checked pixel
-for pixel against it. A classic skin loads like a modern one; the engine wraps its bitmaps in
-a generated layout and the host draws the same draw list.
+walkit is written in Rust and builds for Android, the web (wasm) and the desktop. It is the skin
+engine of the [Andamp](https://andamp.nl) music player.
+
+A classic skin loads the same way as a modern one: the engine wraps its bitmaps in a generated
+layout. It draws the main window, the equalizer, the playlist editor, their shade bars, the
+analyzer and the oscilloscope as Winamp 5.666 or Winamp 2.91 draws them.
 
 ## Status
 
-Early. The engine is ported from the Kotlin engine of
-[Andamp](https://github.com/mattijsf/andamp) (its `:modernskin` module, the reference engine)
-and checked by a trace of everything each engine does in a scripted run (see
-`ENGINEERING.md`): every scenario of the reference set (dozens of runs over 16 skins, scripts
-included) records the same trace in both engines, on a desktop and through the wasm build in node,
-Chrome, Safari and Firefox, and `web/player.html` plays a skin in the browser on the same frames
-the Android library draws. No crate or AAR is released yet.
+Early. No crate or AAR is released yet.
 
-The reference set is local: the skins are other people's `.wal` files, the default element set
-a zip of Winamp's `wasabi` folder, and the fonts the free stand-ins Andamp ships for Windows'
-system fonts (DejaVu Sans Condensed and Liberation Sans, in Andamp's
-`modernskin/src/main/resources/nl/mattix/andamp/modernskin/defaultset/fonts`). None of the
-skins or the default set is in this repository.
+The engine is a port of the Kotlin engine in the `:modernskin` module of
+[Andamp](https://github.com/mattijsf/andamp), which serves as the reference.
+
+A scripted run through either engine writes a trace of everything the engine does, and the two
+traces are compared line by line (see [ENGINEERING.md](ENGINEERING.md)).
 
 ## Building
 
 ```bash
 cargo build --release
 tools/gate.sh            # formatting, clippy, the tests
-tools/web-build.sh       # the wasm module, both profiles (needs the wasm32 target of a rustup toolchain)
+tools/web-build.sh       # the wasm modules (needs the wasm32-unknown-unknown target from rustup)
 ```
+
+[android/README.md](android/README.md) covers the Android library and
+[web/README.md](web/README.md) the web build.
 
 ## License
 
-GPL-3.0-or-later. See `LICENSE`.
+GPL-3.0-or-later. See [LICENSE](LICENSE).

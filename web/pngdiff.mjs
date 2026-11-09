@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Compares two PNGs pixel by pixel, for a frame drawn by the page against the same frame as
-// Andamp's check mode draws it on a phone:
+// Compares two PNGs pixel by pixel, such as the page's check frame and the same frame drawn
+// by another host:
 //
 //   node web/pngdiff.mjs <a.png> <b.png> [--tolerance 0] [--out diff.png]
 //

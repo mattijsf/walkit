@@ -1,10 +1,9 @@
 # walkit on Android
 
 The engine as an Android library: `nl.mattix.walkit:walkit`, one AAR with the native engine
-(`libwalkit.so` for `arm64-v8a` and `x86_64`, built from `crates/walkit-android`) and the
-Kotlin API a player drives it through (package `nl.mattix.walkit`). The Kotlin API mirrors the
-`skin` package of Andamp's `:modernskin` module, so a player written against that module
-changes its imports and little else.
+(`libwalkit.so` for `arm64-v8a` and `x86_64`, built from `crates/walkit-android`) and a Kotlin
+API in package `nl.mattix.walkit`. The API mirrors the `skin` package of Andamp's `:modernskin`
+module, so a player written against that module mostly needs new imports.
 
 ## Building
 
@@ -14,21 +13,6 @@ cd android
 ./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.5.17
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
-
-`Presentation.freeWindows` sets the windows out apart instead of stacking them: each window
-where it is (`SkinRuntime.placeWindow` puts one where the host kept it; a new one opens at its
-container's `default_x`, `default_y`), moved by a drag on its move areas and sized by its grip
-through the pointer calls, docking and snapping as Winamp 5.666 does; the frame's window rects
-say where each one is.
-
-The AAR ships consumer ProGuard rules for what the native side reaches by name, so a
-consumer's shrinker needs no extra rules. Its test fixtures
-(`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.17"))`) carry the engine built
-for the machine that published them (`cargoBuildHost`, a plain `cargo build`), so a consumer's
-JVM unit tests run skins on it: `SkinRuntime` loads `libwalkit.so` on Android and falls back to
-that build on a JVM (`HostLibrary`). The fixtures also carry `nl.mattix.walkit.fixtures`, helpers
-that do to a loaded skin what its scripts would (resize a window, switch a layout, set an
-attribute, pop a menu, start a timer, make a Config item, hear events), for a host's tests.
 
 `assembleRelease` runs `cargo ndk` itself (the `cargoBuild` task), so the whole build is one
 Gradle call. On a fresh Mac it needs:
@@ -41,10 +25,25 @@ Gradle call. On a fresh Mac it needs:
 - `cargo install cargo-ndk`, which finds the NDK through `ANDROID_NDK_HOME` (the task sets it
   from the SDK's NDK folder).
 
-The native library is built with the `release` profile (speed first; LTO, one codegen unit,
-stripped). The Rust side of the gate (`tools/gate.sh` at the repository root) checks this crate
-with clippy as part of the workspace; the Kotlin side's `gate` task is run from there too when
-the SDK and `cargo-ndk` are present.
+The native library uses the `release` profile: LTO, one codegen unit, stripped. `tools/gate.sh`
+at the repository root runs clippy on this crate with the rest of the workspace, and runs the
+Gradle `gate` task when the SDK and `cargo-ndk` are present.
+
+The AAR ships consumer ProGuard rules for the classes the native side reaches by name, so a
+consumer's shrinker needs no extra rules.
+
+## Test fixtures
+
+`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.5.17"))` adds the engine built for
+the publishing machine (the `cargoBuildHost` task, a plain `cargo build`), so a consumer's JVM
+unit tests can run skins.
+
+`SkinRuntime` loads `libwalkit.so` on Android and falls back to that build on a JVM
+(`HostLibrary`).
+
+The fixtures also include `nl.mattix.walkit.fixtures`: helpers that do to a loaded skin what its
+scripts could (resize a window, switch a layout, set an attribute, pop a menu, start a timer,
+make a Config item, listen for events).
 
 ## Using it
 
@@ -58,29 +57,40 @@ if (rt.tick()) for ((rect, cmds) in rt.drawWindows()) draw(rect, cmds)
 rt.close()                                   // frees the engine's side
 ```
 
-The engine runs on the thread that calls it, one call at a time, as the Kotlin engine does; it
-reads the skin's files, asks the `SkinHost` and drives the `Player` through callbacks on that
-thread. The player is read once per call, as one snapshot of its numbers (its playlist once per
-change, when the player numbers it), and what a host answers for a skin for good (a picture's
-size, a text's width) is asked once. A frame crosses
-the boundary once per `drawWindows`, as one packed buffer decoded here into `DrawCmd`s. The stand-in fonts for Windows' system fonts (`fonts/LiberationSans.ttf` and
-the like) are read from the skin's files, so a host layers its default set, with those fonts,
-under the skin as Andamp does.
+The engine runs on the thread that calls it, one call at a time. It reads the skin's files, asks
+the `SkinHost` and drives the `Player` through callbacks on that thread.
 
-Every member of `SkinRuntime` is carried. The engine plans each frame as the reference engine's
-planner does (`drawPlanned`): which stretches of a window change from frame to frame and may be
-kept apart, and a version for the rest. Only the commands that changed since the frame before
-cross the boundary; a command unchanged is the same object as in that frame, so a host may keep
-what it made from it.
+- The player is read once per call, as one snapshot. A player that sets
+  `Player.playlistVersion` has its playlist read only when that number changes.
+- Answers that stay fixed for a skin, such as a picture's size or a text's width, are asked
+  once.
+- A frame crosses the boundary once per `drawWindows`, as one packed buffer decoded into
+  `DrawCmd`s.
+- The fonts that stand in for Windows' system fonts (`fonts/LiberationSans.ttf` and others)
+  are read from the skin's files, so a host puts its default set, fonts included, under the
+  skin.
+
+`drawPlanned` returns each frame with a plan: which stretches of a window change from frame to
+frame and can be kept apart, and a version for the rest.
+
+Only the commands that changed since the previous frame cross the boundary. An unchanged command
+is the same object as in the previous frame, so a host can reuse what it built from it.
+
+`Presentation.freeWindows` lays the windows out apart instead of stacking them. A new window
+opens at its container's `default_x`, `default_y`, and `SkinRuntime.placeWindow` puts one back
+where the host kept it.
+
+Windows move by a drag on their move areas and resize by their grip, and they dock and snap as
+in Winamp 5.666. The frame's window rects say where each one is.
 
 ## The parity run on a device
 
-`CorpusTraceTest` (an instrumented test) runs every reference scenario through the AAR and
-writes the trace of each, the same text the reference engine's `EngineTraceTest` writes, for a
-byte compare. The inputs are the ones `ENGINEERING.md` names, pushed to the device first:
+`CorpusTraceTest`, an instrumented test, runs every reference scenario through the AAR and
+writes a trace of each, to compare byte for byte with the traces of Andamp's `EngineTraceTest`.
+Push the inputs [ENGINEERING.md](../ENGINEERING.md) describes to the device first:
 
 ```bash
-ADB="adb -s emulator-5690"                                   # a probe emulator, never a phone
+ADB="adb -s emulator-5690"                                   # an emulator
 D=/data/local/tmp/walkit
 $ADB shell mkdir -p $D/skins $D/small $D/fonts
 $ADB push <corpus skins>/*.wal $D/skins/
@@ -88,12 +98,12 @@ $ADB push <small skins>/*.wal $D/small/
 $ADB push <wasabi-defaults.zip> <scenarios.json> <scenarios-small.json> $D/
 $ADB push <fonts>/*.ttf $D/fonts/
 ANDROID_SERIAL=emulator-5690 ./gradlew :walkit:connectedAndroidTest \
-  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true   # the traces go with the APK otherwise
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true   # keeps the APK and its traces
 $ADB pull /sdcard/Android/data/nl.mattix.walkit.test/files/traces traces-device
 $ADB uninstall nl.mattix.walkit.test
 WALKIT_REFERENCE_TRACES=<reference traces> ../tools/trace-diff.sh traces-device
 ```
 
-The desktop build can be checked on the device as well, without the AAR: `cargo ndk -t
-arm64-v8a build -p walkit-trace --release`, push `target/aarch64-linux-android/release/walkit-trace`
+To check the desktop build on the device without the AAR, build it with `cargo ndk -t arm64-v8a
+build -p walkit-trace --release`, push `target/aarch64-linux-android/release/walkit-trace`
 beside the inputs, run it there as on a desktop, and pull `traces/`.
