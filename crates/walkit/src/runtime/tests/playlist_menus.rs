@@ -27,11 +27,18 @@ const PLAYER_XML: &str = concat!(
 );
 
 fn recording(host_actions: bool) -> (SkinRuntime, Rc<RefCell<Vec<String>>>, Froms) {
+    recording_with(PLAYER_XML, host_actions)
+}
+
+fn recording_with(
+    player_xml: &str,
+    host_actions: bool,
+) -> (SkinRuntime, Rc<RefCell<Vec<String>>>, Froms) {
     let actions = Rc::new(RefCell::new(Vec::new()));
     let froms: Froms = Rc::default();
     let mut files = MemoryFiles::new();
     files.insert("skin.xml", SKIN_XML.as_bytes());
-    files.insert("player.xml", PLAYER_XML.as_bytes());
+    files.insert("player.xml", player_xml.as_bytes());
     let clock: Clock = Rc::new(|| 0);
     let mut player = FakePlayer::new(clock.clone());
     player.playlist = ["One", "Two", "Three"]
@@ -110,4 +117,28 @@ fn the_host_sets_the_selection_without_hearing_it_back() {
     rt.pointer_down(50, 45, 2);
     rt.pointer_up(50, 45);
     assert_eq!(*actions.borrow(), vec!["PLAYLIST_SELECT 1"]);
+}
+
+/// A skin without playlist buttons of its own (MMD3): Wasabi's status bar shows the playlist's
+/// Add, Rem, Sel, Misc and List under the list.
+const STATUS_XML: &str = concat!(
+    r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="300" h="140">"#,
+    r#"<component id="list" param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}" "#,
+    r#"x="0" y="0" w="300" h="110"/>"#,
+    r#"<LayoutStatus id="status" x="10" y="120" w="280" h="17"/>"#,
+    r#"</layout></container>"#,
+);
+
+#[test]
+fn the_status_bar_buttons_ask_the_host_for_the_same_menus() {
+    let (mut rt, actions, froms) = recording_with(STATUS_XML, true);
+    // Add is the first button, List the last; between them the field takes no touch
+    for (seq, x) in [13, 260, 220].into_iter().enumerate() {
+        rt.pointer_down(x, 128, seq as i32 + 1);
+        rt.pointer_up(x, 128);
+    }
+    assert_eq!(*actions.borrow(), vec!["PE_ADD", "PE_LIST"]);
+    // the menu opens at the button: 1 px into the bar, as tall as the bar less 2
+    let add = froms.borrow()[0].unwrap().rect;
+    assert_eq!((add.left, add.top, add.height), (11, 121, 15));
 }

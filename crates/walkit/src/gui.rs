@@ -966,6 +966,8 @@ pub struct LayoutStatusData {
     pub exclude: Vec<String>,
     /// `bg="0"`: no field.
     pub background: bool,
+    /// The command button held down, by its place among the buttons.
+    pub pressed: Option<usize>,
 }
 
 impl Default for LayoutStatusData {
@@ -974,6 +976,7 @@ impl Default for LayoutStatusData {
             include_only: None,
             exclude: Vec::new(),
             background: true,
+            pressed: None,
         }
     }
 }

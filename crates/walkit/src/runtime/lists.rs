@@ -48,8 +48,7 @@ const STATUS_LEFT: [&str; 4] = ["Add", "Rem", "Sel", "Misc"];
 const STATUS_RIGHT: [&str; 1] = ["List"];
 /// Winamp's own buttons: Arial at text size 14, which draws at 11 px (Wasabi SDK buttwnd).
 const STATUS_FONT_SIZE: i32 = 14;
-/// Buttons 13 px tall, 1 px into the bar; a cell at least 8 wide, its last 2 px the bar's.
-const STATUS_BUTTON_H: i32 = 13;
+/// Buttons 1 px into the bar; a cell at least 8 wide, its last 2 px the bar's.
 const STATUS_MIN_W: i32 = 8;
 const STATUS_CELL_MARGIN: i32 = 2;
 
@@ -898,6 +897,34 @@ impl SkinRuntime {
             .max(STATUS_MIN_W)
     }
 
+    /// The command buttons, left ones then right ones, each with its box, and the field
+    /// between the two groups. Buttons are as tall as the bar less a pixel above and below
+    /// (13 px in the default set's 15 px bar, 15 in MMD3's 17).
+    fn status_cells(&mut self, o: ObjId) -> (Vec<(&'static str, Rect)>, Rect) {
+        let rect = self.objects[o].base.rect;
+        let (left, right) = self.status_commands(o);
+        let top = rect.top + 1;
+        let h = (rect.height - 2).max(0);
+        let mut cells = Vec::new();
+        // the cells sit edge to edge; each button leaves the last 2 px of its cell to the bar (Wasabi SDK buttbar: no spacer)
+        let mut x = rect.left + 1;
+        for c in left {
+            let w = self.status_button_width(c);
+            cells.push((c, Rect::new(x, top, w - STATUS_CELL_MARGIN, h)));
+            x += w;
+        }
+        let mut r = rect.right() - 1;
+        let mut right_cells = Vec::new();
+        for c in right.into_iter().rev() {
+            let w = self.status_button_width(c);
+            r -= w;
+            right_cells.push((c, Rect::new(r, top, w - STATUS_CELL_MARGIN, h)));
+        }
+        right_cells.reverse();
+        cells.extend(right_cells);
+        (cells, Rect::new(x, top, (r - x).max(0), h))
+    }
+
     /// The status bar's drawing: the command buttons and the field between them.
     pub(crate) fn draw_status_bar(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
         let rect = self.objects[o].base.rect;
@@ -905,43 +932,95 @@ impl SkinRuntime {
             return;
         }
         let alpha = self.objects[o].base.effective_alpha;
-        let (left, right) = self.status_commands(o);
-        let background = match &self.objects[o].kind {
-            Kind::LayoutStatus(d) => d.background,
-            _ => true,
+        let (background, pressed) = match &self.objects[o].kind {
+            Kind::LayoutStatus(d) => (d.background, d.pressed),
+            _ => (true, None),
         };
-        let top = rect.top + 1;
-        let h = STATUS_BUTTON_H;
-        // the cells sit edge to edge; each button leaves the last 2 px of its cell to the bar (Wasabi SDK buttbar: no spacer)
-        let mut x = rect.left + 1;
-        for c in &left {
-            let w = self.status_button_width(c);
-            self.status_button(out, c, Rect::new(x, top, w - STATUS_CELL_MARGIN, h), alpha);
-            x += w;
+        let left = self.status_commands(o).0.len();
+        let (cells, field) = self.status_cells(o);
+        for (i, (c, r)) in cells.iter().copied().enumerate().take(left) {
+            self.status_button(out, c, r, alpha, pressed == Some(i));
         }
-        let mut r = rect.right() - 1;
-        let mut right_rects = Vec::new();
-        for c in right.iter().rev() {
-            let w = self.status_button_width(c);
-            r -= w;
-            right_rects.push(Rect::new(r, top, w - STATUS_CELL_MARGIN, h));
-        }
-        right_rects.reverse();
         // the status text field between the two groups of buttons
         if background {
             out.push(DrawCmd::Fill {
-                rect: Rect::new(x, top, (r - x).max(0), h),
+                rect: field,
                 color: Rgb(0),
                 alpha,
             });
         }
-        for (c, rr) in right.iter().zip(right_rects) {
-            self.status_button(out, c, rr, alpha);
+        for (i, (c, r)) in cells.into_iter().enumerate().skip(left) {
+            self.status_button(out, c, r, alpha, pressed == Some(i));
         }
     }
 
-    fn status_button(&mut self, out: &mut Vec<DrawCmd>, text: &str, r: Rect, alpha: i32) {
-        self.draw_framed_button(out, r, alpha, false);
+    /// The command button at a point of the bar: its place among the buttons, its command.
+    pub(crate) fn status_button_at(
+        &mut self,
+        o: ObjId,
+        px: i32,
+        py: i32,
+    ) -> Option<(usize, &'static str)> {
+        let (cells, _) = self.status_cells(o);
+        cells
+            .into_iter()
+            .enumerate()
+            .find(|(_, (_, r))| r.contains(px, py))
+            .map(|(i, (c, _))| (i, c))
+    }
+
+    fn status_set_pressed(&mut self, o: ObjId, pressed: Option<usize>) {
+        if let Kind::LayoutStatus(d) = &mut self.objects[o].kind {
+            if d.pressed != pressed {
+                d.pressed = pressed;
+                self.repaint();
+            }
+        }
+    }
+
+    pub(crate) fn status_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
+        let at = self.status_button_at(o, px, py).map(|(i, _)| i);
+        self.status_set_pressed(o, at);
+    }
+
+    /// A release on the button it went down on runs that button's command: the playlist's
+    /// Add, Rem, Sel, Misc and List ask the app for their menus, as a modern skin's own
+    /// playlist buttons do (`PE_ADD`..`PE_LIST`), with the button's box for the menu to open at.
+    pub(crate) fn status_pointer_up(&mut self, o: ObjId, px: i32, py: i32) {
+        let held = match &self.objects[o].kind {
+            Kind::LayoutStatus(d) => d.pressed,
+            _ => None,
+        };
+        self.status_set_pressed(o, None);
+        let Some((i, command)) = self.status_button_at(o, px, py) else {
+            return;
+        };
+        if held != Some(i) || self.pointer.press_ended {
+            return;
+        }
+        let action = match command {
+            "Add" => "PE_ADD",
+            "Rem" => "PE_REM",
+            "Sel" => "PE_SEL",
+            "Misc" => "PE_MISC",
+            "List" => "PE_LIST",
+            _ => return,
+        };
+        let (cells, _) = self.status_cells(o);
+        let cell = cells[i].1;
+        self.action_from = self.layout_object(o).map(|l| self.stack_rect_in(l, cell));
+        self.action(o, action, None, None);
+    }
+
+    fn status_button(
+        &mut self,
+        out: &mut Vec<DrawCmd>,
+        text: &str,
+        r: Rect,
+        alpha: i32,
+        pressed: bool,
+    ) {
+        self.draw_framed_button(out, r, alpha, pressed);
         out.push(text_cmd(
             text.to_string(),
             Some(FontDef::new("arial", "")),

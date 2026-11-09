@@ -224,38 +224,39 @@ impl SkinRuntime {
         } else {
             "wasabi.button"
         };
-        let corner = 2;
+        // 2 px corners whatever the size of the corner picture (the default set's and MMD3's
+        // are 4 px), the fill named "middle" or, in older skins (MMD3), "center"
+        let part = |rt: &mut SkinRuntime, part: &str| {
+            rt.bitmap(&format!("{base}.{part}"))
+                .or_else(|| rt.bitmap(&format!("wasabi.button.{part}")))
+        };
+        let (cw, ch) = (2, 2);
         let l = r.left + 1;
         let t = r.top + 1;
-        let mw = r.width - 2 - 2 * corner;
-        let mh = r.height - 2 - 2 * corner;
-        let mut put = |rt: &mut SkinRuntime, part: &str, x: i32, y: i32, w: i32, h: i32| {
+        let mw = r.width - 2 - 2 * cw;
+        let mh = r.height - 2 - 2 * ch;
+        let mut put = |rt: &mut SkinRuntime, name: &str, x: i32, y: i32, w: i32, h: i32| {
             if w <= 0 || h <= 0 {
                 return;
             }
-            if let Some(bm) = rt
-                .bitmap(&format!("{base}.{part}"))
-                .or_else(|| rt.bitmap(&format!("wasabi.button.{part}")))
-            {
+            let bm = if name == "middle" {
+                part(rt, "middle").or_else(|| part(rt, "center"))
+            } else {
+                part(rt, name)
+            };
+            if let Some(bm) = bm {
                 out.push(DrawCmd::image(bm, Rect::new(x, y, w, h), alpha));
             }
         };
-        put(self, "top.left", l, t, corner, corner);
-        put(self, "top", l + corner, t, mw, corner);
-        put(self, "top.right", l + corner + mw, t, corner, corner);
-        put(self, "left", l, t + corner, corner, mh);
-        put(self, "middle", l + corner, t + corner, mw, mh);
-        put(self, "right", l + corner + mw, t + corner, corner, mh);
-        put(self, "bottom.left", l, t + corner + mh, corner, corner);
-        put(self, "bottom", l + corner, t + corner + mh, mw, corner);
-        put(
-            self,
-            "bottom.right",
-            l + corner + mw,
-            t + corner + mh,
-            corner,
-            corner,
-        );
+        put(self, "top.left", l, t, cw, ch);
+        put(self, "top", l + cw, t, mw, ch);
+        put(self, "top.right", l + cw + mw, t, cw, ch);
+        put(self, "left", l, t + ch, cw, mh);
+        put(self, "middle", l + cw, t + ch, mw, mh);
+        put(self, "right", l + cw + mw, t + ch, cw, mh);
+        put(self, "bottom.left", l, t + ch + mh, cw, ch);
+        put(self, "bottom", l + cw, t + ch + mh, mw, ch);
+        put(self, "bottom.right", l + cw + mw, t + ch + mh, cw, ch);
     }
 
     /// A click on button `o`: onLeftClick, its action, and a toggle's flip.
