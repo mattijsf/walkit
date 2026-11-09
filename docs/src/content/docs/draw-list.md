@@ -1,4 +1,6 @@
-# The draw list
+---
+title: The draw list
+---
 
 Each frame is a list of windows. Each window has a rect in viewport pixels and a list of draw
 commands in the window's layout pixels, drawn in order.
@@ -13,7 +15,7 @@ commands in the window's layout pixels, drawn in order.
 | `WindowStart`, `WindowEnd` | A shaped window: the commands in between show only inside its region. |
 | `Pixels` | A small ARGB picture stretched over a rect with nearest pixels: the visualizer, the equalizer graph, gradients. |
 
-The [API reference](api/walkit/draw/enum.DrawCmd.html) lists every field.
+The [API reference](/walkit/api/walkit/draw/enum.DrawCmd.html) lists every field.
 
 ## The plan and the packed frame
 
@@ -28,7 +30,7 @@ command objects.
 ## The text form
 
 The engine also writes the draw list as text, one command per line, the format of a
-[trace](traces.md):
+[trace](/walkit/traces/):
 
 ```text
 fill 0,0,864,1632 #000000 a=255

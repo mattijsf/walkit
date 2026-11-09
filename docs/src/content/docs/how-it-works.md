@@ -1,4 +1,6 @@
-# How it works
+---
+title: How it works
+---
 
 ```text
  skin files ──► walkit engine ──► draw list ──► host renderer

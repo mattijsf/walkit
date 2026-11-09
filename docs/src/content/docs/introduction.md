@@ -1,4 +1,6 @@
-# walkit
+---
+title: Introduction
+---
 
 walkit is a Winamp skin engine, as a library. It reads a skin, runs the skin's scripts, lays its
 windows out and hands the host a draw list for each frame.
@@ -21,11 +23,11 @@ engine of the [Andamp](https://andamp.nl) music player.
 
 | You build | Read |
 | --- | --- |
-| A Rust host | [Rust](rust.md) and the [API reference](api.md) |
-| A web page | [Web](web.md) |
-| An Android app | [Android](android.md) |
-| A renderer for another platform | [The draw list](draw-list.md) |
-| Changes to the engine | [Traces](traces.md) and [Contributing](contributing.md) |
+| A Rust host | [Rust](/walkit/rust/) and the [API reference](/walkit/api-reference/) |
+| A web page | [Web](/walkit/web/) |
+| An Android app | [Android](/walkit/android/) |
+| A renderer for another platform | [The draw list](/walkit/draw-list/) |
+| Changes to the engine | [Traces](/walkit/traces/) and [Contributing](/walkit/contributing/) |
 
 ## Status
 

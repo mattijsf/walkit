@@ -1,4 +1,6 @@
-# Android
+---
+title: Android
+---
 
 The engine as an Android library: `nl.mattix.walkit:walkit`, one AAR with the native engine
 (`libwalkit.so` for `arm64-v8a` and `x86_64`) and a Kotlin API in package `nl.mattix.walkit`.

@@ -1,4 +1,6 @@
-# Traces
+---
+title: Traces
+---
 
 `walkit-trace` runs a scenario on a stepped clock and writes a text trace of the run: each step,
 the skin's log lines, menus and host actions, each tick's work, and the draw list of every frame

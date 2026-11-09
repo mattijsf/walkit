@@ -1,4 +1,6 @@
-# Contributing
+---
+title: Contributing
+---
 
 ## Commands
 
@@ -36,13 +38,14 @@ tools/trace-diff.sh      # compare traces/ with the last release's traces
 
 ## This site
 
-The guide is an [mdBook](https://rust-lang.github.io/mdBook/) in `docs/`, and the API
-reference is rustdoc. To build both:
+The guide is a [Starlight](https://starlight.astro.build) site in `docs/`, and the API reference
+is rustdoc. To build both:
 
 ```bash
-mdbook build docs
+cd docs && npm ci && npm run build && cd ..
 cargo doc -p walkit --no-deps
-cp -r target/doc docs/book/api
+cp -r target/doc docs/dist/api
 ```
 
-A push to `main` that touches `docs/` or the engine publishes them to GitHub Pages.
+`npm run dev` in `docs/` serves the guide with live reload. A push to `main` that touches
+`docs/` or the engine publishes the site to GitHub Pages.

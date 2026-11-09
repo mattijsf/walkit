@@ -6,5 +6,7 @@ target/
 traces/
 /web/dist/
 
-# the docs site, built by mdbook
-/docs/book/
+# the docs site's build and packages
+/docs/dist/
+/docs/.astro/
+/docs/node_modules/

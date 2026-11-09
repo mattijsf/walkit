@@ -1,4 +1,6 @@
-# Web
+---
+title: Web
+---
 
 The engine builds as a wasm module (`crates/walkit-web`) with plain JS modules around it. The JS
 needs no build step and no npm.

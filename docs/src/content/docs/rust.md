@@ -1,4 +1,6 @@
-# Rust
+---
+title: Rust
+---
 
 The engine is the `walkit` crate. It has no dependencies. Until it is released, add it from the
 repository:
@@ -10,12 +12,12 @@ walkit = { git = "https://github.com/mattijsf/walkit" }
 
 ## A host
 
-A host implements [`SkinHost`](api/walkit/host/trait.SkinHost.html) for pictures, text and
-logging, and [`Player`](api/walkit/player/trait.Player.html) for the transport.
-[`FakePlayer`](api/walkit/player/struct.FakePlayer.html) plays nothing and is enough for a first
+A host implements [`SkinHost`](/walkit/api/walkit/host/trait.SkinHost.html) for pictures, text and
+logging, and [`Player`](/walkit/api/walkit/player/trait.Player.html) for the transport.
+[`FakePlayer`](/walkit/api/walkit/player/struct.FakePlayer.html) plays nothing and is enough for a first
 look at a skin.
 
-```rust,ignore
+```rust
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -84,10 +86,10 @@ fn main() {
 
 ## Files
 
-[`MemoryFiles`](api/walkit/files/struct.MemoryFiles.html) holds a skin's entries by path. The
+[`MemoryFiles`](/walkit/api/walkit/files/struct.MemoryFiles.html) holds a skin's entries by path. The
 engine reads no archive itself, so the host unzips the skin with any zip library.
 
-[`LayeredFiles`](api/walkit/files/struct.LayeredFiles.html) puts a skin over Winamp's default
+[`LayeredFiles`](/walkit/api/walkit/files/struct.LayeredFiles.html) puts a skin over Winamp's default
 element set: paths under `wasabi-base/` read from the base, everything else from the skin.
 Winamp draws lists, scrollbars and frames a skin does not define from that set.
 
@@ -96,6 +98,6 @@ layout.
 
 ## The clock
 
-Every timer, animation and script reads the [`Clock`](api/walkit/host/type.Clock.html), in
+Every timer, animation and script reads the [`Clock`](/walkit/api/walkit/host/type.Clock.html), in
 milliseconds. A host passes the wall clock. A test steps one, so animations and timers land on
 the same frame every run.

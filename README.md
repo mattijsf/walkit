@@ -35,7 +35,7 @@ tools/web-build.sh       # the wasm modules (needs the wasm32-unknown-unknown ta
 ## Documentation
 
 The guide and the API reference are at <https://mattijsf.github.io/walkit/>. Their sources are
-in `docs/` (an mdBook) and the engine's doc comments.
+in `docs/` (a Starlight site) and the engine's doc comments.
 
 ## License
 
