@@ -97,6 +97,8 @@ export interface Runtime {
   setTimeRemaining(on: boolean): void;
   eqAuto(): boolean;
   setEqAuto(on: boolean): void;
+  /** Shows playlist entry `index` (from 0) as selected, or none for null; the page is not told back. */
+  setPlaylistSelection(index: number | null): void;
   scrollPlaylist(rows: number): void;
   /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
   setTouch(on: boolean): void;

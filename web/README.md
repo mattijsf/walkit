@@ -74,8 +74,8 @@ runtime also places, opens and closes windows (`placeWindow`, `openWindow`, `clo
 factor from 0.25 to 8, the windows docked to it staying docked), names a classic frame
 (`setWindowTitle`), says where the page draws its visualizer (`visRect`: a classic skin's
 `avs` window, framed by `gen.bmp`, or a modern skin's AVS holder), says which window has the
-focus (`focusedWindow`), scrolls a classic playlist
-(`scrollPlaylist`), and keeps a classic skin's time direction and equalizer auto
+focus (`focusedWindow`), shows the page's playlist selection (`setPlaylistSelection`), scrolls a
+classic playlist (`scrollPlaylist`), and keeps a classic skin's time direction and equalizer auto
 (`timeRemaining`, `eqAuto` and their setters) for a host that has the same settings.
 
 ## The player page

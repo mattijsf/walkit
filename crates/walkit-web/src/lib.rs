@@ -923,6 +923,17 @@ pub extern "C" fn wk_rt_wheel_playlist(id: i32, notches: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// Shows playlist entry `index` as selected, or none for less than 0, without telling the page.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_playlist_selection(id: i32, index: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine
+            .set_playlist_selection((index >= 0).then_some(index))
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
 /// Scrolls a classic playlist by `rows`, down for more than 0.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {

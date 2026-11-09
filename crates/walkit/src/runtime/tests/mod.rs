@@ -41,10 +41,7 @@ impl SkinHost for QuietHost {
 }
 
 /// A host that keeps the actions the skin sends it, and where on screen each came from.
-pub(super) struct RecordingHost(
-    pub(super) Rc<RefCell<Vec<String>>>,
-    pub(super) Froms,
-);
+pub(super) struct RecordingHost(pub(super) Rc<RefCell<Vec<String>>>, pub(super) Froms);
 
 /// Where each host action came from, in order.
 pub(super) type Froms = Rc<RefCell<Vec<Option<crate::host::ActionFrom>>>>;

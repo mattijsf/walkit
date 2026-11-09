@@ -96,3 +96,18 @@ fn the_list_tells_the_host_the_entry_it_selects_once() {
     }
     assert_eq!(*actions.borrow(), vec!["PLAYLIST_SELECT 1"]);
 }
+
+#[test]
+fn the_host_sets_the_selection_without_hearing_it_back() {
+    let (mut rt, actions, _) = recording(true);
+    rt.set_playlist_selection(Some(1));
+    // the entry the host selected plays on the next tap, as one the list selected itself
+    rt.pointer_down(50, 45, 1);
+    rt.pointer_up(50, 45);
+    assert!(actions.borrow().is_empty());
+    // with none selected, a tap selects again and tells the host
+    rt.set_playlist_selection(None);
+    rt.pointer_down(50, 45, 2);
+    rt.pointer_up(50, 45);
+    assert_eq!(*actions.borrow(), vec!["PLAYLIST_SELECT 1"]);
+}

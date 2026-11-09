@@ -410,6 +410,11 @@ export class Runtime {
     this.w.x.wk_rt_wheel_playlist(this.id, notches);
   }
 
+  /** Shows playlist entry `index` (from 0) as selected, or none for null, as the page's playlist has it. */
+  setPlaylistSelection(index) {
+    this.w.x.wk_rt_playlist_selection(this.id, index == null ? -1 : index);
+  }
+
   /** Scrolls a classic playlist by rows, down for more than 0. */
   scrollPlaylist(rows) {
     this.w.x.wk_rt_scroll_playlist(this.id, rows);

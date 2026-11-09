@@ -778,6 +778,26 @@ impl SkinRuntime {
         self.action(o, "PLAYLIST_SELECT", Some(&index.to_string()), None);
     }
 
+    /// Shows entry `index` (or none) as the playlists' selection, as the host's own playlist
+    /// has it after it changed the selection or the list itself; the host is not told back.
+    pub fn set_playlist_selection(&mut self, index: Option<i32>) {
+        let row = index.filter(|&i| i >= 0 && (i as usize) < self.player.tracks().len());
+        let views: Vec<ObjId> = (0..self.objects.len())
+            .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
+            .collect();
+        for o in views {
+            let selected = row.unwrap_or(-1);
+            if self.pl(o).selected != selected {
+                self.pl_mut(o).selected = selected;
+                self.pl_selection_changed(o);
+            }
+        }
+        if self.classic_selected_row != row {
+            self.classic_selected_row = row;
+            self.repaint();
+        }
+    }
+
     /// The entry whose row is at `py`, a point of the window, or `None` past the last one.
     fn pl_row_at(&self, o: ObjId, py: i32) -> Option<i32> {
         let rows_top = self.objects[o].base.rect.top + PL_TOP;
