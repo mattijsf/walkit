@@ -301,11 +301,15 @@ export class Renderer {
     ctx.globalAlpha = 1;
     // only `part` (layout pixels) drawn again: everything else on the layer stays
     ctx.save();
+    // what is cleared, in layout pixels: `part` and a device pixel round it, so every command
+    // reaching into that margin is drawn again too (the picture under a hovered menu item)
+    let cleared = null;
     if (part) {
       const x0 = Math.max(0, Math.floor(part.left * scale) - 1);
       const y0 = Math.max(0, Math.floor(part.top * scale) - 1);
       const x1 = Math.min(layer.width, Math.ceil((part.left + part.width) * scale) + 1);
       const y1 = Math.min(layer.height, Math.ceil((part.top + part.height) * scale) + 1);
+      cleared = { left: x0 / scale, top: y0 / scale, width: (x1 - x0) / scale, height: (y1 - y0) / scale };
       ctx.beginPath();
       ctx.rect(x0, y0, x1 - x0, y1 - y0);
       ctx.clip();
@@ -319,7 +323,7 @@ export class Renderer {
     let depth = 0;
     let shape = null;
     for (const c of cmds) {
-      if (part && !meets(cmdRect(c), part)) continue;
+      if (cleared && !meets(cmdRect(c), cleared)) continue;
       switch (c.k) {
         case "shape":
           // what follows is masked by the region at the end
