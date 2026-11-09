@@ -274,6 +274,18 @@ fn the_equalizer_and_playlist_open_under_the_main_window() {
 }
 
 #[test]
+fn the_playlist_stays_under_the_equalizer_whichever_opened_first() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    assert!(rt.open_window("equalizer"));
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    let pl = rt.window_of("pledit").expect("the playlist");
+    rt.ensure_layout();
+    assert_eq!(rt.window_rect(eq), Rect::new(0, 116, 275, 116));
+    assert_eq!(rt.window_rect(pl), Rect::new(0, 232, 275, 116));
+}
+
+#[test]
 fn the_equalizer_draws_its_strip_buttons_and_flat_sliders() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));
@@ -1371,7 +1383,6 @@ fn the_equalizer_controls_take_presses_on_their_probed_boxes() {
 fn the_title_buttons_take_presses_on_their_probed_boxes() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));
-    assert!(rt.open_window("equalizer"));
     rt.ensure_layout();
     let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
         rt.pointer_down(x, y, seq);
@@ -1379,7 +1390,7 @@ fn the_title_buttons_take_presses_on_their_probed_boxes() {
     };
     let pl = rt.container("pledit").expect("the playlist");
     let eq = rt.container("equalizer").expect("the equalizer");
-    // the playlist sits at y 116, the equalizer under it at 232
+    // the playlist sits at y 116
     tap(&mut rt, 264, 116 + 12, 1);
     rt.ensure_layout();
     assert_eq!(
@@ -1405,8 +1416,9 @@ fn the_title_buttons_take_presses_on_their_probed_boxes() {
     );
     tap(&mut rt, 265, 116 + 7, 4);
     assert!(!rt.is_open(pl), "x 265 closes the playlist");
+    assert!(rt.open_window("equalizer"));
     rt.ensure_layout();
-    // the equalizer now sits at y 116: its shade box starts at 253, its close at 264
+    // the equalizer sits at y 116: its shade box starts at 253, its close at 264
     tap(&mut rt, 253, 116 + 12, 5);
     rt.ensure_layout();
     assert_eq!(rt.containers[eq].current, rt.container_layout(eq, "shade"));

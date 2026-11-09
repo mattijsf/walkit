@@ -338,12 +338,15 @@ impl SkinRuntime {
 
     /// Whether `l` is the layout of Winamp's classic playlist.
     fn is_classic_playlist(&self, l: ObjId) -> bool {
-        self.objects[l].children().iter().any(|c| {
-            matches!(
-                self.objects[*c].kind,
-                Kind::ClassicWindow(crate::classic::ClassicWindow::Playlist)
-            )
-        })
+        self.is_classic_window(l, crate::classic::ClassicWindow::Playlist)
+    }
+
+    /// Whether `l` is the classic skin's window of `which`.
+    pub(crate) fn is_classic_window(&self, l: ObjId, which: crate::classic::ClassicWindow) -> bool {
+        self.objects[l]
+            .children()
+            .iter()
+            .any(|c| matches!(self.objects[*c].kind, Kind::ClassicWindow(w) if w == which))
     }
 
     /// Whether `l` shows a list, which shows more rows when the window is taller.

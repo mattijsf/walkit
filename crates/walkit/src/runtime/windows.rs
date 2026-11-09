@@ -2,6 +2,8 @@
 //! Containers and windows: which are open, where each sits, what the host sees of them, and the
 //! presentation the host sets.
 
+use crate::classic::ClassicWindow;
+
 use super::{
     ContainerId, Handle, ObjId, ObjectInfo, Presentation, Rect, SkinRuntime, Value, WindowId,
     WindowInfo,
@@ -482,7 +484,20 @@ impl SkinRuntime {
         if Some(c) == self.main_container() || self.opened.contains(&c) {
             return;
         }
-        self.opened.push(c);
+        // a classic equalizer opens above a classic playlist, as Winamp stacks them, so the
+        // playlist stays last, where it stretches down to fill the view
+        let playlist = self.opened.iter().position(|&o| {
+            self.containers[o]
+                .current
+                .is_some_and(|l| self.is_classic_window(l, ClassicWindow::Playlist))
+        });
+        let equalizer = self.containers[c]
+            .current
+            .is_some_and(|l| self.is_classic_window(l, ClassicWindow::Equalizer));
+        match playlist {
+            Some(at) if equalizer => self.opened.insert(at, c),
+            _ => self.opened.push(c),
+        }
         self.shown_before.insert(c);
         self.container_show(c);
         self.relayout();
