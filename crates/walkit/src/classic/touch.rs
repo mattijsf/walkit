@@ -1390,11 +1390,15 @@ impl SkinRuntime {
                             .and_then(|l| self.objects[l].layout().and_then(|d| d.container))
                     })
                 {
-                    if Some(c) != self.main_container() {
+                    if Some(c) == self.main_container() {
+                        // the main window's close quits the player, which the host does
+                        self.action(o, "CLOSE", None, None);
+                    } else {
                         self.close_container(c);
                     }
                 }
             }
+            Control::Minimize => self.action(o, "MINIMIZE", None, None),
             Control::Position | Control::ShadePosition => {
                 let length = self.player.length_ms();
                 if self.player.status() != Status::Stopped && length > 0 {

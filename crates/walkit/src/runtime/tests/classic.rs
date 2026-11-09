@@ -3297,3 +3297,28 @@ fn a_row_mark_takes_its_cell_before_the_title_or_ahead_of_the_length() {
     rt.set_classic_row_marks(RowMarks::default());
     assert!(pixels(&mut rt).is_empty(), "no marks, no pictures");
 }
+
+#[test]
+fn the_main_window_close_and_minimize_reach_the_host() {
+    let mut rt = classic();
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let froms: Froms = Rc::new(RefCell::new(Vec::new()));
+    rt.host = Box::new(RecordingHost(actions.clone(), froms));
+    rt.host_actions = true;
+    assert!(rt.open_window("equalizer"));
+    rt.ensure_layout();
+    let tap = |rt: &mut SkinRuntime, x: i32, y: i32, seq: i32| {
+        rt.pointer_down(x, y, seq);
+        rt.pointer_up(x, y);
+    };
+    tap(&mut rt, 248, 7, 1);
+    tap(&mut rt, 268, 7, 2);
+    assert_eq!(*actions.borrow(), vec!["MINIMIZE", "CLOSE"]);
+    assert!(rt.main_window().is_some(), "the main window stays");
+    // the equalizer's close puts it away and tells the host nothing
+    tap(&mut rt, 268, 116 + 7, 3);
+    rt.ensure_layout();
+    let eq = rt.container("equalizer").expect("the equalizer");
+    assert!(!rt.is_open(eq));
+    assert_eq!(actions.borrow().len(), 2);
+}
