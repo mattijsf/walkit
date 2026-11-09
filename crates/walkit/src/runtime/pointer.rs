@@ -652,6 +652,22 @@ impl SkinRuntime {
         let Some(target) = self.captured.take() else {
             return;
         };
+        // a press a host's magnifier steered onto another control is let go as a click on
+        // that control: the one it began on lets go outside, and the one under it is pressed
+        // and let go
+        if self.pointer.precise {
+            if let Some(under) = self.hit_test_stack(sx, sy).filter(|u| {
+                *u != target
+                    && self.reacts(*u)
+                    && !matches!(self.objects[*u].kind, Kind::ClassicWindow(_))
+            }) {
+                self.object_pointer_up(target, x, y, false);
+                self.leave_area(target);
+                self.pointer.precise = false;
+                self.press(under, sx, sy);
+                return self.pointer_up_at(sx, sy);
+            }
+        }
         // a finger that drifts a little still counts as on the control
         let r = self.objects[target].base.rect;
         let slop = if self.pointer.precise {

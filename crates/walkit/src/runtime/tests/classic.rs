@@ -3025,21 +3025,22 @@ fn under_touch_a_finger_on_the_title_bar_beside_close_takes_close() {
 }
 
 #[test]
-fn a_precise_press_leaves_its_control_as_a_mouse_does() {
+fn a_precise_press_leaves_its_control_with_no_slop_and_clicks_the_one_it_reaches() {
     let (mut rt, actions) = classic_recording();
     rt.ensure_layout();
     touched(&mut rt, 6);
-    // as the wobble test, but steered by a magnifier: 3 px down onto D has left I
+    // as the wobble test, but steered by a magnifier: 3 px down onto D has left I, and the
+    // release clicks D
     rt.pointer_down(15, 46, 1);
     rt.set_pointer_precise(true);
     rt.pointer_move(15, 49);
     rt.pointer_up(15, 49);
-    assert!(actions.borrow().is_empty(), "{:?}", actions.borrow());
-    // the next press is a finger's again
+    assert_eq!(*actions.borrow(), vec!["DOUBLESIZE"]);
+    // the next press is a finger's again: the slop keeps it on I
     rt.pointer_down(15, 46, 2);
     rt.pointer_move(15, 49);
     rt.pointer_up(15, 49);
-    assert_eq!(*actions.borrow(), vec!["TRACKINFO"]);
+    assert_eq!(*actions.borrow(), vec!["DOUBLESIZE", "TRACKINFO"]);
 }
 
 #[test]
@@ -3321,4 +3322,177 @@ fn the_main_window_close_and_minimize_reach_the_host() {
     let eq = rt.container("equalizer").expect("the equalizer");
     assert!(!rt.is_open(eq));
     assert_eq!(actions.borrow().len(), 2);
+}
+
+/// A classic runtime for the magnifier checks: three songs, the equalizer and playlist open,
+/// under touch, host actions recorded.
+fn steer_rig() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let froms: Froms = Rc::new(RefCell::new(Vec::new()));
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    files.insert("region.txt", REGION.as_bytes());
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = ["One", "Two", "Three"]
+        .iter()
+        .map(|t| Track {
+            title: (*t).into(),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RecordingHost(actions.clone(), froms)),
+        Box::new(player),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    touched(&mut rt, 6);
+    rt.ensure_layout();
+    (rt, actions)
+}
+
+/// What a press changed that a listener sees: the host's actions, the player, the skin's own
+/// switches, its windows and the playlist's selection, scroll and open menu.
+fn steer_outcome(rt: &mut SkinRuntime, actions: &Rc<RefCell<Vec<String>>>) -> String {
+    let p = &rt.player;
+    let windows: Vec<String> = ["main", "equalizer", "pledit"]
+        .iter()
+        .map(|id| {
+            let c = rt.container(id).expect("a classic container");
+            format!("{id}:{}:{:?}", rt.is_open(c), rt.containers[c].current)
+        })
+        .collect();
+    format!(
+        "actions {:?}; player {:?} track {} pos {} vol {} pan {} shuf {} rep {} eq {} {:?} {}; \
+         remaining {} auto {} vis {:?}; windows {:?}; rows {:?} {:?} scroll {} menu {:?}",
+        actions.borrow(),
+        p.status(),
+        p.track_index(),
+        p.position_ms(),
+        p.volume(),
+        p.pan(),
+        p.shuffle(),
+        p.repeat(),
+        p.eq_enabled(),
+        p.eq_bands(),
+        p.eq_preamp(),
+        rt.classic_remaining,
+        rt.classic_eq_auto,
+        rt.classic_vis_mode(),
+        windows,
+        rt.classic_selected_row,
+        rt.classic_selected_more,
+        rt.classic_pl_scroll,
+        rt.classic_open_menu.map(|(_, m)| m),
+    )
+}
+
+#[test]
+fn a_press_the_magnifier_steers_onto_a_control_does_what_a_tap_on_it_does() {
+    let (mut probe, _) = steer_rig();
+    let mut checked = 0;
+    let mut differ = Vec::new();
+    for id in ["main", "equalizer", "pledit"] {
+        let window = probe.window_of(id).expect("the window");
+        let r = probe.window_rect(window);
+        // the controls the magnifier is handed for a press on this window
+        probe.pointer_down(r.left + r.width / 2, r.top + 1, 1);
+        // the ones a host's magnifier opens on and steers between: 12 px or less both ways
+        let controls: Vec<Rect> = probe
+            .press_controls()
+            .into_iter()
+            .map(|c| c.rect)
+            .filter(|r| r.width <= 12 && r.height <= 12)
+            .collect();
+        probe.pointer_cancel();
+        let center = |c: &Rect| (c.left + c.width / 2, c.top + c.height / 2);
+        // the magnifier opens on a press held still: one that has done nothing yet (a slider's
+        // or the time's acts as it goes down)
+        let (mut idle, idle_actions) = steer_rig();
+        let before = steer_outcome(&mut idle, &idle_actions);
+        let starts: Vec<&Rect> = controls
+            .iter()
+            .filter(|c| {
+                let (mut rt, actions) = steer_rig();
+                let (x, y) = center(c);
+                rt.pointer_down(x, y, 1);
+                rt.pointer_cancel();
+                steer_outcome(&mut rt, &actions) == before
+            })
+            .collect();
+        for target in &controls {
+            let (tx, ty) = center(target);
+            // its nearest neighbor, where the magnifier opened
+            let Some(start) = starts
+                .iter()
+                .copied()
+                .filter(|c| *c != target && !c.contains(tx, ty))
+                .min_by_key(|c| {
+                    let (x, y) = center(c);
+                    (x - tx).pow(2) + (y - ty).pow(2)
+                })
+            else {
+                continue;
+            };
+            let (sx, sy) = center(start);
+            let (mut tapped, tap_actions) = steer_rig();
+            tapped.pointer_down(tx, ty, 1);
+            tapped.pointer_up(tx, ty);
+            let (mut steered, steer_actions) = steer_rig();
+            steered.pointer_down(sx, sy, 1);
+            steered.set_pointer_precise(true);
+            steered.pointer_move(tx, ty);
+            steered.pointer_up(tx, ty);
+            let want = steer_outcome(&mut tapped, &tap_actions);
+            let got = steer_outcome(&mut steered, &steer_actions);
+            checked += 1;
+            if want != got {
+                differ.push(format!(
+                    "{id} {target:?} from {start:?}:\n  tap   {want}\n  steer {got}"
+                ));
+            }
+        }
+    }
+    assert!(checked >= 20, "only {checked} controls checked");
+    assert!(differ.is_empty(), "{}", differ.join("\n"));
+}
+
+#[test]
+fn a_press_on_add_steered_up_its_menu_picks_the_picture_it_is_let_go_on() {
+    let (mut rt, actions) = steer_rig();
+    let pl = rt.window_of("pledit").expect("the playlist");
+    let r = rt.window_rect(pl);
+    // ADD at the playlist's lower left, its pictures stacked above it
+    let (ax, ay) = (r.left + 25, r.bottom() - 20);
+    rt.pointer_down(ax, ay, 1);
+    let pictures: Vec<Rect> = rt
+        .press_controls()
+        .into_iter()
+        .filter(|c| c.magnify)
+        .map(|c| c.rect)
+        .collect();
+    assert_eq!(pictures.len(), 3, "ADD's menu: url, dir, file");
+    // the magnifier steers up from the lowest picture to the middle one
+    rt.set_pointer_precise(true);
+    let low = pictures[0];
+    let mid = pictures[1];
+    rt.pointer_move(low.left + 10, low.top + 9);
+    rt.pointer_move(mid.left + 10, mid.top + 9);
+    rt.pointer_up(mid.left + 10, mid.top + 9);
+    assert_eq!(actions.borrow().len(), 1, "{:?}", actions.borrow());
+    assert!(
+        actions.borrow()[0].starts_with("PLAYLIST "),
+        "{:?}",
+        actions.borrow()
+    );
 }

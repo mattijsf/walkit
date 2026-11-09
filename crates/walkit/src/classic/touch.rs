@@ -991,11 +991,32 @@ impl SkinRuntime {
             return;
         };
         let rect = self.objects[o].base.rect;
+        let under = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
+        // a press a host's magnifier steered onto another control is let go as a click on that
+        // control. A bottom button's press picks its menu's pictures by itself
+        if let Some(c) = under.filter(|c| {
+            self.pointer.precise
+                && *c != press.control
+                && !matches!(c, Control::Background | Control::TitleBar)
+                && !matches!(press.control, Control::PlButton(_))
+                && !press.on_open_menu
+        }) {
+            self.classic_press = None;
+            self.classic_release(press);
+            // the click is a tap's: under touch a bottom button's menu stays open
+            self.pointer.precise = false;
+            self.classic_pointer_down(o, px, py);
+            if self.classic_press_on(o).is_some_and(|p| p.control == c) {
+                self.classic_pointer_up(o, px, py, true);
+            } else {
+                self.classic_pointer_cancel(o);
+            }
+            return;
+        }
         press.at = (px, py);
         self.classic_follow(&mut press, px, py);
         // a release acts over the control; the position bar seeks wherever the finger let go,
         // since its thumb followed the drag
-        let under = control_at(w, rect.width, rect.height, self.classic_row(), px, py);
         let near = self.classic_near(&press, px, py);
         if let Some(c) = under.filter(|c| !near && Self::hands_along(press.control, *c)) {
             press.control = c;

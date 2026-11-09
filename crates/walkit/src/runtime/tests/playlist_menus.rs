@@ -193,3 +193,26 @@ fn the_status_bar_field_lies_between_the_buttons_and_old_button_names_win() {
     );
     assert_eq!(rt.bitmap_size("wasabi.button.top.left"), Some((2, 2)));
 }
+
+#[test]
+fn a_press_a_magnifier_steers_onto_another_button_clicks_that_one() {
+    let (mut rt, actions, _) = recording(true);
+    rt.pointer_down(10, 8, 1);
+    rt.set_pointer_precise(true);
+    rt.pointer_move(30, 8);
+    rt.pointer_move(55, 8);
+    rt.pointer_up(55, 8);
+    assert_eq!(*actions.borrow(), vec!["PE_REM"]);
+    // let go where it began, the press clicks its own button
+    rt.pointer_down(10, 8, 2);
+    rt.set_pointer_precise(true);
+    rt.pointer_move(12, 9);
+    rt.pointer_up(12, 9);
+    assert_eq!(*actions.borrow(), vec!["PE_REM", "PE_ADD"]);
+    // between two buttons, on no control, a steered release clicks nothing
+    rt.pointer_down(10, 8, 3);
+    rt.set_pointer_precise(true);
+    rt.pointer_move(40, 8);
+    rt.pointer_up(40, 8);
+    assert_eq!(actions.borrow().len(), 2, "{:?}", actions.borrow());
+}
