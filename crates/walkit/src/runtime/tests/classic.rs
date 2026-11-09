@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use super::QuietHost;
+use super::{Froms, QuietHost, RecordingHost};
 use crate::draw::FontDef;
 use crate::draw::{Align, DrawCmd, Rect, Region, Rgb};
 use crate::files::MemoryFiles;
@@ -37,6 +37,14 @@ const REGION: &str =
 fn classic() -> SkinRuntime {
     let clock: Clock = Rc::new(|| 0);
     classic_with(FakePlayer::new(clock.clone()), clock)
+}
+
+/// A classic runtime on a clock the test moves.
+fn classic_clocked() -> (SkinRuntime, Rc<std::cell::Cell<i64>>) {
+    let now = Rc::new(std::cell::Cell::new(0));
+    let read = now.clone();
+    let clock: Clock = Rc::new(move || read.get());
+    (classic_with(FakePlayer::new(clock.clone()), clock), now)
 }
 
 fn classic_with(player: FakePlayer, clock: Clock) -> SkinRuntime {
@@ -171,10 +179,10 @@ fn the_title_row_spells_the_track_in_the_bitmap_font_across_the_row() {
             "cell {i} is {c:?}"
         );
     }
-    // the row is covered from 111 to 269 and no further
+    // the row is covered from 111 up to 265 and no further: Winamp leaves the box's corner be
     let covered: i32 = text.iter().map(|b| b.2).sum();
-    assert_eq!(covered, 269 - 111);
-    assert_eq!(text.last().map(|b| b.4 + b.2), Some(269));
+    assert_eq!(covered, 265 - 111);
+    assert_eq!(text.last().map(|b| b.4 + b.2), Some(265));
 }
 
 #[test]
@@ -380,10 +388,12 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
     let title = rt.player.title();
     let length = rt.player.length_ms() / 1000;
     assert_eq!(texts.len(), 2);
+    // at this host's 9.6 px a letter, the title ends on "..." where " 3:35 " starts
+    assert_eq!(title, "Andamp - Modern skin demo");
     assert_eq!(
         texts[0],
         (
-            format!("1. {title}"),
+            "1. Andamp - Mode...".to_string(),
             Rect::new(12, 22, 243, 15),
             Align::Left
         )
@@ -391,7 +401,7 @@ fn the_playlist_lists_its_rows_with_the_length_at_the_right() {
     assert_eq!(
         texts[1],
         (
-            format!("{}:{:02}", length / 60, length % 60),
+            format!(" {}:{:02} ", length / 60, length % 60),
             Rect::new(12, 22, 243, 15),
             Align::Right
         )
@@ -934,7 +944,8 @@ fn the_playlist_scrolls_by_a_drag_on_its_rows_and_by_its_thumb() {
             _ => None,
         })
         .collect();
-    assert_eq!(texts.first().map(String::as_str), Some("3. Song 2"));
+    // twenty songs: the numbers padded to two places
+    assert_eq!(texts.first().map(String::as_str), Some(" 3. Song 2"));
     assert_eq!(texts.len(), 6, "three rows, each a title and a length");
     assert!(blits(cmds, "pledit.bmp").contains(&(52, 53, 8, 18, 260, 24)));
     // a tap on the second row picks the fourth song, whose length leads the bottom line
@@ -1608,40 +1619,6 @@ fn a_playing_classic_window_is_due_again_every_frame() {
     assert!(!rt.frames_wanted());
 }
 
-/// A host that keeps the actions the skin sends it, and where on screen each came from.
-struct RecordingHost(Rc<RefCell<Vec<String>>>, Froms);
-
-/// Where each host action came from, in order.
-type Froms = Rc<RefCell<Vec<Option<crate::host::ActionFrom>>>>;
-
-impl SkinHost for RecordingHost {
-    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
-        None
-    }
-
-    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, bold: bool) -> i32 {
-        text.chars().count() as i32 * size * if bold { 7 } else { 6 } / 10
-    }
-
-    fn log(&mut self, _message: &str) {}
-
-    fn invalidate(&mut self) {}
-
-    fn host_action(
-        &mut self,
-        action: &str,
-        param: Option<&str>,
-        from: Option<crate::host::ActionFrom>,
-    ) {
-        self.0.borrow_mut().push(
-            format!("{action} {}", param.unwrap_or(""))
-                .trim_end()
-                .to_string(),
-        );
-        self.1.borrow_mut().push(from);
-    }
-}
-
 fn classic_recording() -> (SkinRuntime, Rc<RefCell<Vec<String>>>) {
     let (rt, actions, _) = classic_recording_froms();
     (rt, actions)
@@ -2150,7 +2127,7 @@ fn the_control_buttons_hand_the_press_along_and_any_bare_place_moves_the_window(
 
 #[test]
 fn the_sliders_keep_their_grab_tell_their_value_and_the_balance_snaps() {
-    let mut rt = classic();
+    let (mut rt, now) = classic_clocked();
     rt.ensure_layout();
     rt.player.set_volume(128);
     // taken on the thumb (x 132..=146 at 128) the volume stays; beside it, the middle jumps there
@@ -2158,7 +2135,18 @@ fn the_sliders_keep_their_grab_tell_their_value_and_the_balance_snaps() {
     assert!((rt.player.volume() - 128).abs() <= 5);
     assert_eq!(rt.classic_status.as_deref(), Some("Volume: 49%"));
     rt.pointer_up(140, 63);
+    assert!(rt.classic_status.is_some(), "5.666 keeps it a second");
+    now.set(999);
+    rt.tick();
+    assert!(rt.classic_status.is_some());
+    now.set(1000);
+    rt.tick();
     assert_eq!(rt.classic_status, None, "the song's title comes back");
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp291);
+    rt.pointer_down(140, 63, 9);
+    rt.pointer_up(140, 63);
+    assert_eq!(rt.classic_status, None, "2.91 gives it back on release");
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp5666);
     rt.pointer_down(170, 63, 2);
     assert_eq!(rt.player.volume(), 255);
     assert_eq!(rt.classic_status.as_deref(), Some("Volume: 100%"));
@@ -2231,6 +2219,25 @@ fn the_title_scrolls_by_hand_and_waits_two_seconds_after() {
 }
 
 #[test]
+fn a_held_clutter_letter_names_what_it_does_on_the_title_row() {
+    let mut rt = classic();
+    rt.ensure_layout();
+    let title = |rt: &mut SkinRuntime| rt.classic_status.clone();
+    rt.pointer_down(15, 27, 1);
+    assert_eq!(title(&mut rt).as_deref(), Some("Options Menu"));
+    rt.pointer_move(15, 51);
+    assert_eq!(title(&mut rt).as_deref(), Some("Enable Doublesize Mode"));
+    rt.pointer_move(15, 59);
+    assert_eq!(title(&mut rt).as_deref(), Some("Visualization Menu"));
+    rt.pointer_up(60, 90);
+    rt.set_classic_style(crate::classic::style::ClassicStyle::Winamp291);
+    rt.pointer_down(15, 43, 2);
+    assert_eq!(title(&mut rt).as_deref(), Some("File Info Box"));
+    rt.pointer_up(60, 90);
+    assert_eq!(title(&mut rt), None, "2.91 gives the title back on release");
+}
+
+#[test]
 fn the_logo_double_taps_and_the_shade_bar_reach_what_winamp_does() {
     let (mut rt, actions) = classic_recording();
     rt.ensure_layout();
@@ -2260,6 +2267,18 @@ fn the_logo_double_taps_and_the_shade_bar_reach_what_winamp_does() {
     assert_eq!(rt.player.status(), Status::Stopped);
     tap(&mut rt, 176, 7, 7);
     assert_eq!(rt.player.status(), Status::Playing, "x 176 is play's");
+    // a double tap on its stop button is a second press, the bar stays
+    tap(&mut rt, 200, 7, 8);
+    rt.double_tap(200, 7, 8);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 14));
+    assert_eq!(rt.player.status(), Status::Stopped);
+    // on the bar's empty title it toggles the shade
+    rt.double_tap(40, 7, 9);
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.window_size(main), (275, 116));
 }
 
 #[test]
@@ -2520,6 +2539,68 @@ fn the_video_status_line_takes_its_colors_from_pledit() {
 }
 
 #[test]
+fn the_2_91_style_has_its_name_and_smaller_playlist_rows() {
+    use crate::classic::style::ClassicStyle;
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.title.clear();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!(rt.classic_title_text(), "Winamp 5.666");
+    rt.set_classic_style(ClassicStyle::from_version("2.91").unwrap());
+    assert_eq!(rt.classic_title_text(), "Winamp 2.91");
+    assert_eq!(rt.classic_row(), 13, "Arial at 10");
+    rt.set_classic_style(ClassicStyle::Winamp5666);
+    assert_eq!(rt.classic_row(), 15);
+}
+
+#[test]
+fn a_wheel_notch_scrolls_as_far_as_each_winamp_does() {
+    use crate::classic::style::ClassicStyle;
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..40)
+        .map(|i| Track {
+            title: format!("Song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt.wheel_classic_playlist(1);
+    assert_eq!(rt.classic_pl_scroll, 2);
+    rt.set_classic_style(ClassicStyle::Winamp291);
+    rt.wheel_classic_playlist(1);
+    assert_eq!(rt.classic_pl_scroll, 10);
+}
+
+#[test]
+fn a_smaller_playlist_font_draws_smaller_text_in_shorter_rows() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!((rt.classic_row(), rt.classic_row_font()), (15, 16));
+    rt.set_classic_list_font_size(9);
+    assert_eq!((rt.classic_row(), rt.classic_row_font()), (11, 12));
+    assert_eq!(rt.classic_pl_rows(116), 5, "(116 - 60) / 11");
+    let sizes: Vec<i32> = rt
+        .draw_windows()
+        .iter()
+        .flat_map(|(_, cmds)| cmds.iter())
+        .filter_map(|c| match c {
+            DrawCmd::Text(t) => Some(t.size),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !sizes.is_empty() && sizes.iter().all(|&s| s == 12),
+        "{sizes:?}"
+    );
+}
+
+#[test]
 fn the_stack_names_winamps_cursor_under_the_pointer() {
     use crate::classic::cursor::CURSOR_FILES;
     let mut rt = classic();
@@ -2541,6 +2622,35 @@ fn the_stack_names_winamps_cursor_under_the_pointer() {
 }
 
 #[test]
+fn a_cursor_the_skin_lacks_is_winamps_own_of_its_kind_from_the_base_skin() {
+    use crate::classic::cursor::{tests::cur, CURSOR_FILES};
+    let mut files = MemoryFiles::new();
+    for s in SHEETS {
+        files.insert(s, &b"x"[..]);
+    }
+    // the skin's close cursor does not stand in for the equalizer's; Winamp's does
+    files.insert("close.cur", cur((0, 1)));
+    files.insert("wasabi-base/close.cur", cur((1, 0)));
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(QuietHost),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    let slot = |file| CURSOR_FILES.iter().position(|(f, _)| *f == file).unwrap();
+    let hot = |rt: &mut SkinRuntime, file| {
+        rt.classic_cursor(slot(file))
+            .map(|c| (c.frames[0].hot_x, c.frames[0].hot_y))
+    };
+    assert_eq!(hot(&mut rt, "eqclose.cur"), Some((1, 0)), "the base skin's");
+    assert_eq!(hot(&mut rt, "close.cur"), Some((0, 1)), "the skin's cursor");
+    assert_eq!(hot(&mut rt, "normal.cur"), None, "no arrow in either");
+}
+
+#[test]
 fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
     let mut rt = classic();
     assert!(rt.open_window("pledit"));
@@ -2558,6 +2668,251 @@ fn stacked_in_a_tall_view_the_classic_playlist_stretches_to_the_bottom() {
         .expect("the playlist under the main window");
     // all 284 left under the main window
     assert_eq!(pl.height, 284);
+}
+
+fn apart(rt: &mut SkinRuntime) {
+    rt.set_presentation(&crate::host::Presentation {
+        free_windows: true,
+        viewport: (1600, 1200),
+        ..rt.presentation()
+    });
+    rt.ensure_layout();
+}
+
+#[test]
+fn a_window_at_twice_its_scale_draws_takes_presses_and_docks_twice_as_large() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    assert_eq!(rt.window_rect(eq), Rect::new(0, 116, 275, 116));
+
+    assert!(rt.set_window_scale("main", 2.0));
+    rt.ensure_layout();
+    assert_eq!(rt.window_rect(main), Rect::new(0, 0, 550, 232));
+    assert_eq!(
+        rt.window_rect(eq),
+        Rect::new(0, 232, 275, 116),
+        "the equalizer docked under it follows its bottom edge"
+    );
+    let drawn = rt.draw_windows();
+    let (_, cmds) = drawn
+        .iter()
+        .find(|(r, _)| r.width == 550)
+        .expect("the main window drawn");
+    assert!(
+        blits(cmds, "main.bmp").contains(&(0, 0, 275, 116, 0, 0)),
+        "the same part of the picture"
+    );
+    assert!(
+        cmds.iter().any(|c| matches!(
+            c,
+            DrawCmd::Image { dst, .. } if *dst == Rect::new(0, 0, 550, 232)
+        )),
+        "stretched over the window"
+    );
+    // Play sits at twice its place
+    rt.pointer_down(100, 194, 1);
+    rt.pointer_up(100, 194);
+    assert_eq!(rt.player.status(), Status::Playing);
+
+    assert!(rt.set_window_scale("main", 1.0));
+    rt.ensure_layout();
+    assert_eq!(rt.window_rect(main), Rect::new(0, 0, 275, 116));
+    assert_eq!(rt.window_rect(eq), Rect::new(0, 116, 275, 116));
+    assert!(!rt.set_window_scale("nothing", 2.0));
+}
+
+#[test]
+fn a_window_at_any_scale_keeps_its_drag_and_its_grip() {
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    apart(&mut rt);
+    let pl = rt.window_of("pledit").expect("the playlist");
+    assert!(rt.set_window_scale("pledit", 1.5));
+    rt.ensure_layout();
+    let r = rt.window_rect(pl);
+    assert_eq!((r.width, r.height), (413, 174));
+    // its grip: the corner of the window on screen, a 25 x 29 step at the scale
+    rt.pointer_down(r.right() - 3, r.bottom() - 3, 1);
+    rt.pointer_move(r.right() - 3 + 38, r.bottom() - 3 + 44);
+    rt.pointer_up(r.right() - 3 + 38, r.bottom() - 3 + 44);
+    rt.ensure_layout();
+    assert_eq!(
+        rt.window_size(pl),
+        (300, 145),
+        "one step each way, in layout pixels"
+    );
+    let moved = rt.window_rect(pl);
+    assert_eq!((moved.width, moved.height), (450, 218));
+}
+
+#[test]
+fn a_drag_ends_where_the_finger_lifts_even_with_no_move_there() {
+    let mut rt = classic();
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    rt.place_window(main, 300, 200);
+    rt.ensure_layout();
+    // the title bar, clear of its buttons
+    rt.pointer_down(360, 206, 1);
+    rt.pointer_move(400, 226);
+    rt.pointer_up(402, 227);
+    rt.ensure_layout();
+    let r = rt.window_rect(main);
+    assert_eq!((r.left, r.top), (342, 221));
+}
+
+#[test]
+fn a_drag_of_docked_windows_only_places_them_again() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    apart(&mut rt);
+    rt.tick();
+    let first = rt.draw_windows_owned();
+    assert_eq!(rt.take_placed_only(), None, "drawn and nothing moved");
+    let main = rt.main_window().expect("the main window");
+    let r = rt.window_rect(main);
+    // the press and the drag's first step may redraw: the title bar lights up
+    rt.pointer_down(r.left + 60, r.top + 6, 1);
+    rt.tick();
+    rt.draw_windows_owned();
+    rt.pointer_move(r.left + 70, r.top + 11);
+    rt.tick();
+    rt.draw_windows_owned();
+    rt.pointer_move(r.left + 80, r.top + 16);
+    rt.tick();
+    let placed = rt.take_placed_only().expect("only moved");
+    assert_eq!(placed.len(), first.len());
+    for (p, w) in placed.iter().zip(&first) {
+        let moved = Rect::new(
+            w.rect.left + 20,
+            w.rect.top + 10,
+            w.rect.width,
+            w.rect.height,
+        );
+        assert_eq!(p.1, moved, "every docked window went along");
+    }
+    assert_eq!(rt.take_placed_only(), None, "taken once");
+    rt.pointer_up(r.left + 80, r.top + 16);
+}
+
+#[test]
+fn the_visualizer_window_holds_the_hosts_visualizer_in_its_frame() {
+    let mut rt = classic();
+    apart(&mut rt);
+    assert_eq!(rt.vis_rect(), None);
+    assert!(rt.open_window("avs"));
+    assert!(rt.set_window_title("avs", "Milkdrop"));
+    rt.ensure_layout();
+    let avs = rt.window_of("avs").expect("the visualizer window");
+    let r = rt.window_rect(avs);
+    assert_eq!((r.width, r.height), (275, 232));
+    assert_eq!(
+        rt.vis_rect(),
+        Some(Rect::new(r.left + 11, r.top + 20, 275 - 19, 232 - 34))
+    );
+    rt.set_window_scale("avs", 2.0);
+    rt.ensure_layout();
+    let r = rt.window_rect(avs);
+    assert_eq!(
+        rt.vis_rect(),
+        Some(Rect::new(
+            r.left + 22,
+            r.top + 40,
+            2 * (275 - 19),
+            2 * (232 - 34)
+        ))
+    );
+}
+
+#[test]
+fn double_size_keeps_every_window_docked_there_and_back() {
+    let mut rt = classic();
+    for c in ["equalizer", "pledit", "avs"] {
+        assert!(rt.open_window(c));
+    }
+    apart(&mut rt);
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    let pl = rt.window_of("pledit").expect("the playlist");
+    let avs = rt.window_of("avs").expect("the visualizer");
+    rt.place_window(avs, 275, 0);
+    rt.ensure_layout();
+    let tops = |rt: &mut SkinRuntime| {
+        [main, eq, pl, avs].map(|w| {
+            let r = rt.window_rect(w);
+            (r.left, r.top, r.width, r.height)
+        })
+    };
+    let start = tops(&mut rt);
+    assert_eq!(
+        start,
+        [
+            (0, 0, 275, 116),
+            (0, 116, 275, 116),
+            (0, 232, 275, 116),
+            (275, 0, 275, 232)
+        ]
+    );
+
+    rt.set_window_scale("main", 2.0);
+    rt.set_window_scale("equalizer", 2.0);
+    rt.ensure_layout();
+    assert_eq!(
+        tops(&mut rt),
+        [
+            (0, 0, 550, 232),
+            (0, 232, 550, 232),
+            (0, 464, 275, 116),
+            (550, 0, 275, 232)
+        ]
+    );
+
+    rt.set_window_scale("main", 1.0);
+    rt.set_window_scale("equalizer", 1.0);
+    rt.ensure_layout();
+    assert_eq!(tops(&mut rt), start);
+}
+
+#[test]
+fn between_title_steps_nothing_is_due_and_only_the_clock_windows_draw_again() {
+    use crate::classic::main::TITLE_STEP_MS;
+    let now = Rc::new(std::cell::Cell::new(0i64));
+    let at = now.clone();
+    let clock: Clock = Rc::new(move || at.get());
+    let mut player = FakePlayer::new(clock.clone());
+    Player::set_track(
+        &mut player,
+        "A rather long song title that scrolls across the window",
+        600_000,
+    );
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    assert!(rt.tick(), "the first tick draws");
+    let first = rt.draw_windows();
+    now.set(TITLE_STEP_MS / 2);
+    assert!(
+        !rt.tick(),
+        "halfway to the title's next step nothing changes"
+    );
+    now.set(TITLE_STEP_MS);
+    assert!(rt.tick(), "the title steps");
+    let stepped = rt.draw_windows();
+    assert_ne!(
+        first[0].1, stepped[0].1,
+        "the main window drew its title on"
+    );
+    assert_eq!(first[1].1, stepped[1].1, "the equalizer kept its drawing");
+    // what a clock-only draw kept is what a fresh drawing gives
+    rt.repaint();
+    assert_eq!(rt.draw_windows()[1].1, stepped[1].1);
+    // a balance the host changes draws at once, playing or not
+    rt.player.set_pan(60);
+    assert!(rt.tick());
 }
 
 /// Turns touch on, the slop `slop` skin pixels.

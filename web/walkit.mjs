@@ -8,7 +8,7 @@
 // null, `imageSize(file)` -> [w, h] or null, `pixels(file, x, y, w, h)` -> Uint32Array or null,
 // `fontFile(file)` -> Uint8Array or null, `log(text)`, `invalidate()`, `windowOpen(kind)` ->
 // true/false/null, `chooseFromMenu(text)` -> id or null, `windowsChanged(ids)`,
-// `hostAction(action, param)`, and `now()` in ms. Everything is optional; what is missing
+// `hostAction(action, param, from)` (from: `{rect: [x, y, w, h], point: [x, y] | null}` in the stack, or null), `player(cmd, arg)`, and `now()` in ms. Everything is optional; what is missing
 // answers nothing.
 
 const encoder = new TextEncoder();
@@ -46,12 +46,12 @@ export class Walkit {
     this.x.wk_free(ptr, len);
   }
 
-  /** The last result's text. */
   /** The last result the module gave, as a copy of its bytes. */
   resultBytes() {
     return this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()).slice();
   }
 
+  /** The last result's text. */
   result() {
     return decoder.decode(this.bytes(this.x.wk_result_ptr(), this.x.wk_result_len()));
   }
@@ -108,6 +108,19 @@ export class Walkit {
   /** A runtime the page drives; see `Runtime`. */
   runtime(stackId, skinName, haveLibrary = true, startMs = Date.now()) {
     const id = this.withString(skinName, (p, n) => this.x.wk_rt_new(stackId, p, n, haveLibrary ? 1 : 0, startMs));
+    if (id < 0) throw new Error("no such stack");
+    return new Runtime(this, id);
+  }
+
+  /**
+   * A runtime on the page's player instead of the demo one: the page tells it the player's
+   * state (`setPlayerState`, `setPlaylist`, `setVis`) and hears each button through the
+   * `player(command, value)` import: play, pause, stop, next, previous, eject, play_track
+   * (index), seek (ms), volume (0..255), pan (-127..127), shuffle, repeat, eq (0/1), preamp
+   * and band0..band9 (0..255).
+   */
+  hostedRuntime(stackId, skinName, haveLibrary = true, startMs = Date.now()) {
+    const id = this.withString(skinName, (p, n) => this.x.wk_rt_new_hosted(stackId, p, n, haveLibrary ? 1 : 0, startMs));
     if (id < 0) throw new Error("no such stack");
     return new Runtime(this, id);
   }
@@ -174,10 +187,36 @@ export class Walkit {
         return r === null || r === undefined ? -1 : r;
       },
       host_windows_changed: (p, n) => h.windowsChanged && h.windowsChanged(str(p, n).split(",").filter(Boolean).map(Number)),
-      host_host_action: (ap, an, pp, pn) => h.hostAction && h.hostAction(str(ap, an), str(pp, pn)),
+      host_host_action: (ap, an, pp, pn, fp) => {
+        if (!h.hostAction) return;
+        const f = new Int32Array(this.memory.buffer, fp, 8);
+        const from = f[0] ? { rect: [f[1], f[2], f[3], f[4]], point: f[5] ? [f[6], f[7]] : null } : null;
+        h.hostAction(str(ap, an), str(pp, pn), from);
+      },
+      host_player: (cp, cn, arg) => h.player && h.player(str(cp, cn), arg),
     };
   }
 }
+
+const EMPTY = new Float32Array(0);
+const STATUS = { stopped: 0, playing: 1, paused: 2 };
+const PLAYER_DEFAULTS = {
+  status: "stopped",
+  positionMs: 0,
+  lengthMs: 0,
+  title: "",
+  trackIndex: 0,
+  kbps: 0,
+  khz: 0,
+  channels: 2,
+  volume: 200,
+  pan: 0,
+  shuffle: false,
+  repeat: false,
+  eqOn: false,
+  preamp: 128,
+  bands: [128, 128, 128, 128, 128, 128, 128, 128, 128, 128],
+};
 
 /** A runtime the page drives: the clock stepped by the page, the draw list out as text. */
 export class Runtime {
@@ -213,6 +252,19 @@ export class Runtime {
     return this.w.resultBytes();
   }
 
+  /**
+   * When the windows only moved since the last frame, where each one shows now, bottom to top:
+   * `[{id, rect}]`, the move taken as drawn. Null when something needs drawing (`drawFrame`).
+   */
+  placedOnly() {
+    if (!this.w.x.wk_rt_placed_only(this.id)) return null;
+    const b = this.w.resultBytes();
+    const v = new Int32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+    const out = [];
+    for (let i = 0; i < v.length; i += 5) out.push({ id: v[i], rect: { left: v[i + 1], top: v[i + 2], width: v[i + 3], height: v[i + 4] } });
+    return out;
+  }
+
   /** A right click, or a long press, where the pointer last was. */
   rightClick(seq = 0) {
     this.w.x.wk_rt_right_click(this.id, seq);
@@ -232,6 +284,12 @@ export class Runtime {
 
   pointerUp(x, y) {
     this.w.x.wk_rt_pointer_up(this.id, x, y);
+  }
+
+  /** The seq of the last press when a drag from it moves the window, or null (a host that moves its windows itself). */
+  moveTarget() {
+    const s = this.w.x.wk_rt_move_target(this.id);
+    return s < 0 ? null : s;
   }
 
   /** The classic cursor slot at x, y of the stack, or -1. */
@@ -263,6 +321,103 @@ export class Runtime {
 
   openWindow(name) {
     return this.w.withString(name, (p, n) => this.w.x.wk_rt_open_window(this.id, p, n)) !== 0;
+  }
+
+  closeWindow(name) {
+    return this.w.withString(name, (p, n) => this.w.x.wk_rt_close_window(this.id, p, n)) !== 0;
+  }
+
+  /** Puts a window at x, y of the viewport while the windows are apart. */
+  placeWindow(window, x, y) {
+    this.w.x.wk_rt_place_window(this.id, window, x, y);
+  }
+
+  /** Shows the windows of a container `scale` times as large (2 for Winamp's double size). */
+  setWindowScale(container, scale) {
+    return this.w.withString(container, (p, n) => this.w.x.wk_rt_set_window_scale(this.id, p, n, scale)) !== 0;
+  }
+
+  /** Screen pixels per layout pixel of the windows of a container. */
+  windowScale(container) {
+    return this.w.withString(container, (p, n) => this.w.x.wk_rt_window_scale(this.id, p, n));
+  }
+
+  /** Names the windows of a container: the title a classic frame shows. */
+  setWindowTitle(container, title) {
+    return this.w.withString(container, (cp, cn) => this.w.withString(title, (tp, tn) => this.w.x.wk_rt_set_window_title(this.id, cp, cn, tp, tn))) !== 0;
+  }
+
+  /**
+   * Where the page draws its visualizer, `{left, top, width, height}` in the viewport: the
+   * classic visualizer window's inside, or a modern skin's visualizer holder; null when none shows.
+   */
+  visRect() {
+    if (!this.w.x.wk_rt_vis_rect(this.id)) return null;
+    const b = this.w.resultBytes();
+    const [left, top, width, height] = new Int32Array(b.buffer, b.byteOffset, 4);
+    return { left, top, width, height };
+  }
+
+  /** The part of window `window` that docks to others: its rect inside its skin's snap margins. */
+  dockingRect(window) {
+    if (!this.w.x.wk_rt_docking_rect(this.id, window)) return null;
+    const b = this.w.resultBytes();
+    const [left, top, width, height] = new Int32Array(b.buffer, b.byteOffset, 4);
+    return { left, top, width, height };
+  }
+
+  /** The window that has the focus, or null. */
+  focusedWindow() {
+    const w = this.w.x.wk_rt_focused_window(this.id);
+    return w < 0 ? null : w;
+  }
+
+  /** Whether a classic skin's time displays count down. */
+  timeRemaining() {
+    return this.w.x.wk_rt_time_remaining(this.id) !== 0;
+  }
+
+  setTimeRemaining(on) {
+    this.w.x.wk_rt_set_time_remaining(this.id, on ? 1 : 0);
+  }
+
+  /** Whether a classic equalizer's auto button is on. */
+  eqAuto() {
+    return this.w.x.wk_rt_eq_auto(this.id) !== 0;
+  }
+
+  setEqAuto(on) {
+    this.w.x.wk_rt_set_eq_auto(this.id, on ? 1 : 0);
+  }
+
+  /** Shows the classic windows as Winamp `version` ("2.91" or "5.666", the first) does; false for another. */
+  setClassicStyle(version) {
+    return this.w.withString(version, (p, n) => this.w.x.wk_rt_set_classic_style(this.id, p, n)) !== 0;
+  }
+
+  /** Sets a classic playlist's font size, pixels to the em (the style's at first); its rows follow. */
+  setListFontSize(px) {
+    this.w.x.wk_rt_set_list_font_size(this.id, px);
+  }
+
+  /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
+  setTouch(on) {
+    this.w.x.wk_rt_set_touch(this.id, on ? 1 : 0);
+  }
+
+  /** Scrolls a classic playlist for notches of the mouse wheel, down for more than 0, as far as the classic style's Winamp does. */
+  wheelPlaylist(notches) {
+    this.w.x.wk_rt_wheel_playlist(this.id, notches);
+  }
+
+  /** Shows playlist entry `index` (from 0) as selected, or none for null, as the page's playlist has it. */
+  setPlaylistSelection(index) {
+    this.w.x.wk_rt_playlist_selection(this.id, index == null ? -1 : index);
+  }
+
+  /** Scrolls a classic playlist by rows, down for more than 0. */
+  scrollPlaylist(rows) {
+    this.w.x.wk_rt_scroll_playlist(this.id, rows);
   }
 
   /** Stages a song on the page's fake player: `title`, `lengthMs` long. */
@@ -321,6 +476,48 @@ export class Runtime {
   /** 1 play, 2 pause, 3 stop, 4 next, 5 previous. */
   player(action) {
     this.w.x.wk_rt_player(this.id, action);
+  }
+
+  /**
+   * Tells a runtime on the page's player (`Walkit.hostedRuntime`) what the player is doing.
+   * Give any of: `status` ("stopped", "playing", "paused"), `positionMs`, `lengthMs`, `title`,
+   * `trackIndex` (from 0), `kbps`, `khz`, `channels`, `volume` (0..255), `pan` (-127..127),
+   * `shuffle`, `repeat`, `eqOn`, `preamp` (0..255), `bands` (ten, 0..255); the rest stays.
+   */
+  setPlayerState(changes) {
+    const s = (this.playerSeen = { ...PLAYER_DEFAULTS, ...this.playerSeen, ...changes });
+    const ints = new Int32Array(23);
+    ints.set([STATUS[s.status] ?? s.status, s.positionMs, s.lengthMs, s.kbps, s.khz, s.channels, s.volume, s.pan, +!!s.shuffle, +!!s.repeat, +!!s.eqOn, s.preamp]);
+    ints.set(s.bands.slice(0, 10), 12);
+    ints[22] = s.trackIndex;
+    const [ip, il] = this.w.put(new Uint8Array(ints.buffer));
+    try {
+      this.w.withString(s.title, (tp, tn) => this.w.x.wk_rt_host_player_state(this.id, ip, 23, tp, tn));
+    } finally {
+      this.w.free(ip, il);
+    }
+  }
+
+  /** The page's playlist for a runtime on the page's player: `[{title, lengthMs}]`. */
+  setPlaylist(tracks) {
+    const text = tracks.map((t) => `${Math.round(t.lengthMs) || 0}\t${String(t.title).replace(/[\t\n]/g, " ")}`).join("\n");
+    this.w.withString(text, (p, n) => this.w.x.wk_rt_host_player_tracks(this.id, p, n));
+  }
+
+  /**
+   * What the page's player is heard as now, for the skin's visualizers: `spectrum` (75 levels
+   * 0..1, low to high), `waveform` (576 samples -1..1) and `vu` ([left, right], 0..255). Call
+   * with nothing while nothing plays.
+   */
+  setVis({ spectrum = EMPTY, waveform = EMPTY, vu = [0, 0] } = {}) {
+    const [sp, sl] = this.w.put(new Uint8Array(spectrum.buffer, spectrum.byteOffset, spectrum.byteLength));
+    const [wp, wl] = this.w.put(new Uint8Array(waveform.buffer, waveform.byteOffset, waveform.byteLength));
+    try {
+      this.w.x.wk_rt_host_player_vis(this.id, sp, spectrum.length, wp, waveform.length, vu[0], vu[1]);
+    } finally {
+      this.w.free(sp, sl);
+      this.w.free(wp, wl);
+    }
   }
 
   nextDueAt() {

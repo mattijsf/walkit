@@ -137,6 +137,8 @@ pub struct SkinRuntime {
     pub(crate) classic_vis_tapped_at: i64,
     /// What the title row shows in place of the song while a slider is dragged.
     pub(crate) classic_status: Option<String>,
+    /// When the title row's text gives the title back by itself (5.666's one-second timer).
+    pub(crate) classic_status_until: i64,
     /// The title's scroll in pixels when it last stopped or started, the clock time from which
     /// it moves on (later than now while held), and the title it belongs to.
     pub(crate) classic_title_base: i32,
@@ -158,6 +160,15 @@ pub struct SkinRuntime {
     pub(crate) action_from: Option<Rect>,
     /// Pixels the classic playlist adds to a row (`Presentation::list_row_extra`).
     pub(crate) list_row_extra: i32,
+    /// The classic playlist font's em in pixels (`set_classic_list_font_size`).
+    pub(crate) classic_list_font: i32,
+    /// The window holders that take a component as they show (`autoopen`) and showed at the
+    /// last layout.
+    pub(crate) holders_shown: Vec<ObjId>,
+    /// Whether something showed or hid since the holders were last looked at.
+    pub(crate) holders_stale: bool,
+    /// The Winamp the classic windows are shown as (`set_classic_style`).
+    pub(crate) classic_style: crate::classic::style::ClassicStyle,
     /// The ink of the skin's `text.bmp` for those rows, `None` when it has none, and whether it
     /// was read: once a skin.
     pub(crate) classic_list_ink: Option<std::rc::Rc<crate::classic::listfont::ListInk>>,
@@ -169,6 +180,10 @@ pub struct SkinRuntime {
     clock: Clock,
     // ---- resources
     pub(crate) bitmaps: HashMap<String, BitmapDef>,
+    /// What [`SkinRuntime::bitmap`] found for each id asked, until the elements change.
+    bitmap_lookups: crate::fasthash::FastMap<String, Option<BitmapDef>>,
+    /// The size of each picture the host has measured: a skin's pictures do not change.
+    image_sizes: crate::fasthash::FastMap<String, (i32, i32)>,
     bitmap_fonts: HashMap<String, BitmapFontDef>,
     fonts: HashMap<String, FontDef>,
     colors: HashMap<String, Rgb>,
@@ -191,7 +206,7 @@ pub struct SkinRuntime {
     /// What of the default element set this skin used so far.
     pub(crate) base_usage: BTreeSet<String>,
     resolved_fonts: HashMap<String, Option<Rc<BitmapFontDef>>>,
-    fits: HashMap<BitmapDef, Fit>,
+    fits: crate::fasthash::FastMap<BitmapDef, Fit>,
     opaque_columns: HashMap<String, i32>,
     gdi_lines: HashMap<String, Option<crate::gdi::GdiLineMetrics>>,
     /// A window's shape as `window_start` last gave it: the change it was worked out at, and the command.
@@ -259,6 +274,23 @@ pub struct SkinRuntime {
     pub(crate) touch: bool,
     pub(crate) last_pointer: (i32, i32),
     dirty: bool,
+    /// Only objects that move by themselves changed (a vis, a ticker, the time, a classic
+    /// window's clock): the next draw redraws only their windows and keeps the others' last
+    /// drawing.
+    moved_dirty: bool,
+    /// When a classic window next changes by itself; 0 for at once.
+    classic_next_at: i64,
+    /// The windows of the objects that moved by themselves since the last draw.
+    moved_windows: HashSet<ObjId>,
+    /// The objects that moved by themselves since the last draw.
+    moved_objects: Vec<ObjId>,
+    /// The second a classic playlist's time showed when it last drew, and whether it counted down.
+    clock_second: (i32, bool),
+    /// Each window's last drawing, at its scale: a clock-only draw keeps it, or draws again
+    /// only the objects that moved in it.
+    window_drawings: HashMap<ObjId, WindowDrawing>,
+    /// Where each object's commands lie in the window being drawn, as the objects claim them.
+    pub(crate) drawn_spans: Vec<(ObjId, usize, usize)>,
     needs_layout: bool,
     scripts_started: bool,
     last_status: Status,
@@ -270,6 +302,9 @@ pub struct SkinRuntime {
     last_eq_on: bool,
     last_preamp: i32,
     last_bands: Vec<i32>,
+    last_pan: i32,
+    last_format: (i32, i32, i32),
+    last_position: i32,
     /// Every object of a window, in drawing order, from the last layout pass.
     pub(crate) all_objects: Vec<ObjId>,
     sliders: Vec<ObjId>,
@@ -320,6 +355,13 @@ impl SkinRuntime {
         let last_eq_on = player.eq_enabled();
         let last_preamp = player.eq_preamp();
         let last_bands = player.eq_bands();
+        let last_pan = player.pan();
+        let last_format = (
+            player.bitrate_kbps(),
+            player.sample_rate_khz(),
+            player.channels(),
+        );
+        let last_position = player.position_ms();
         SkinRuntime {
             files,
             classic_regions: HashMap::new(),
@@ -332,6 +374,7 @@ impl SkinRuntime {
             classic_vis_before: crate::classic::vis::VisMode::default(),
             classic_vis_tapped_at: i64::MIN / 2,
             classic_status: None,
+            classic_status_until: i64::MAX,
             classic_title_base: 0,
             classic_title_epoch: 0,
             classic_title_key: String::new(),
@@ -346,6 +389,8 @@ impl SkinRuntime {
             player,
             clock,
             bitmaps: HashMap::new(),
+            bitmap_lookups: crate::fasthash::FastMap::default(),
+            image_sizes: crate::fasthash::FastMap::default(),
             bitmap_fonts: HashMap::new(),
             fonts: HashMap::new(),
             colors: HashMap::new(),
@@ -365,7 +410,7 @@ impl SkinRuntime {
             collecting_base: false,
             base_usage: BTreeSet::new(),
             resolved_fonts: HashMap::new(),
-            fits: HashMap::new(),
+            fits: crate::fasthash::FastMap::default(),
             opaque_columns: HashMap::new(),
             gdi_lines: HashMap::new(),
             shaped: HashMap::new(),
@@ -418,11 +463,22 @@ impl SkinRuntime {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
+            classic_list_font: crate::classic::style::ClassicStyle::Winamp5666.list_font_size(),
+            classic_style: crate::classic::style::ClassicStyle::Winamp5666,
+            holders_shown: Vec::new(),
+            holders_stale: false,
             action_from: None,
             classic_list_ink: None,
             classic_list_ink_read: false,
             last_pointer: (0, 0),
             dirty: true,
+            moved_dirty: false,
+            classic_next_at: 0,
+            moved_windows: HashSet::new(),
+            moved_objects: Vec::new(),
+            clock_second: (-1, false),
+            window_drawings: HashMap::new(),
+            drawn_spans: Vec::new(),
             needs_layout: true,
             scripts_started: false,
             last_status,
@@ -434,6 +490,9 @@ impl SkinRuntime {
             last_eq_on,
             last_preamp,
             last_bands,
+            last_pan,
+            last_format,
+            last_position,
             all_objects: Vec::new(),
             sliders: Vec::new(),
             texts: Vec::new(),
@@ -617,14 +676,26 @@ impl SkinRuntime {
 /// `owners[i]` is the object (an id into the skin's objects, the same from frame to frame while
 /// the skin is loaded) whose drawing `cmds[i]` is, or `None` for a command that is the window's
 /// structure (the end of a shape or a clip).
+///
+/// The lists are shared: a window that did not change since the frame before hands out the
+/// same lists, so a host can tell it unchanged with [`Rc::ptr_eq`] instead of comparing them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DrawnWindow {
     /// Where the window sits in the stack.
     pub rect: Rect,
     /// Its drawing.
-    pub cmds: Vec<DrawCmd>,
+    pub cmds: Rc<Vec<DrawCmd>>,
     /// Who drew each command.
-    pub owners: Vec<Option<ObjId>>,
+    pub owners: Rc<Vec<Option<ObjId>>>,
+}
+
+/// A window's drawing as the engine keeps it between frames: its commands at its scale, the
+/// object that drew each, and where the commands of each object lie.
+#[derive(Debug, Clone)]
+pub(crate) struct WindowDrawing {
+    pub(crate) cmds: Rc<Vec<DrawCmd>>,
+    pub(crate) owners: Rc<Vec<Option<ObjId>>>,
+    pub(crate) spans: crate::fasthash::FastMap<ObjId, (usize, usize)>,
 }
 
 /// The player's shuffle, repeat and crossfade switches as bits 1, 2 and 4.

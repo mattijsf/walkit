@@ -10,7 +10,7 @@ use crate::gui::{Kind, ObjId};
 use crate::player::Status;
 use crate::runtime::SkinRuntime;
 
-/// The title row: from x 111 to 265, 6 rows high at y 27.
+/// The title row: from x 111 up to 265, 6 rows high at y 27.
 const TITLE_LEFT: i32 = 111;
 const TITLE_RIGHT: i32 = 265;
 const TITLE_TOP: i32 = 27;
@@ -74,7 +74,7 @@ impl SkinRuntime {
     fn draw_classic_main(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let status = self.player.status();
         // the vis picture first: the analyzer reads the player and steps the clock; off, the
-        // area shows the palette's background while something plays
+        // area shows the palette's background while something plays (the VM, sa=0)
         let vis = match (status, self.classic_vis_mode) {
             (Status::Playing, VisMode::Analyzer) => {
                 let levels = self.player.spectrum();
@@ -242,11 +242,13 @@ impl SkinRuntime {
         if status != Status::Stopped {
             let length = self.player.length_ms();
             let dragging = press.filter(|(c, _, _)| *c == Control::Position);
-            // the thumb at the bar's 0..=218: the song's place, or where the finger holds it
+            // the thumb at the bar's 0..=219: the song's place out of 256 times 219 / 256, or
+            // where the finger holds it
             let x = match dragging {
                 Some((_, _, p)) => p,
                 None if length > 0 => {
-                    (self.player.position_ms() as i64 * 218 / length as i64).clamp(0, 218) as i32
+                    let at = self.player.position_ms() as i64 * 256 / length as i64;
+                    ((at * 219) >> 8).clamp(0, 219) as i32
                 }
                 None => 0,
             };
@@ -439,13 +441,13 @@ impl SkinRuntime {
         let mut x = TITLE_LEFT;
         let mut skip = offset % 5;
         let mut chars = text.chars().skip((offset / 5) as usize);
-        while x < TITLE_RIGHT + 4 {
+        while x < TITLE_RIGHT {
             let Some(c) = chars.next() else {
                 break;
             };
             let (cx, cy) = font::cell(c);
-            if x > TITLE_RIGHT - 6 {
-                p.blit("text.bmp", cx, cy, TITLE_RIGHT + 4 - x, 6, x, TITLE_TOP);
+            if x > TITLE_RIGHT - 5 {
+                p.blit("text.bmp", cx, cy, TITLE_RIGHT - x, 6, x, TITLE_TOP);
                 return;
             }
             p.blit("text.bmp", cx + skip, cy, 5 - skip, 6, x, TITLE_TOP);
@@ -453,7 +455,7 @@ impl SkinRuntime {
             skip = 0;
         }
         // the row's rest: the blank column at the end of the first cell
-        while x < TITLE_RIGHT + 4 {
+        while x < TITLE_RIGHT {
             p.blit("text.bmp", 4, 0, 1, 6, x, TITLE_TOP);
             x += 1;
         }
@@ -507,11 +509,11 @@ impl SkinRuntime {
     }
 
     /// The title row's text: the playlist number, the title and the length, as Winamp writes it
-    /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
-    fn classic_title_text(&mut self) -> String {
+    /// with numbers in the playlist on; the Winamp's name and version with nothing loaded.
+    pub(crate) fn classic_title_text(&mut self) -> String {
         let title = self.player.title();
         if title.is_empty() {
-            return "Winamp 5.666".to_string();
+            return self.classic_style.name().to_string();
         }
         let length = self.player.length_ms() / 1000;
         let index = self.player.track_index() + 1;
@@ -525,12 +527,24 @@ impl SkinRuntime {
             |p: &mut Painter, n: i32, x: i32| p.blit("text.bmp", (n % 10) * 5, 6, 5, 6, x, 43);
         let blank = |p: &mut Painter, x: i32| p.blit("text.bmp", 100, 12, 5, 6, x, 43);
         let kbps = self.player.bitrate_kbps().max(0);
-        if kbps >= 1000 {
-            // four digits: the thousands and hundreds, then the tens as a letter cell
+        let letter = |p: &mut Painter, c: char| {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, 121, 43);
+        };
+        if kbps >= 10000 {
+            // the hundred thousands (or a blank) and the ten thousands, then 'C'
+            if kbps / 100_000 == 0 {
+                blank(p, 111);
+            } else {
+                digit(p, kbps / 100_000, 111);
+            }
+            digit(p, kbps / 10000, 116);
+            letter(p, 'C');
+        } else if kbps >= 1000 {
+            // the thousands and the hundreds, then 'H'
             digit(p, kbps / 1000, 111);
             digit(p, kbps / 100, 116);
-            let (cx, cy) = font::cell(char::from(b'0' + ((kbps / 10) % 10) as u8));
-            p.blit("text.bmp", cx, cy, 5, 6, 121, 43);
+            letter(p, 'H');
         } else {
             if kbps / 100 == 0 {
                 blank(p, 111);
@@ -599,6 +613,7 @@ impl Painter<'_> {
         &mut self,
         text: &str,
         face: Option<&String>,
+        size: i32,
         (dx, dy, w, h): (i32, i32, i32, i32),
         color: Rgb,
         align: Align,
@@ -609,7 +624,7 @@ impl Painter<'_> {
         self.out.push(DrawCmd::Text(Box::new(TextCmd {
             text: text.to_string(),
             font,
-            size: super::pl::ROW_FONT,
+            size,
             color,
             rect: Rect::new(self.at.left + dx, self.at.top + dy, w, h),
             align,

@@ -8,32 +8,33 @@ use crate::draw::Rgb;
 /// The palette: 24 colors.
 pub type Palette = [Rgb; 24];
 
-/// Winamp's base skin palette, for a skin without `viscolor.txt`.
+/// Winamp's palette, for a skin without `viscolor.txt` (the same 24 colors in 2.91 and
+/// 5.666, as their analyzers show them).
 pub const BASE: Palette = [
     Rgb(0x000000),
-    Rgb(0x181818),
-    Rgb(0xc00000),
-    Rgb(0xc00000),
-    Rgb(0xd50000),
-    Rgb(0xe30000),
-    Rgb(0xe60500),
-    Rgb(0xea0b00),
-    Rgb(0xf21300),
-    Rgb(0xf71a00),
-    Rgb(0xf53000),
-    Rgb(0xf53d00),
-    Rgb(0xf65000),
-    Rgb(0xf66400),
-    Rgb(0xf77800),
-    Rgb(0xf78b00),
-    Rgb(0xf79e00),
-    Rgb(0xf7b100),
-    Rgb(0xf7c400),
-    Rgb(0xf7d700),
-    Rgb(0xf7ea00),
-    Rgb(0xf7fd00),
-    Rgb(0xf7ff20),
+    Rgb(0x181829),
+    Rgb(0xef3110),
+    Rgb(0xce2910),
+    Rgb(0xd65a00),
+    Rgb(0xd66600),
+    Rgb(0xd67300),
+    Rgb(0xc67b08),
+    Rgb(0xdea518),
+    Rgb(0xd6b521),
+    Rgb(0xbdde29),
+    Rgb(0x94de21),
+    Rgb(0x29ce10),
+    Rgb(0x32be10),
+    Rgb(0x39b510),
+    Rgb(0x319c08),
+    Rgb(0x299400),
+    Rgb(0x188408),
     Rgb(0xffffff),
+    Rgb(0xd6d6de),
+    Rgb(0xb5bdbd),
+    Rgb(0xa0aaaf),
+    Rgb(0x949ca5),
+    Rgb(0x969696),
 ];
 
 /// `text`, a `viscolor.txt`, over the base palette: each line's first three numbers.

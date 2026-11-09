@@ -48,8 +48,7 @@ const STATUS_LEFT: [&str; 4] = ["Add", "Rem", "Sel", "Misc"];
 const STATUS_RIGHT: [&str; 1] = ["List"];
 /// Winamp's buttons: Arial at text size 14, which draws at 11 px (Wasabi SDK buttwnd).
 const STATUS_FONT_SIZE: i32 = 14;
-/// Buttons 13 px tall, 1 px into the bar; a cell at least 8 wide, its last 2 px the bar's.
-const STATUS_BUTTON_H: i32 = 13;
+/// Buttons 1 px into the bar; a cell at least 8 wide, its last 2 px the bar's.
 const STATUS_MIN_W: i32 = 8;
 const STATUS_CELL_MARGIN: i32 = 2;
 
@@ -529,6 +528,26 @@ impl SkinRuntime {
         (PL_TOP + self.player.tracks().len() as i32 * PL_ROW - self.pl_list_rect(o).height).max(0)
     }
 
+    /// The playlist's background: the skin's list color, else the top-left pixel of its list
+    /// picture under the picture's tint, else black. 5.666 fills MMD3's list flat in its tile's
+    /// main tone (a45d01) where the color themes list tiles the dotted picture; Winamp Modern,
+    /// with both, shows its color.
+    fn pl_background(&mut self) -> Rgb {
+        if let Some(c) = self.color(BACKGROUND) {
+            return c;
+        }
+        let Some(def) = self.bitmap(BACKGROUND) else {
+            return Rgb(0);
+        };
+        let Some(p) = self.host.pixel(&def.file, def.x, def.y) else {
+            return Rgb(0);
+        };
+        match self.gamma(def.gamma_group.as_deref()) {
+            Some(g) => Rgb(g.apply(p | 0xff00_0000) & 0xff_ffff),
+            None => Rgb(p & 0xff_ffff),
+        }
+    }
+
     /// The list's drawing: rows in the skin's list colors, the current entry in its color, a
     /// narrow scrollbar at the right edge.
     pub(crate) fn draw_playlist(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
@@ -539,12 +558,11 @@ impl SkinRuntime {
         let alpha = self.objects[o].base.effective_alpha;
         let tracks = self.player.tracks();
         let border = self.color("wasabi.window.background").unwrap_or(PL_BORDER);
-        // a skin without list colors (Winamp3) gets black behind the rows, the current one in gray
-        let back = self.color("wasabi.list.background").unwrap_or(Rgb(0));
+        let back = self.pl_background();
         let text = self.color("wasabi.list.text").unwrap_or(Rgb(0xFFFFFF));
-        let current = self
-            .color("wasabi.list.text.current")
-            .unwrap_or(Rgb(0x7F7F7F));
+        // without a current color the current entry is white at half strength, whatever the
+        // text color: 7f7f7f on a Winamp3 skin's black, d1ad7f on MMD3's orange (a45d01)
+        let current = self.color("wasabi.list.text.current");
         let sel_text = self.color("wasabi.list.text.selected").unwrap_or(text);
         let sel_back = self
             .color("wasabi.list.text.selected.background")
@@ -574,12 +592,12 @@ impl SkinRuntime {
                 break;
             }
             let row = Rect::new(list.left, y, list.width, PL_ROW);
-            let color = if i as i32 == selected {
-                sel_text
+            let (color, row_alpha) = if i as i32 == selected {
+                (sel_text, alpha)
             } else if i as i32 == track_index {
-                current
+                current.map_or((Rgb(0xFF_FFFF), alpha * 127 / 255), |c| (c, alpha))
             } else {
-                text
+                (text, alpha)
             };
             if i as i32 == selected {
                 out.push(DrawCmd::Fill {
@@ -611,7 +629,7 @@ impl SkinRuntime {
                 color,
                 inner,
                 Align::Left,
-                alpha,
+                row_alpha,
                 false,
             ));
             out.push(text_cmd(
@@ -621,7 +639,7 @@ impl SkinRuntime {
                 color,
                 inner,
                 Align::Right,
-                alpha,
+                row_alpha,
                 false,
             ));
         }
@@ -746,7 +764,7 @@ impl SkinRuntime {
         if index == self.pl(o).selected {
             self.player.play_track(index);
         } else {
-            self.pl_mut(o).selected = index;
+            self.pl_select(o, index);
         }
         self.pl_selection_changed(o);
     }
@@ -764,9 +782,39 @@ impl SkinRuntime {
         let Some(index) = self.pl_row_at(o, py) else {
             return;
         };
-        self.pl_mut(o).selected = index;
+        self.pl_select(o, index);
         self.player.play_track(index);
         self.pl_selection_changed(o);
+    }
+
+    /// Selects entry `index` and tells the host, which keeps the selection its playlist menus act
+    /// on, as a classic skin's playlist does (`PLAYLIST_SELECT` with the entry).
+    fn pl_select(&mut self, o: ObjId, index: i32) {
+        if self.pl(o).selected == index {
+            return;
+        }
+        self.pl_mut(o).selected = index;
+        self.action(o, "PLAYLIST_SELECT", Some(&index.to_string()), None);
+    }
+
+    /// Shows entry `index` (or none) as the playlists' selection, as the host's playlist
+    /// has it after it changed the selection or the list itself; the host is not told back.
+    pub fn set_playlist_selection(&mut self, index: Option<i32>) {
+        let row = index.filter(|&i| i >= 0 && (i as usize) < self.player.tracks().len());
+        let views: Vec<ObjId> = (0..self.objects.len())
+            .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
+            .collect();
+        for o in views {
+            let selected = row.unwrap_or(-1);
+            if self.pl(o).selected != selected {
+                self.pl_mut(o).selected = selected;
+                self.pl_selection_changed(o);
+            }
+        }
+        if self.classic_selected_row != row {
+            self.classic_selected_row = row;
+            self.repaint();
+        }
     }
 
     /// The entry whose row is at `py`, a point of the window, or `None` past the last one.
@@ -850,6 +898,34 @@ impl SkinRuntime {
             .max(STATUS_MIN_W)
     }
 
+    /// The command buttons, left ones then right ones, each with its box, and the field
+    /// between the two groups. Buttons are as tall as the bar less a pixel above and below
+    /// (13 px in the default set's 15 px bar, 15 in MMD3's 17).
+    fn status_cells(&mut self, o: ObjId) -> (Vec<(&'static str, Rect)>, Rect) {
+        let rect = self.objects[o].base.rect;
+        let (left, right) = self.status_commands(o);
+        let top = rect.top + 1;
+        let h = (rect.height - 2).max(0);
+        let mut cells = Vec::new();
+        // the cells sit edge to edge; each button leaves the last 2 px of its cell to the bar (Wasabi SDK buttbar: no spacer)
+        let mut x = rect.left + 1;
+        for c in left {
+            let w = self.status_button_width(c);
+            cells.push((c, Rect::new(x, top, w - STATUS_CELL_MARGIN, h)));
+            x += w;
+        }
+        let mut r = rect.right() - 1;
+        let mut right_cells = Vec::new();
+        for c in right.into_iter().rev() {
+            let w = self.status_button_width(c);
+            r -= w;
+            right_cells.push((c, Rect::new(r, top, w - STATUS_CELL_MARGIN, h)));
+        }
+        right_cells.reverse();
+        cells.extend(right_cells);
+        (cells, Rect::new(x, top, (r - x).max(0), h))
+    }
+
     /// The status bar's drawing: the command buttons and the field between them.
     pub(crate) fn draw_status_bar(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
         let rect = self.objects[o].base.rect;
@@ -857,43 +933,95 @@ impl SkinRuntime {
             return;
         }
         let alpha = self.objects[o].base.effective_alpha;
-        let (left, right) = self.status_commands(o);
-        let background = match &self.objects[o].kind {
-            Kind::LayoutStatus(d) => d.background,
-            _ => true,
+        let (background, pressed) = match &self.objects[o].kind {
+            Kind::LayoutStatus(d) => (d.background, d.pressed),
+            _ => (true, None),
         };
-        let top = rect.top + 1;
-        let h = STATUS_BUTTON_H;
-        // the cells sit edge to edge; each button leaves the last 2 px of its cell to the bar (Wasabi SDK buttbar: no spacer)
-        let mut x = rect.left + 1;
-        for c in &left {
-            let w = self.status_button_width(c);
-            self.status_button(out, c, Rect::new(x, top, w - STATUS_CELL_MARGIN, h), alpha);
-            x += w;
+        let left = self.status_commands(o).0.len();
+        let (cells, field) = self.status_cells(o);
+        for (i, (c, r)) in cells.iter().copied().enumerate().take(left) {
+            self.status_button(out, c, r, alpha, pressed == Some(i));
         }
-        let mut r = rect.right() - 1;
-        let mut right_rects = Vec::new();
-        for c in right.iter().rev() {
-            let w = self.status_button_width(c);
-            r -= w;
-            right_rects.push(Rect::new(r, top, w - STATUS_CELL_MARGIN, h));
-        }
-        right_rects.reverse();
         // the status text field between the two groups of buttons
         if background {
             out.push(DrawCmd::Fill {
-                rect: Rect::new(x, top, (r - x).max(0), h),
+                rect: field,
                 color: Rgb(0),
                 alpha,
             });
         }
-        for (c, rr) in right.iter().zip(right_rects) {
-            self.status_button(out, c, rr, alpha);
+        for (i, (c, r)) in cells.into_iter().enumerate().skip(left) {
+            self.status_button(out, c, r, alpha, pressed == Some(i));
         }
     }
 
-    fn status_button(&mut self, out: &mut Vec<DrawCmd>, text: &str, r: Rect, alpha: i32) {
-        self.draw_framed_button(out, r, alpha, false);
+    /// The command button at a point of the bar: its place among the buttons, its command.
+    pub(crate) fn status_button_at(
+        &mut self,
+        o: ObjId,
+        px: i32,
+        py: i32,
+    ) -> Option<(usize, &'static str)> {
+        let (cells, _) = self.status_cells(o);
+        cells
+            .into_iter()
+            .enumerate()
+            .find(|(_, (_, r))| r.contains(px, py))
+            .map(|(i, (c, _))| (i, c))
+    }
+
+    fn status_set_pressed(&mut self, o: ObjId, pressed: Option<usize>) {
+        if let Kind::LayoutStatus(d) = &mut self.objects[o].kind {
+            if d.pressed != pressed {
+                d.pressed = pressed;
+                self.repaint();
+            }
+        }
+    }
+
+    pub(crate) fn status_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
+        let at = self.status_button_at(o, px, py).map(|(i, _)| i);
+        self.status_set_pressed(o, at);
+    }
+
+    /// A release on the button it went down on runs that button's command: the playlist's
+    /// Add, Rem, Sel, Misc and List ask the app for their menus, as a modern skin's
+    /// playlist buttons do (`PE_ADD`..`PE_LIST`), with the button's box for the menu to open at.
+    pub(crate) fn status_pointer_up(&mut self, o: ObjId, px: i32, py: i32) {
+        let held = match &self.objects[o].kind {
+            Kind::LayoutStatus(d) => d.pressed,
+            _ => None,
+        };
+        self.status_set_pressed(o, None);
+        let Some((i, command)) = self.status_button_at(o, px, py) else {
+            return;
+        };
+        if held != Some(i) || self.pointer.press_ended {
+            return;
+        }
+        let action = match command {
+            "Add" => "PE_ADD",
+            "Rem" => "PE_REM",
+            "Sel" => "PE_SEL",
+            "Misc" => "PE_MISC",
+            "List" => "PE_LIST",
+            _ => return,
+        };
+        let (cells, _) = self.status_cells(o);
+        let cell = cells[i].1;
+        self.action_from = self.layout_object(o).map(|l| self.stack_rect_in(l, cell));
+        self.action(o, action, None, None);
+    }
+
+    fn status_button(
+        &mut self,
+        out: &mut Vec<DrawCmd>,
+        text: &str,
+        r: Rect,
+        alpha: i32,
+        pressed: bool,
+    ) {
+        self.draw_framed_button(out, r, alpha, pressed);
         out.push(text_cmd(
             text.to_string(),
             Some(FontDef::new("arial", "")),

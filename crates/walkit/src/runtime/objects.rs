@@ -570,13 +570,7 @@ impl SkinRuntime {
     pub(crate) fn stack_rect_of(&mut self, o: ObjId) -> Option<Rect> {
         let l = self.layout_object(o)?;
         let r = self.laid_out_rect(o);
-        let at = self.window_rect_of(l);
-        Some(Rect::new(
-            at.left + r.left,
-            at.top + r.top,
-            r.width,
-            r.height,
-        ))
+        Some(self.stack_rect_in(l, r))
     }
 
     /// The rectangle after any pending layout.
@@ -633,13 +627,7 @@ impl SkinRuntime {
             if r.width <= 0 || r.height <= 0 {
                 continue;
             }
-            let at = self.window_rect_of(l);
-            return Some(Rect::new(
-                at.left + r.left,
-                at.top + r.top,
-                r.width,
-                r.height,
-            ));
+            return Some(self.stack_rect_in(l, r));
         }
         None
     }

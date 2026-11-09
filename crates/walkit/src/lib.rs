@@ -11,6 +11,7 @@
 
 pub mod classic;
 pub mod draw;
+mod fasthash;
 pub mod files;
 pub mod gdi;
 pub mod generated;

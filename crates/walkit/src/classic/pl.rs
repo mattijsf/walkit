@@ -6,6 +6,7 @@
 use crate::classic::font;
 use crate::classic::listfont::{self, ListInk};
 use crate::classic::main::Painter;
+use crate::classic::style::ClassicStyle;
 use crate::classic::touch::Control;
 use crate::draw::{Align, DrawCmd, Rect};
 use crate::gui::ObjId;
@@ -26,13 +27,18 @@ fn time_text(seconds: i32) -> String {
     }
 }
 
-/// The playlist font's size, as Winamp's "playlist font size" default (`pe_fontsize` 12) has it:
-/// Winamp's playlist font is `pe_fontsize` pixels to the em at 96 dpi; a host reads a size as
-/// points, so it goes out as 4/3 of that (16 for an em of 12 pixels).
-pub(super) const ROW_FONT: i32 = 12 * 4 / 3;
-/// A row's height: the font's `tmHeight`, 15 for Arial at 12 in the reference
-/// VM, where 3 rows fill a playlist 116 tall.
-pub(crate) const ROW_HEIGHT: i32 = 15;
+/// `seconds` as a row or the shade bar writes it: m:ss, the minutes unbounded ("75:00").
+fn minutes_text(seconds: i32) -> String {
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Entry `n` (1 the first) of `count` as the list numbers it, padded with spaces to the
+/// count's digits (" 1. " in a list of 10 or more).
+fn numbered(n: usize, count: usize, title: &str) -> String {
+    let width = count.max(1).to_string().len();
+    format!("{n:>width$}. {title}")
+}
+
 /// Where the first row starts (row `i` at 22 + row height x `i`).
 pub(crate) const ROW_TOP: i32 = 22;
 /// In the skin's letters: the room left of a row's number and right of its length, and the
@@ -42,6 +48,39 @@ const LIST_RIGHT: i32 = 3;
 const LIST_GAP: i32 = 4;
 
 impl SkinRuntime {
+    /// The playlist's font as its rows draw in it, or none for the host's font.
+    fn classic_pl_font(face: &str) -> Option<crate::draw::FontDef> {
+        (!face.is_empty()).then(|| crate::draw::FontDef::new(&face.to_lowercase(), ""))
+    }
+
+    /// `text` as it fits in `width` px of the playlist's font: whole, or cut on a whole letter
+    /// with "..." after it.
+    fn classic_pl_fitted(
+        &mut self,
+        text: &str,
+        font: Option<&crate::draw::FontDef>,
+        width: i32,
+    ) -> String {
+        let size = self.classic_row_font();
+        let fits = |rt: &mut Self, s: &str| rt.host.text_width(s, font, size, false) <= width;
+        if fits(self, text) {
+            return text.to_string();
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let cut = |n: usize| format!("{}...", chars[..n].iter().collect::<String>().trim_end());
+        // the most letters that fit with the ellipsis
+        let (mut lo, mut hi) = (0, chars.len());
+        while lo < hi {
+            let mid = (lo + hi).div_ceil(2);
+            if fits(self, &cut(mid)) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        cut(lo)
+    }
+
     /// The playlist's shade bar (14 high): the left piece, tiles, a stretched
     /// remainder, and the right piece with the bar's buttons; active y 42, inactive 57.
     pub(crate) fn draw_classic_pl_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
@@ -70,12 +109,27 @@ impl SkinRuntime {
             .ok()
             .and_then(|i| self.player.tracks().into_iter().nth(i))
             .map_or((String::new(), 0), |t| (t.title, t.length_ms / 1000));
-        let time = time_text(length);
+        if self.classic_style == ClassicStyle::Winamp291 {
+            let count = self.player.tracks().len();
+            let line = numbered(index as usize + 1, count, &title);
+            Self::shade_line_291(&mut p, w, &line, length);
+            return;
+        }
+        let time = minutes_text(length);
         let time_cells = time.chars().count() as i32;
         let room = (w - 29 - 4) / 5 - time_cells - 1;
         let mut x = 4;
-        let line = format!("{}. {}", index + 1, title);
-        for c in line.chars().take(room.max(0) as usize) {
+        let line: Vec<char> = numbered(index as usize + 1, self.player.tracks().len(), &title)
+            .chars()
+            .collect();
+        let room = room.max(0) as usize;
+        for (i, &c) in line.iter().take(room).enumerate() {
+            // a title cut short ends on the ellipsis cell
+            let c = if i + 1 == room && line.len() > room {
+                '\u{1}'
+            } else {
+                c
+            };
             let (cx, cy) = font::cell(c);
             p.blit("text.bmp", cx, cy, 5, 6, x, 4);
             x += 5;
@@ -99,15 +153,67 @@ impl SkinRuntime {
         }
     }
 
-    /// The rows a playlist window `h` tall shows: `(h - 60) / row`.
+    /// 2.91's song line, in cells: `(w - 40) / 5` cells from x 5 less the
+    /// length's and one, a cut title ending on the ellipsis; when the title fits, blanks fill
+    /// those cells and one more; then a blank, and "m:ss" from `w - 29` less its cells.
+    fn shade_line_291(p: &mut Painter, w: i32, line: &str, secs: i32) {
+        let time = format!("{}:{:02}", secs / 60, secs % 60);
+        let time_cells = time.chars().count() as i32;
+        let cells = ((w - 40) / 5 - time_cells - 1).max(0) as usize;
+        let chars: Vec<char> = line.chars().collect();
+        let cell = |p: &mut Painter, c: char, x: i32| {
+            let (cx, cy) = font::cell(c);
+            p.blit("text.bmp", cx, cy, 5, 6, x, 4);
+        };
+        let mut x = 5;
+        for (i, &c) in chars.iter().take(cells).enumerate() {
+            let cut = i + 1 == cells && i + 1 < chars.len();
+            cell(p, if cut { '\u{1}' } else { c }, x);
+            x += 5;
+        }
+        if chars.len() <= cells {
+            for _ in chars.len()..=cells {
+                cell(p, ' ', x);
+                x += 5;
+            }
+        }
+        cell(p, ' ', x);
+        x = w - 29 - time_cells * 5;
+        for c in time.chars() {
+            cell(p, c, x);
+            x += 5;
+        }
+        if x < w - 30 {
+            let (cx, cy) = font::cell(' ');
+            p.blit("text.bmp", cx, cy, w - 30 - x, 6, x, 4);
+        }
+    }
+
+    /// The rows a playlist window `h` tall shows : `(h - 60) / row`.
     pub(crate) fn classic_pl_rows(&self, h: i32) -> i32 {
         ((h - 60) / self.classic_row()).max(0)
     }
 
-    /// A playlist row's height: the font's (Winamp's 15) and what the host adds
+    /// A playlist row's height: the font's full height, Arial's 5/4 of the em
+    /// (15 at Winamp's 12, where 3 rows fill a playlist 116 tall), and what the host adds
     /// (`Presentation::list_row_extra`).
     pub(crate) fn classic_row(&self) -> i32 {
-        ROW_HEIGHT + self.list_row_extra
+        (self.classic_list_font * 5 + 2) / 4 + self.list_row_extra
+    }
+
+    /// The playlist font's size as the host reads it, in points: 4/3 of the em in pixels.
+    pub(crate) fn classic_row_font(&self) -> i32 {
+        self.classic_list_font * 4 / 3
+    }
+
+    /// Sets the playlist font's size, pixels to the em, as Winamp's "playlist font size"
+    /// preference does (`pe_fontsize`, the em in pixels); its rows grow and shrink with it.
+    pub fn set_classic_list_font_size(&mut self, px: i32) {
+        let px = px.clamp(6, 40);
+        if px != self.classic_list_font {
+            self.classic_list_font = px;
+            self.repaint();
+        }
     }
 
     /// The first row shown, clamped to the rows that fit under the list's end.
@@ -131,7 +237,6 @@ impl SkinRuntime {
         if !self.classic_list_ink_read {
             self.classic_list_ink_read = true;
             self.classic_list_ink = self
-                .host
                 .image_size("text.bmp")
                 .and_then(|(w, h)| {
                     let px = self.host.pixels("text.bmp", 0, 0, w, h)?;
@@ -186,6 +291,7 @@ impl SkinRuntime {
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
         let rows = self.classic_pl_rows(h);
         let row = self.classic_row();
+        let font_size = self.classic_row_font();
         // in the skin's letters, the rows go into one block of pixels over the list
         let ink = if self.skin_list_font {
             self.classic_list_ink()
@@ -223,15 +329,29 @@ impl SkinRuntime {
                     continue;
                 }
             }
-            let font = Some(&style.font);
+            // " m:ss " right-aligned at the row's end, and the title up to it, cut short on "..."
+            let face = Some(&style.font);
+            let def = Self::classic_pl_font(&style.font);
+            let time = format!(" {} ", minutes_text(t.length_ms / 1000));
+            let time_w = self.host.text_width(&time, def.as_ref(), font_size, false);
+            let line = numbered(i + 1, tracks.len(), &t.title);
+            let title = self.classic_pl_fitted(&line, def.as_ref(), block_w - time_w);
             p.text(
-                &format!("{}. {}", i + 1, t.title),
-                font,
+                &title,
+                face,
+                font_size,
                 (12, y, w - 32, row),
                 color,
                 Align::Left,
             );
-            p.text(&time, font, (12, y, w - 32, row), color, Align::Right);
+            p.text(
+                &time,
+                face,
+                font_size,
+                (12, y, w - 32, row),
+                color,
+                Align::Right,
+            );
         }
         if let Some(block) = block.filter(|_| lettered) {
             p.out.push(DrawCmd::Pixels {
@@ -407,5 +527,54 @@ impl SkinRuntime {
             digit(&mut p, seconds / 10, w - 64);
             digit(&mut p, seconds, w - 59);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::classic::main::Painter;
+    use crate::draw::{DrawCmd, Rect};
+    use crate::runtime::SkinRuntime;
+
+    #[test]
+    fn the_2_91_shade_line_starts_at_5_and_leaves_a_column_before_the_length() {
+        let mut out = Vec::new();
+        let mut p = Painter {
+            at: Rect::new(0, 0, 275, 14),
+            out: &mut out,
+        };
+        SkinRuntime::shade_line_291(&mut p, 275, "1. Andamp", 600);
+        let xs: Vec<i32> = out
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Image { dst, .. } => Some(dst.left),
+                _ => None,
+            })
+            .collect();
+        // 41 cells of title and blanks, one more blank, then "10:00" from 275 - 29 - 25
+        let mut want: Vec<i32> = (0..43).map(|i| 5 + 5 * i).collect();
+        want.extend([221, 226, 231, 236, 241]);
+        assert_eq!(xs, want);
+    }
+
+    #[test]
+    fn a_cut_2_91_shade_line_ends_on_the_ellipsis() {
+        let mut out = Vec::new();
+        let mut p = Painter {
+            at: Rect::new(0, 0, 275, 14),
+            out: &mut out,
+        };
+        SkinRuntime::shade_line_291(&mut p, 275, &"x".repeat(60), 61);
+        let cells: Vec<(i32, i32)> = out
+            .iter()
+            .filter_map(|c| match c {
+                DrawCmd::Image { bitmap, dst, .. } => Some((dst.left, bitmap.x)),
+                _ => None,
+            })
+            .collect();
+        // 47 cells less "1:01" and one leave 42: the last of them is the ellipsis
+        assert_eq!(cells[41], (210, crate::classic::font::cell('\u{1}').0));
+        assert_eq!(cells[42].0, 215, "the blank after it");
+        assert_eq!(cells[43].0, 275 - 29 - 20, "the length");
     }
 }

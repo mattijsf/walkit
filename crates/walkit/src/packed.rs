@@ -36,6 +36,7 @@
 //! keep and cut lists, each a count and that many regions).
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::draw::{BitmapDef, DrawCmd, Gamma, Rect, Region, RegionImage};
 use crate::host::{MenuItem, SkinMenu, WindowId};
@@ -56,7 +57,7 @@ pub struct FrameWindow<'a> {
     /// Where the window sits in the stack.
     pub rect: Rect,
     /// Its drawing.
-    pub cmds: &'a [DrawCmd],
+    pub cmds: &'a Rc<Vec<DrawCmd>>,
     /// What a renderer may keep of it.
     pub plan: &'a WindowPlan,
 }
@@ -65,7 +66,7 @@ pub struct FrameWindow<'a> {
 /// only the commands that changed; see the module.
 #[derive(Default)]
 pub struct FrameWriter {
-    sent: HashMap<WindowId, Vec<DrawCmd>>,
+    sent: HashMap<WindowId, Rc<Vec<DrawCmd>>>,
 }
 
 impl FrameWriter {
@@ -87,8 +88,13 @@ impl FrameWriter {
             w.rect(&win.rect);
             w.plan(win.plan);
             let before = self.sent.remove(&win.id);
-            w.commands(win.cmds, before.as_deref());
-            sent.insert(win.id, win.cmds.to_vec());
+            // the same list as the frame before is the same commands
+            if before.as_ref().is_some_and(|b| Rc::ptr_eq(b, win.cmds)) {
+                w.u8(0);
+            } else {
+                w.commands(win.cmds, before.as_deref().map(Vec::as_slice));
+            }
+            sent.insert(win.id, win.cmds.clone());
         }
         self.sent = sent;
         w.finish()
@@ -526,7 +532,7 @@ mod tests {
 
     #[test]
     fn a_frame_packs_with_its_strings_once() {
-        fn window<'a>(cmds: &'a [DrawCmd], plan: &'a WindowPlan) -> FrameWindow<'a> {
+        fn window<'a>(cmds: &'a Rc<Vec<DrawCmd>>, plan: &'a WindowPlan) -> FrameWindow<'a> {
             FrameWindow {
                 id: WindowId(7),
                 container: "main",
@@ -600,7 +606,7 @@ mod tests {
             }],
         };
         let mut writer = FrameWriter::new();
-        let bytes = writer.encode(&[window(&cmds, &plan)]);
+        let bytes = writer.encode(&[window(&Rc::new(cmds.clone()), &plan)]);
         assert_eq!(&bytes[..4], b"WKDL");
         let strings = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         // main, normal, main.bg, main.png, Andamp, f, font.ttf: each once
@@ -622,7 +628,7 @@ mod tests {
             version: 10,
             ..plan.clone()
         };
-        let bytes = writer.encode(&[window(&next, &moved)]);
+        let bytes = writer.encode(&[window(&Rc::new(next.clone()), &moved)]);
         let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
         println!("NEXT_HEX {hex}");
         assert_eq!(hex, NEXT_HEX);
@@ -633,7 +639,7 @@ mod tests {
         );
 
         // the same again: nothing crosses but the plan
-        let bytes = writer.encode(&[window(&next, &moved)]);
+        let bytes = writer.encode(&[window(&Rc::new(next.clone()), &moved)]);
         let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
         println!("SAME_HEX {hex}");
         assert_eq!(hex, SAME_HEX);

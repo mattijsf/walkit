@@ -101,7 +101,7 @@ impl SkinRuntime {
         if let Some(f) = &self.classic_gen_font {
             return f.clone();
         }
-        let width = self.host.image_size(SHEET).map_or(0, |s| s.0);
+        let width = self.image_size(SHEET).map_or(0, |s| s.0);
         let letters = self.host.pixels(SHEET, 0, 90, width, 1);
         let digits = self.host.pixels(SHEET, 0, 74, width, 1);
         let font = std::rc::Rc::new(GenFont {
@@ -138,7 +138,7 @@ impl SkinRuntime {
             .classic_press_on(o)
             .is_some_and(|p| p.control == super::touch::Control::Close && p.inside);
         let font = self.classic_gen_font();
-        let digits = self.classic_pledit.use_gen_nums;
+        let digits = self.classic_pledit.use_gen_nums && self.classic_style.gen_digits();
         let title: String = self
             .classic_gen_title(o)
             .chars()

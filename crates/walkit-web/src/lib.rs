@@ -30,6 +30,7 @@
 
 mod host;
 mod imports;
+mod player;
 
 /// The allocator: talc, a few KB smaller than the dlmalloc Rust brings by default.
 #[global_allocator]
@@ -61,6 +62,8 @@ struct Rt {
     now: Rc<std::cell::Cell<i64>>,
     planner: DrawPlanner,
     frames: FrameWriter,
+    /// The page's player state, when the runtime plays on the page's player.
+    hosted: Option<Rc<RefCell<player::HostState>>>,
 }
 
 #[derive(Default)]
@@ -355,7 +358,36 @@ pub extern "C" fn wk_rt_new(
     have_library: i32,
     start_ms: f64,
 ) -> i32 {
-    let name = text(skin_name, skin_name_len);
+    new_rt(
+        stack,
+        text(skin_name, skin_name_len),
+        have_library != 0,
+        start_ms,
+        false,
+    )
+}
+
+/// A runtime as `wk_rt_new` makes it, on the page's player instead of the fake one: the page
+/// pushes the player's state (`wk_rt_host_player_state`, `wk_rt_host_player_vis`) and hears
+/// every command through `host_player`.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_new_hosted(
+    stack: i32,
+    skin_name: *const u8,
+    skin_name_len: usize,
+    have_library: i32,
+    start_ms: f64,
+) -> i32 {
+    new_rt(
+        stack,
+        text(skin_name, skin_name_len),
+        have_library != 0,
+        start_ms,
+        true,
+    )
+}
+
+fn new_rt(stack: i32, name: String, have_library: bool, start_ms: f64, hosted: bool) -> i32 {
     with_state(|s| {
         let Some(files) = stack_files(s, stack as usize) else {
             return -1;
@@ -363,14 +395,19 @@ pub extern "C" fn wk_rt_new(
         let now = Rc::new(std::cell::Cell::new(start_ms as i64));
         let clock_now = now.clone();
         let clock: walkit::host::Clock = Rc::new(move || clock_now.get());
-        let player = FakePlayer::new(clock.clone());
+        let (player, shared): (Box<dyn walkit::player::Player>, _) = if hosted {
+            let shared = Rc::new(RefCell::new(player::HostState::default()));
+            (Box::new(player::HostPlayer(shared.clone())), Some(shared))
+        } else {
+            (Box::new(FakePlayer::new(clock.clone())), None)
+        };
         let engine = SkinRuntime::new(
             files,
             Box::new(JsHost),
-            Box::new(player),
+            player,
             SkinSetup {
                 skin_name: name,
-                have_library: have_library != 0,
+                have_library,
                 host_actions: true,
             },
             clock,
@@ -380,9 +417,96 @@ pub extern "C" fn wk_rt_new(
             now,
             planner: DrawPlanner::new(),
             frames: FrameWriter::new(),
+            hosted: shared,
         }));
         s.runtimes.len() as i32 - 1
     })
+}
+
+/// The page's player state for a runtime of `wk_rt_new_hosted`: `n` ints at `ints` (see
+/// `player::HostState::set_ints`) and the title. 1 when the runtime plays on the page's player.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_host_player_state(
+    id: i32,
+    ints: *const u8,
+    n: usize,
+    title: *const u8,
+    title_len: usize,
+) -> i32 {
+    let words: Vec<i32> = imports::read_bytes(ints, n * 4)
+        .unwrap_or_default()
+        .chunks_exact(4)
+        .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+    let title = text(title, title_len);
+    with_rt(id, |r| match &r.hosted {
+        Some(h) => {
+            let mut h = h.borrow_mut();
+            h.set_ints(&words);
+            h.title = title;
+            1
+        }
+        None => 0,
+    })
+    .unwrap_or(0)
+}
+
+/// The playlist of the page's player for a runtime of `wk_rt_new_hosted`: one entry per line,
+/// its length in ms, a tab, its title. 1 when the runtime plays on the page's player.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_host_player_tracks(id: i32, list: *const u8, len: usize) -> i32 {
+    let list = text(list, len);
+    let tracks: Vec<walkit::player::Track> = list
+        .lines()
+        .filter_map(|l| {
+            let (ms, title) = l.split_once('\t')?;
+            Some(walkit::player::Track {
+                title: title.to_string(),
+                length_ms: ms.parse().unwrap_or(0),
+            })
+        })
+        .collect();
+    with_rt(id, |r| match &r.hosted {
+        Some(h) => {
+            h.borrow_mut().tracks = tracks;
+            1
+        }
+        None => 0,
+    })
+    .unwrap_or(0)
+}
+
+/// What the page's player is heard as now: `spec_n` spectrum levels 0..1 (75 like Winamp's) at
+/// `spec`, `wave_n` samples -1..1 (576) at `wave`, the VU levels 0..255. Empty when nothing plays.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_host_player_vis(
+    id: i32,
+    spec: *const u8,
+    spec_n: usize,
+    wave: *const u8,
+    wave_n: usize,
+    vu_l: i32,
+    vu_r: i32,
+) -> i32 {
+    let floats = |p: *const u8, n: usize| -> Vec<f32> {
+        imports::read_bytes(p, n * 4)
+            .unwrap_or_default()
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect()
+    };
+    let (spectrum, waveform) = (floats(spec, spec_n), floats(wave, wave_n));
+    with_rt(id, |r| match &r.hosted {
+        Some(h) => {
+            let mut h = h.borrow_mut();
+            h.spectrum = spectrum;
+            h.waveform = waveform;
+            h.vu = (vu_l, vu_r);
+            1
+        }
+        None => 0,
+    })
+    .unwrap_or(0)
 }
 
 fn with_rt<T>(id: i32, f: impl FnOnce(&mut Rt) -> T) -> Option<T> {
@@ -419,7 +543,7 @@ pub extern "C" fn wk_rt_tick(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
     let Some(text) = with_rt(id, |r| {
-        let ids = r.engine.window_ids();
+        let ids = r.engine.drawn_window_ids();
         let drawn = r.engine.draw_windows();
         let mut out = String::new();
         for (wid, (_, cmds)) in ids.iter().zip(drawn.iter()) {
@@ -448,7 +572,7 @@ pub extern "C" fn wk_rt_draw(id: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
     let Some(bytes) = with_rt(id, |r| {
-        let ids = r.engine.window_ids();
+        let ids = r.engine.drawn_window_ids();
         let moving = r.engine.take_tick_changed();
         let drawn = r.engine.draw_windows_owned();
         let planned = r.planner.plan(&ids, drawn, &moving, now_ms as i64);
@@ -469,6 +593,23 @@ pub extern "C" fn wk_rt_draw_frame(id: i32, now_ms: f64) -> i32 {
     }) else {
         return 0;
     };
+    with_state(|s| s.result = bytes);
+    1
+}
+
+/// When the windows only moved since the last frame: 1, with the result their ids and rects
+/// bottom to top as five `i32`s each, and the move taken as drawn (the host keeps their
+/// drawings). 0 when something needs drawing: [`wk_rt_draw_frame`] then.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_placed_only(id: i32) -> i32 {
+    let Some(Some(placed)) = with_rt(id, |r| r.engine.take_placed_only()) else {
+        return 0;
+    };
+    let bytes = placed
+        .iter()
+        .flat_map(|(w, r)| [w.0 as i32, r.left, r.top, r.width, r.height])
+        .flat_map(i32::to_le_bytes)
+        .collect();
     with_state(|s| s.result = bytes);
     1
 }
@@ -499,6 +640,23 @@ pub extern "C" fn wk_rt_resize_window(id: i32, window: i32, w: i32, h: i32) -> i
     with_rt(id, |r| {
         r.engine
             .resize_window(walkit::host::WindowId(window as u32), w, h);
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
+/// Whether a finger (1) or a mouse (0) drives the skin: a finger's press takes the nearest
+/// control a few pixels off, a mouse's only the one under it, as in Winamp.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_touch(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| {
+        let finger = walkit::host::Presentation::default().touch_slop;
+        let p = r.engine.presentation();
+        r.engine.set_presentation(&walkit::host::Presentation {
+            touch: on != 0,
+            touch_slop: if on != 0 { finger } else { 0 },
+            ..p
+        });
     })
     .map(|()| 1)
     .unwrap_or(0)
@@ -542,6 +700,14 @@ pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
     with_rt(id, |r| r.engine.pointer_up(x, y))
         .map(|()| 1)
         .unwrap_or(0)
+}
+
+/// The seq of the last press when a drag from it moves the window (it landed on a title bar or
+/// on no control), for a host that moves its windows itself; -1 otherwise, and while the windows
+/// are apart, where the engine moves them.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_move_target(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.move_target().unwrap_or(-1)).unwrap_or(-1)
 }
 
 /// The classic skin cursor slot at `x`, `y` of the stack, or -1.
@@ -604,6 +770,176 @@ pub extern "C" fn wk_rt_cursor_image(id: i32, slot: i32) -> i32 {
 pub extern "C" fn wk_rt_open_window(id: i32, name: *const u8, name_len: usize) -> i32 {
     let name = text(name, name_len);
     with_rt(id, |r| r.engine.open_window(&name) as i32).unwrap_or(0)
+}
+
+/// Closes the window of the container named; 1 when it was open.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_close_window(id: i32, name: *const u8, name_len: usize) -> i32 {
+    let name = text(name, name_len);
+    with_rt(id, |r| r.engine.close_window(&name) as i32).unwrap_or(0)
+}
+
+/// Puts window `window` at `x`, `y` of the viewport while the windows are apart (where the host
+/// keeps it between runs); nothing while they are one stack.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_place_window(id: i32, window: i32, x: i32, y: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine
+            .place_window(walkit::host::WindowId(window as u32), x, y);
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
+/// Shows the windows of the container named `scale` times as large (2 for Winamp's double
+/// size); 1 when the skin has the container.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_window_scale(
+    id: i32,
+    name: *const u8,
+    name_len: usize,
+    scale: f64,
+) -> i32 {
+    let name = text(name, name_len);
+    with_rt(id, |r| {
+        r.engine.set_window_scale(&name, scale as f32) as i32
+    })
+    .unwrap_or(0)
+}
+
+/// Screen pixels per layout pixel of the windows of the container named; 1 when it has none.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_window_scale(id: i32, name: *const u8, name_len: usize) -> f64 {
+    let name = text(name, name_len);
+    with_rt(id, |r| f64::from(r.engine.window_scale(&name))).unwrap_or(1.0)
+}
+
+/// Names the windows of the container named: the title a classic frame shows.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_window_title(
+    id: i32,
+    name: *const u8,
+    name_len: usize,
+    title: *const u8,
+    title_len: usize,
+) -> i32 {
+    let (name, title) = (text(name, name_len), text(title, title_len));
+    with_rt(id, |r| r.engine.set_window_title(&name, &title) as i32).unwrap_or(0)
+}
+
+/// Where the host draws its visualizer, in the viewport, as four little-endian i32s (left,
+/// top, width, height) in the result; 0 when no window shows a place for it.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_vis_rect(id: i32) -> i32 {
+    let Some(Some(r)) = with_rt(id, |r| r.engine.vis_rect()) else {
+        return 0;
+    };
+    let bytes = [r.left, r.top, r.width, r.height]
+        .iter()
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
+/// The part of window `window` that docks to others, into the result as 4 little-endian i32s
+/// (left, top, width, height): its rect inside its skin's snap margins.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_docking_rect(id: i32, window: i32) -> i32 {
+    let Some(r) = with_rt(id, |r| {
+        r.engine
+            .window_docking_rect(walkit::host::WindowId(window as u32))
+    }) else {
+        return 0;
+    };
+    let bytes = [r.left, r.top, r.width, r.height]
+        .iter()
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
+/// The window that has the focus, or -1.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_focused_window(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.focused_window().map_or(-1, |w| w.0 as i32)).unwrap_or(-1)
+}
+
+/// Whether a classic skin's time displays count down.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_time_remaining(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.classic_time_remaining() as i32).unwrap_or(0)
+}
+
+/// Makes a classic skin's time displays count down (1) or up (0).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_time_remaining(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_time_remaining(on != 0))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Whether a classic equalizer's auto button is on.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_eq_auto(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.classic_eq_auto() as i32).unwrap_or(0)
+}
+
+/// Turns a classic equalizer's auto button on (1) or off (0).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_eq_auto(id: i32, on: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_eq_auto(on != 0))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Shows the classic windows as Winamp `version` ("2.91" or "5.666") does; 0 for another.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_classic_style(id: i32, version: *const u8, len: usize) -> i32 {
+    use walkit::classic::style::ClassicStyle;
+    let Some(style) = ClassicStyle::from_version(&text(version, len)) else {
+        return 0;
+    };
+    with_rt(id, |r| r.engine.set_classic_style(style))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Sets a classic playlist's font size, pixels to the em (the style's at first).
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_list_font_size(id: i32, px: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_classic_list_font_size(px))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Scrolls a classic playlist for `notches` of the mouse wheel, down for more than 0, as many
+/// rows a notch as the classic style's Winamp.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_wheel_playlist(id: i32, notches: i32) -> i32 {
+    with_rt(id, |r| r.engine.wheel_classic_playlist(notches))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Shows playlist entry `index` as selected, or none for less than 0, without telling the page.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_playlist_selection(id: i32, index: i32) -> i32 {
+    with_rt(id, |r| {
+        r.engine
+            .set_playlist_selection((index >= 0).then_some(index));
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
+/// Scrolls a classic playlist by `rows`, down for more than 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {
+    with_rt(id, |r| r.engine.scroll_classic_playlist(rows))
+        .map(|()| 1)
+        .unwrap_or(0)
 }
 
 /// Stages a song on the page's fake player: `title`, `length_ms` long.
