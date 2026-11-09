@@ -33,17 +33,21 @@ impl SkinRuntime {
 
     /// Places `cmd` in its rectangle, as every renderer then draws it: across by the width the
     /// host measures, less the ticker's scroll; up and down by the font's line, Windows' where
-    /// the file gives it, else the host's.
+    /// the file gives it, else the host's. Centered and right-aligned text starts on a whole
+    /// pixel, as Windows places it: its width rounded, half the room left over dropping the odd
+    /// pixel, so the letters stay sharp instead of falling between two pixels.
     pub(crate) fn place_text(&mut self, cmd: &mut crate::draw::TextCmd) {
         let r = cmd.rect;
         let width = self
             .host
-            .text_advance(&cmd.text, cmd.font.as_ref(), cmd.size, cmd.bold);
-        cmd.x = match cmd.align {
-            crate::draw::Align::Left => r.left as f32,
-            crate::draw::Align::Center => r.left as f32 + (r.width as f32 - width) / 2.0,
-            crate::draw::Align::Right => r.right() as f32 - width,
-        } - cmd.scroll as f32;
+            .text_advance(&cmd.text, cmd.font.as_ref(), cmd.size, cmd.bold)
+            .round() as i32;
+        let x = match cmd.align {
+            crate::draw::Align::Left => r.left,
+            crate::draw::Align::Center => r.left + (r.width - width) / 2,
+            crate::draw::Align::Right => r.right() - width,
+        };
+        cmd.x = (x - cmd.scroll) as f32;
         let (asc, desc) = self
             .gdi_line(cmd.font.as_ref(), cmd.size, cmd.bold)
             .map(|(a, d)| (a as f32, d as f32))
