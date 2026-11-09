@@ -529,6 +529,26 @@ impl SkinRuntime {
         (PL_TOP + self.player.tracks().len() as i32 * PL_ROW - self.pl_list_rect(o).height).max(0)
     }
 
+    /// The playlist's background: the skin's list color, else the top-left pixel of its list
+    /// picture under the picture's tint, else black. 5.666 fills MMD3's list flat in its tile's
+    /// main tone (a45d01) where the color themes list tiles the dotted picture; Winamp Modern,
+    /// with both, shows its color.
+    fn pl_background(&mut self) -> Rgb {
+        if let Some(c) = self.color(BACKGROUND) {
+            return c;
+        }
+        let Some(def) = self.bitmap(BACKGROUND) else {
+            return Rgb(0);
+        };
+        let Some(p) = self.host.pixel(&def.file, def.x, def.y) else {
+            return Rgb(0);
+        };
+        match self.gamma(def.gamma_group.as_deref()) {
+            Some(g) => Rgb(g.apply(p | 0xff00_0000) & 0xff_ffff),
+            None => Rgb(p & 0xff_ffff),
+        }
+    }
+
     /// The list's drawing: rows in the skin's list colors, the current entry in its color, a
     /// narrow scrollbar at the right edge.
     pub(crate) fn draw_playlist(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
@@ -539,12 +559,11 @@ impl SkinRuntime {
         let alpha = self.objects[o].base.effective_alpha;
         let tracks = self.player.tracks();
         let border = self.color("wasabi.window.background").unwrap_or(PL_BORDER);
-        // a skin without list colors (Winamp3) gets black behind the rows, the current one in gray
-        let back = self.color("wasabi.list.background").unwrap_or(Rgb(0));
+        let back = self.pl_background();
         let text = self.color("wasabi.list.text").unwrap_or(Rgb(0xFFFFFF));
-        let current = self
-            .color("wasabi.list.text.current")
-            .unwrap_or(Rgb(0x7F7F7F));
+        // without a color of its own the current entry is white at half strength, whatever the
+        // text color: 7f7f7f on a Winamp3 skin's black, d1ad7f on MMD3's orange (a45d01)
+        let current = self.color("wasabi.list.text.current");
         let sel_text = self.color("wasabi.list.text.selected").unwrap_or(text);
         let sel_back = self
             .color("wasabi.list.text.selected.background")
@@ -574,12 +593,12 @@ impl SkinRuntime {
                 break;
             }
             let row = Rect::new(list.left, y, list.width, PL_ROW);
-            let color = if i as i32 == selected {
-                sel_text
+            let (color, row_alpha) = if i as i32 == selected {
+                (sel_text, alpha)
             } else if i as i32 == track_index {
-                current
+                current.map_or((Rgb(0xFF_FFFF), alpha * 127 / 255), |c| (c, alpha))
             } else {
-                text
+                (text, alpha)
             };
             if i as i32 == selected {
                 out.push(DrawCmd::Fill {
@@ -610,7 +629,7 @@ impl SkinRuntime {
                 color,
                 inner,
                 Align::Left,
-                alpha,
+                row_alpha,
                 false,
             ));
             out.push(text_cmd(
@@ -620,7 +639,7 @@ impl SkinRuntime {
                 color,
                 inner,
                 Align::Right,
-                alpha,
+                row_alpha,
                 false,
             ));
         }
