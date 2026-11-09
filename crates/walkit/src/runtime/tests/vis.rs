@@ -9,6 +9,8 @@ use crate::draw::Rect;
 use crate::host::SkinSetup;
 use crate::maki::{Handle, Value};
 use crate::runtime::SkinRuntime;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 // a main window 200 by 100 whose drawer group, 40 px high, shows 30 px of a visualizer holder
 // under a 10 px button bar
@@ -130,4 +132,81 @@ fn a_holder_that_takes_the_visualizer_as_it_shows_closes_the_visualizations_wind
     assert!(rt.open_window("avs"));
     rt.ensure_layout();
     assert_eq!(rt.windows().len(), 2);
+}
+
+/// A host whose visualizer picks presets at random or not, and that keeps what it was asked.
+struct RandomHost(Rc<RefCell<(bool, Vec<String>)>>);
+
+impl crate::host::SkinHost for RandomHost {
+    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
+        None
+    }
+
+    fn text_width(
+        &mut self,
+        text: &str,
+        _font: Option<&crate::draw::FontDef>,
+        size: i32,
+        _bold: bool,
+    ) -> i32 {
+        text.chars().count() as i32 * size / 2
+    }
+
+    fn log(&mut self, _message: &str) {}
+
+    fn invalidate(&mut self) {}
+
+    fn window_open(&mut self, kind: &str) -> Option<bool> {
+        (kind == "visrandom").then(|| self.0.borrow().0)
+    }
+
+    fn host_action(
+        &mut self,
+        action: &str,
+        param: Option<&str>,
+        _from: Option<crate::host::ActionFrom>,
+    ) {
+        self.0
+            .borrow_mut()
+            .1
+            .push(format!("{action} {}", param.unwrap_or("")));
+    }
+}
+
+#[test]
+fn the_visualizers_random_button_is_the_hosts() {
+    let state = Rc::new(RefCell::new((true, Vec::new())));
+    let mut files = crate::files::MemoryFiles::new();
+    files.insert(
+        "skin.xml",
+        &br#"<WinampAbstractionLayer version="0.8"><include file="player.xml"/></WinampAbstractionLayer>"#[..],
+    );
+    files.insert(
+        "player.xml",
+        concat!(
+            r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="100" h="50">"#,
+            r#"<togglebutton id="random" x="0" y="0" w="20" h="20" "#,
+            r#"cfgattrib="{0000000A-000C-0010-FF7B-01014263450C};Random"/>"#,
+            r#"</layout></container>"#,
+        )
+        .as_bytes(),
+    );
+    let clock: crate::host::Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RandomHost(state.clone())),
+        Box::new(crate::player::FakePlayer::new(clock.clone())),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    rt.ensure_layout();
+    let button = object(&rt, "random");
+    assert!(rt.button_is_active(button), "on, as the host says");
+    rt.pointer_down(5, 5, 1);
+    rt.pointer_up(5, 5);
+    assert_eq!(state.borrow().1, vec!["VIS_RANDOM 0".to_string()]);
 }

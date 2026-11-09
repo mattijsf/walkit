@@ -83,6 +83,8 @@ export interface Runtime {
   setWindowScale(container: string, scale: number): boolean;
   windowScale(container: string): number;
   setWindowTitle(container: string, title: string): boolean;
+  /** The part of a window that docks to others: its rect inside its skin's snap margins. */
+  dockingRect(window: number): Rect | null;
   /** Where the page draws its visualizer, or null when no window shows a place for it. */
   visRect(): Rect | null;
   mainWindow(): number | null;

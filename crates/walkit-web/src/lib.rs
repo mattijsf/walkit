@@ -842,6 +842,24 @@ pub extern "C" fn wk_rt_vis_rect(id: i32) -> i32 {
     1
 }
 
+/// The part of window `window` that docks to others, into the result as 4 little-endian i32s
+/// (left, top, width, height): its rect inside its skin's snap margins.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_docking_rect(id: i32, window: i32) -> i32 {
+    let Some(r) = with_rt(id, |r| {
+        r.engine
+            .window_docking_rect(walkit::host::WindowId(window as u32))
+    }) else {
+        return 0;
+    };
+    let bytes = [r.left, r.top, r.width, r.height]
+        .iter()
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
+    with_state(|s| s.result = bytes);
+    1
+}
+
 /// The window that has the focus, or -1.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_focused_window(id: i32) -> i32 {
