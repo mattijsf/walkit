@@ -5,7 +5,7 @@
 #   tools/trace-diff.sh [walkit traces dir] [reference traces dir]
 #
 # Defaults: traces/ here, and the reference set at $WALKIT_REFERENCE_TRACES
-# (the Andamp checkout writes it to modernskin/build/traces).
+# (an Andamp checkout beside this one writes it to modernskin/build/traces).
 set -eu
 cd "$(dirname "$0")/.."
 ours=${1:-traces}

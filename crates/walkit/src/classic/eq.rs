@@ -112,8 +112,8 @@ impl SkinRuntime {
     }
 }
 
-/// A band as Winamp's classic slider holds it, 0..63 with 0 the top, from the player's 0..255 (128 flat,
-/// 255 the top).
+/// A band as Winamp's classic slider holds it, 0..63 with 0 the top, from the player's 0..255
+/// (128 flat, 255 the top).
 pub(crate) fn band_step(v: i32) -> i32 {
     (63 - v.clamp(0, 255) * 64 / 256).clamp(0, 63)
 }
@@ -146,8 +146,8 @@ fn draw_classic_eq_graph(p: &mut Painter, preamp: i32, bands: &[i32]) {
     }
 }
 
-/// A Kochanek-Bartels spline, which lands on the pixels of Winamp's graph: tension 0,
-/// continuity 0, bias 0.1, over `points` at `u` (point index plus the way to the next).
+/// A Kochanek-Bartels spline (tension 0, continuity 0, bias 0.1), which lands on the pixels of
+/// Winamp's graph, over `points` at `u` (point index plus the way to the next).
 fn spline(points: &[f64], u: f64) -> f64 {
     let n = points.len() as i64;
     let i = u.floor() as i64;

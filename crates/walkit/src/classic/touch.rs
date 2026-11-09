@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Touches on the classic windows, as Winamp's classic windows handle the mouse: each
-//! control answers on its own box (in the main window,
-//! the equalizer and the playlist), most act on release over
-//! the control and a few on the press, the sliders follow the finger from where they were
-//! grabbed, the control buttons hand the press along as the finger slides over them, a drag on
-//! any place without a control moves the window, and double taps do what Winamp's double clicks
-//! do.
+//! Touches on the classic windows, as Winamp's classic windows handle the mouse: each control
+//! answers on its own box in the main window, the equalizer and the playlist, most act on
+//! release over the control and a few on the press, the sliders follow the finger from where
+//! they were grabbed, the control buttons hand the press along as the finger slides over them, a
+//! drag on any place without a control moves the window, and double taps do what Winamp's double
+//! clicks do.
 
 use crate::classic::ClassicWindow;
 use crate::draw::Rect;
@@ -305,10 +304,8 @@ pub fn control_at(
     match w {
         ClassicWindow::Main => {
             // the box each control answers in (probed in the VM): title buttons, clutter bar,
-            // time and vis, sliders,
-            // position bar, control buttons, eject,
-            // shuffle and repeat, the window toggles, the
-            // logo, the title row
+            // time and vis, sliders, position bar, control buttons, eject, shuffle and repeat,
+            // the window toggles, the logo, the title row
             let boxes: [(Control, i32, i32, i32, i32); 26] = [
                 (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
@@ -345,9 +342,8 @@ pub fn control_at(
             Some(if y < 14 { TitleBar } else { Background })
         }
         ClassicWindow::MainShade => {
-            // the bar's transport buttons split x 168..=224 at 176, 186, 195, 204 and 215
-            // and its mini position bar is x 228..=242, its time
-            // x 129..=157, its small vis x 78..=116
+            // the bar's transport buttons split x 168..=224 at 176, 186, 195, 204 and 215; its
+            // mini position bar is x 228..=242, its time x 129..=157, its small vis x 78..=116
             let boxes: [(Control, i32, i32, i32, i32); 13] = [
                 (Menu, 5, 3, 13, 11),
                 (Minimize, 244, 3, 10, 10),
@@ -719,8 +715,8 @@ impl SkinRuntime {
 
     /// Whether a classic window's corner grip (the playlist's, a gen window's) takes a press at
     /// `px`, `py` of its window: the corner's triangle where the distances to the right and
-    /// bottom edges add up to 30 or less, as Winamp
-    /// has it; the rest of the 20 by 20 square goes to the window.
+    /// bottom edges add up to 30 or less, as Winamp has it; the rest of the 20 by 20 square goes
+    /// to the window.
     pub(crate) fn classic_grip_takes(&self, o: ObjId, px: i32, py: i32) -> bool {
         let id = self.objects[o].base.id.as_str();
         if !matches!(
@@ -1024,11 +1020,11 @@ impl SkinRuntime {
         self.action(o, "MENU", None, None);
     }
 
-    /// A double tap, as Winamp's double clicks go (main window,
-    /// equalizer, playlist): the title row toggles the shade bar;
-    /// the main window's song title asks for the file info; its vis puts the mode back to what
-    /// it was before the taps and asks for the visualization plugin; a playlist row plays its
-    /// song; a playlist bottom button picks its lowest item.
+    /// A double tap, as Winamp's double clicks go in the main window, the equalizer and the
+    /// playlist: the title row toggles the shade bar; the main window's song title asks for the
+    /// file info; its vis puts the mode back to what it was before the taps and asks for the
+    /// visualization plugin; a playlist row plays its song; a playlist bottom button picks its
+    /// lowest item.
     pub(crate) fn classic_double_tap(&mut self, o: ObjId, px: i32, py: i32) {
         let Some(w) = self.classic_kind(o) else {
             return;

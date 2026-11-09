@@ -141,9 +141,8 @@ impl SkinRuntime {
     }
 
     /// The other EQ band of the same window under the finger at `sx`, `sy` of the stack while
-    /// the band `o` is dragged: Winamp hands the drag to it, as a band dragged over another
-    /// band of its window lets that one take over. The preamp neither
-    /// hands its drag on nor takes one.
+    /// band `o` is dragged: in Winamp a band drag that crosses onto another band hands over to
+    /// it. The preamp neither hands its drag on nor takes one.
     pub(crate) fn eq_band_reached(&mut self, o: ObjId, sx: i32, sy: i32) -> Option<ObjId> {
         match &self.objects[o].kind {
             Kind::Slider(s) if s.dragging && Self::is_eq_band(s) => {}
@@ -160,9 +159,9 @@ impl SkinRuntime {
     }
 
     /// Where a dragged balance or EQ slider settles: Winamp's balance, band and preamp sliders
-    /// snap to their middle when the finger brings them within a reach of it:
-    /// 7.5 % of the track's pixels, cut to whole pixels, in steps of the range.
-    /// A volume or seek slider has no such spot.
+    /// snap to their middle when the finger brings them within a reach of it: 7.5 % of the
+    /// track's pixels, cut to whole pixels, in steps of the range. A volume or seek slider has
+    /// no such spot.
     fn slider_hot_spot(&self, o: ObjId, value: i32) -> i32 {
         let s = self.slider(o);
         let hot = match s.action.as_deref() {

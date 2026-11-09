@@ -47,9 +47,8 @@ web runs.
   windows out apart when the host asks for it (`Presentation::free_windows`): each where it
   is (a new one at its container's `default_x`, `default_y`), moved by a drag and sized by its
   grip, docking and snapping as Winamp 5.666 does, raised by a press (the main window with the
-  windows docked to it), measured in the reference VM;
-  the stack is the default and the
-  only arrangement the reference traces run.
+  windows docked to it), measured in the reference VM; the stack is the default and the only
+  arrangement the reference traces run.
 - `crates/walkit/src/classic`: the classic skin renderer. `mod.rs` detects a `.wsz` by its
   bitmaps and generates the `skin.xml` that puts one `classicwindow` object in each window's
   normal and shade layout; `main.rs`, `eq.rs` and `pl.rs` paint the three windows and their
@@ -58,7 +57,7 @@ web runs.
   and oscilloscope over the `viscolor.txt` palette; `font.rs`, `region.txt`, `pledit.txt` and
   `viscolor.txt` parsers beside them; `touch.rs` the presses, drags and double taps on the
   controls, each control's box being the rect the painter blits it to. Every rule was
-  measured against the real player in a VM; the Andamp notes hold the list.
+  measured against the real player in a VM.
 - `crates/walkit-trace`: the recorder that runs a scenario through the engine on a stepped
   clock and writes the trace, as a platform-free library (the fixed host, the scenario, the
   timing of each tick and draw list), and a binary that adds the files, the archives, image
@@ -91,14 +90,14 @@ The Android library takes the Rust targets `aarch64-linux-android` and `x86_64-l
 
 ## The trace
 
-The engine is ported from the Kotlin engine in Andamp's `:modernskin` module, which stays
-the reference. Both engines write the same text for the same scripted run: `trace v1`, the
-skin and the playlist, the clock, each step (load, settle, play, stop, tap, theme, view),
-the skin's log lines, menus and host actions, each tick's work, and the full draw list of
-every frame that changed. The reference engine's traces are written by its
-`EngineTraceTest` into `modernskin/build/traces` of the Andamp checkout; walkit-trace writes
-the same files into `traces/`; `tools/trace-diff.sh` prints the first line where each pair
-parts. A scenario passes when its traces are identical.
+The engine is ported from the Kotlin engine in the `:modernskin` module of
+[Andamp](https://github.com/mattijsf/andamp), which stays the reference. Both engines write the
+same text for the same scripted run: `trace v1`, the skin and the playlist, the clock, each step
+(load, settle, play, stop, tap, theme, view), the skin's log lines, menus and host actions, each
+tick's work, and the full draw list of every frame that changed. The reference engine's traces
+are written by its `EngineTraceTest` into `modernskin/build/traces` of an Andamp checkout;
+walkit-trace writes the same files into `traces/`; `tools/trace-diff.sh` prints the first line
+where each pair parts. A scenario passes when its traces are identical.
 
 The format is fixed by the reference engine's `EngineTrace` fixture (the Kotlin side); a
 change there is a version bump (`trace v2`) on both sides.
@@ -112,10 +111,9 @@ Bento reads its own scripts through `@SKINSPATH@`). They are not in this reposit
 never committed: the skins are other people's work. Traces are not committed either (tens of
 megabytes per run).
 
-Two inputs decide parity with the reference engine, and both live outside this repository:
-the corpus skins are the `.wal` files of Andamp's `modernskin/src/test/resources` (Bento and
-Big Bento are only there), and `--fonts` must be the default-set fonts folder of an Andamp
-checkout at current main (`modernskin/src/main/resources/nl/mattix/andamp/modernskin/
+Two inputs decide parity with the reference engine: the corpus skins (the same `.wal` files
+the reference engine's tests run, Bento and Big Bento among them), and `--fonts`, which must be
+Andamp's default-set fonts folder (`modernskin/src/main/resources/nl/mattix/andamp/modernskin/
 defaultset/fonts`, with DejaVu Sans Condensed and Liberation Sans, regular and bold); without
 Liberation Sans the baselines of Arial texts differ by fractions of a pixel. The web runs take
 the same inputs through `--skins`, `--defaults` and `--fonts`, and the trace recorded in node

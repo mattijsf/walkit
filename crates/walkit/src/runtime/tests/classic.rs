@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! A classic skin's main window, drawn pixel for pixel as Winamp draws it (as
-//! Winamp 5.666 shows it in the reference VM).
+//! A classic skin's main window, drawn pixel for pixel as Winamp draws it (as Winamp 5.666 shows
+//! it in the reference VM).
 
 use std::rc::Rc;
 

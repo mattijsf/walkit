@@ -371,7 +371,7 @@ impl SkinRuntime {
         dx * dx + dy * dy
     }
 
-    /// What a finger at a point means; see the Kotlin engine's `touchTarget` for the order.
+    /// What a finger at a point means, in the order of the reference engine's `touchTarget`.
     pub(crate) fn touch_target(&mut self, sx: i32, sy: i32) -> Option<ObjId> {
         let window = self.window_at(sx, sy)?;
         let origin = self.window_rect_of(window);
@@ -1212,7 +1212,6 @@ impl SkinRuntime {
     }
 }
 
-/// `v` kept to at least `min` and at most `max` (none when 0) and `view`, the view's side winning over a minimum.
 /// `v` rounded up to a whole number of `step`s, or down when the next step does not fit.
 fn stepped(v: i32, step: i32, fit: impl Fn(i32) -> i32) -> i32 {
     let up = crate::classic::touch::classic_step_up(v, step);
@@ -1223,6 +1222,8 @@ fn stepped(v: i32, step: i32, fit: impl Fn(i32) -> i32) -> i32 {
     }
 }
 
+/// `v` kept to at least `min` and at most `max` (none when 0) and `view`, the view's side winning
+/// over a minimum.
 fn within(v: i32, min: i32, max: i32, view: i32) -> i32 {
     let top = if max > 0 { max.min(view) } else { view };
     v.min(top).max(min.min(top)).max(1)

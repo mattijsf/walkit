@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! `genex.bmp`'s colors: what a classic skin asks of the media library and the windows plug-ins
-//! draw inside a gen frame. Winamp hands the bitmap to them; the media library of 5.666 reads
-//! color `i` from the pixel at x 48 + 2i of row 0.
+//! draw inside a gen frame. Winamp hands the bitmap to them; color `i` is the pixel at x 48 + 2i
+//! of row 0, in the order the Winamp SDK's `wa_dlg.h` names them.
 
 use crate::draw::Rgb;
 use crate::runtime::SkinRuntime;
