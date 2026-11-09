@@ -28,7 +28,7 @@ command objects.
 ## The text form
 
 The engine also writes the draw list as text, one command per line, the format of a
-[trace](trace-parity.md):
+[trace](traces.md):
 
 ```text
 fill 0,0,864,1632 #000000 a=255

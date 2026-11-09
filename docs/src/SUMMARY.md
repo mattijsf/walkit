@@ -7,6 +7,6 @@
 - [Web](web.md)
 - [Android](android.md)
 - [The draw list](draw-list.md)
-- [Trace parity](trace-parity.md)
+- [Traces](traces.md)
 - [Contributing](contributing.md)
 - [API reference](api.md)
