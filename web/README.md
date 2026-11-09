@@ -32,7 +32,7 @@ if (rt.tick()) draw(rt.draw());                      // the draw list, one comma
 
 The draw list is text in the trace format (`image <file> <x,y,w,h> -> <rect> a=<alpha>`, `fill`,
 `text`, `clip`, `unclip`, `shape`, `pixels`), the same lines `walkit-trace` writes, from the
-engine's `listing` module; a renderer parses it. A packed binary form is a follow-up.
+engine's `listing` module; a renderer parses it. The player page takes the packed form below.
 
 ## The player page
 
@@ -48,8 +48,8 @@ menu in a prompt); the buttons drive the engine's fake player, which plays a dem
 view size fits the stack as the phone does, and a main window that resizes both ways fills it.
 "free windows" (or `?free` in the link) sets the windows out apart on the view as a desktop:
 each opens at its container's `default_x`, `default_y`, moves by a drag on its move areas,
-sizes by its grip, and docks and snaps as Winamp 5.666 docks them (as measured in
-Winamp 5.666 in a VM).
+sizes by its grip, and docks and snaps as Winamp 5.666 docks them (measured in the reference
+VM).
 
 ```bash
 node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
@@ -80,21 +80,20 @@ pictures decoded by `pictures.mjs`), and times every tick and draw list on the h
 
 ```bash
 # in node: writes traces to compare with the desktop build's
-node web/node.mjs ~/Development/winamp-vm/scenarios.json traces-wasm \
+node web/node.mjs <scenarios.json> traces-wasm \
   --wasm web/dist/walkit-release-trace.wasm \
-  --skins ~/Development/andamp/modernskin/src/test/resources \
-  --defaults ~/Development/winamp-vm/wasabi-defaults.zip \
+  --skins <skins dir> \
+  --defaults <wasabi-defaults.zip> \
   --fonts <andamp>/modernskin/src/main/resources/nl/mattix/andamp/modernskin/defaultset/fonts \
   --stats node-stats.json
 
 # in a browser: serves the page and the archives (unzipped as packs), keeps the posted results
-node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios ~/Development/winamp-vm/scenarios.json \
+node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios <scenarios.json> \
   --skins ... --defaults ... --fonts ... --results results.jsonl
 # then open http://127.0.0.1:8765/?auto in each browser
 ```
 
-The inputs are the ones that decide parity (see `ENGINEERING.md`): the corpus skins are
-Andamp's `modernskin/src/test/resources/*.wal` (Bento and Big Bento are only there), and the
-fonts folder must hold Liberation Sans as well as DejaVu Sans Condensed, as the default set
-of an Andamp checkout at current main does. The skins, the default set and the fonts never
+The inputs are the ones that decide parity (see `ENGINEERING.md`): the corpus skins, and a
+fonts folder that holds Liberation Sans as well as DejaVu Sans Condensed, as Andamp's default
+set does. The skins, the default set and the fonts never
 enter this repository; the server reads them where they are.

@@ -14,7 +14,8 @@ import java.util.TimeZone
  * handed to the engine, which reads it from there. [close] frees the engine's side; a runtime
  * that is garbage collected unclosed is freed then.
  *
- * Every member of the reference engine's runtime is carried; the engine plans each frame itself ([drawPlanned]).
+ * Every member of the reference engine's runtime (Andamp's `:modernskin`) is carried; the engine
+ * plans each frame itself ([drawPlanned]).
  */
 @Suppress("TooManyFunctions") // the one host every object and script of a skin calls into
 public class SkinRuntime(

@@ -667,7 +667,8 @@ impl SkinRuntime {
             "rect" => Kind::RectObj(RectData::default()),
             "images" => Kind::Images(ImagesData::default()),
             "menu" => Kind::Menu(MenuData::default()),
-            // Winamp's playlist editor, which a skin embeds as a component
+            // Winamp's playlist editor, which a skin embeds as a component, or a window
+            // holder for it (Bento): the playlist view either way
             "component" | "windowholder" => {
                 if Self::holds(&node.attrs, PLAYLIST_GUID) {
                     Kind::PlaylistView(PlaylistData::default())
@@ -684,7 +685,6 @@ impl SkinRuntime {
                 self.add_child(parent, f);
                 return;
             }
-            // a window holder for Winamp's playlist editor is the playlist view as well (Bento)
             "componentbucket" => {
                 let b = self.new_object(name, Kind::Bucket(BucketData::default()));
                 self.fill_group(b, node, node.get("id"));

@@ -16,8 +16,7 @@ const TITLE_RIGHT: i32 = 265;
 const TITLE_TOP: i32 = 27;
 /// A title this wide or wider scrolls, with `  ***  ` between its turns.
 const SCROLL_FROM: i32 = 147;
-/// The title scrolls a cell every 200 ms (the VM showed 5 px steps every
-/// 205 ms on average).
+/// The title scrolls a cell every 200 ms (the VM showed 5 px steps every 205 ms on average).
 pub(crate) const TITLE_STEP_MS: i64 = 200;
 const TITLE_STEP_PX: i32 = 5;
 /// Paused, the time digits go dark and light again in turns of this long (the VM showed
@@ -272,9 +271,8 @@ impl SkinRuntime {
         p.blit("cbuttons.bmp", 114, eject_y, 22, 16, 136, 89);
     }
 
-    /// The main window's shade bar (`titlebar.bmp` y 29 or 42, its digits and position bar
-    /// in shade mode): the strip, the time in small `text.bmp` digits at y 4, and the mini
-    /// position bar while something plays.
+    /// The main window's shade bar (`titlebar.bmp` y 29 or 42): the strip, the time in small
+    /// `text.bmp` digits at y 4, and the mini position bar while something plays.
     fn draw_classic_main_shade(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
         let status = self.player.status();
         let active = self
@@ -461,8 +459,6 @@ impl SkinRuntime {
         }
     }
 
-    /// The title row's text: the playlist number, the title and the length, as Winamp writes it
-    /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
     /// How far the title has scrolled: where it stood, then a cell per step of the clock since
     /// it last moved on.
     pub(crate) fn classic_title_scroll(&self) -> i32 {
@@ -510,6 +506,8 @@ impl SkinRuntime {
         self.player.status() == Status::Paused && (self.now() / PAUSE_BLINK_MS) % 2 == 1
     }
 
+    /// The title row's text: the playlist number, the title and the length, as Winamp writes it
+    /// with numbers in the playlist on; "Winamp 5.666" with nothing loaded.
     fn classic_title_text(&mut self) -> String {
         let title = self.player.title();
         if title.is_empty() {
@@ -594,10 +592,9 @@ impl Painter<'_> {
         });
     }
 
-    /// `text` in the platform's font at `size`, in the box `dx`, `dy`, `w` x `h`, `align`ed.
-    #[allow(clippy::too_many_arguments)]
     /// `text` in the system font `face` (the playlist's `pledit.txt` font, a system font named
     /// by its face; none for the host's font) in the box (x, y, width, height) of the window.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn text(
         &mut self,
         text: &str,

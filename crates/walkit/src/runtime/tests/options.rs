@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The options a skin's scripts list for Winamp's Options menu and a pick of one: read as
-//! Winamp lists them, flipped as a click there flips it (the reference's `SkinOptionsTest`).
+//! Winamp lists them, flipped as a click there flips it (Andamp's `SkinOptionsTest`).
 
 use super::runtime;
 use crate::host::{OptionEntry, OptionKey};

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A drawer that shows Winamp's visualizer, as Winamp Modern's does: where the host draws its
-//! visualizer, and the window the host shows for the skin going back into it (the reference's
+//! visualizer, and the window the host shows for the skin going back into it (Andamp's
 //! `VisDrawerTest`).
 
 use super::runtime_with;

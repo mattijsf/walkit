@@ -1068,7 +1068,6 @@ impl SkinRuntime {
 }
 
 /// A column of docked windows: they hang from `top`, one under the other, at `x`, `width` wide.
-/// A column of docked windows: they hang from `top`, one under the other, at `x`, `width` wide.
 pub(crate) struct Column {
     pub(crate) x: i32,
     pub(crate) top: i32,

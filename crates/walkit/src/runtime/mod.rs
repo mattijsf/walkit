@@ -112,7 +112,6 @@ pub(crate) enum Fit {
 /// A loaded modern skin.
 pub struct SkinRuntime {
     pub(crate) files: Box<dyn SkinFiles>,
-    /// How far a classic title has scrolled, in pixels.
     /// A classic skin's `region.txt` polygons by section.
     pub(crate) classic_regions: HashMap<String, Vec<Vec<(i32, i32)>>>,
     /// A classic skin's playlist look (`pledit.txt`).
