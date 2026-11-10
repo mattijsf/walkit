@@ -45,12 +45,6 @@ and waits for the next tick.
 
 The engine runs on the thread that calls it, one call at a time.
 
-## Scripts are untrusted
-
-Every loop, stack and allocation in the VM has a limit. A handler that runs too long or too deep
-is stopped and logged, and a script that fails 20 times is switched off. The engine crate
-forbids unsafe code.
-
 ## The wasabi base
 
 Winamp keeps a folder of shared skin parts, the wasabi base, that modern skins borrow frames,
