@@ -76,6 +76,10 @@ class SkinView(
         runtime = rt
         rt.presentation = rt.presentation.copy(touch = true)
         rt.load()
+        // a classic skin's equalizer and playlist start shut: open them, so all three windows
+        // show (a modern skin has no containers by these names, and nothing opens)
+        rt.openWindow("equalizer")
+        rt.openWindow("pledit")
         dirty = true
     }
 
