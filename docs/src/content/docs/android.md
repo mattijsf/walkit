@@ -48,6 +48,9 @@ the `SkinHost` and drives the `Player` through callbacks on that thread.
   are read from the skin's files, so a host puts its default set, fonts included, under the
   skin.
 
+[`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is a
+complete app built this way, drawing every command on a `Canvas`.
+
 ## Frames
 
 `drawPlanned` returns each frame with a plan: which stretches of a window change from frame to

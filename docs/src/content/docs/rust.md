@@ -84,6 +84,9 @@ fn main() {
 }
 ```
 
+[`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a complete
+desktop app built this way, with a software renderer for the draw list.
+
 ## Files
 
 [`MemoryFiles`](/walkit/api/walkit/files/struct.MemoryFiles.html) holds a skin's entries by path. The

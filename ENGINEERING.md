@@ -23,6 +23,7 @@ add wasm32-unknown-unknown`). `wasm-opt` (from binaryen) is optional.
 | `crates/walkit-android` | The engine as `libwalkit.so`, the native methods of `nl.mattix.walkit.Native`. |
 | `android/` | The AAR `nl.mattix.walkit:walkit` and its Kotlin API. |
 | `web/` | The JS host: the embedding package, the player page and the trace runners. |
+| `examples/` | A small app per host: web, Android and macOS. Each builds on its own, outside the workspace and the gate. |
 | `tools/` | The gate, the trace diff and the web build. |
 | `docs/` | The documentation site: a Starlight site, published with the API reference to GitHub Pages. |
 

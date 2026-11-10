@@ -12,7 +12,7 @@ export default defineConfig({
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/mattijsf/walkit" }],
       editLink: { baseUrl: "https://github.com/mattijsf/walkit/edit/main/docs/" },
       sidebar: [
-        { label: "Start", items: ["introduction", "how-it-works"] },
+        { label: "Start", items: ["introduction", "how-it-works", "examples"] },
         { label: "Hosts", items: ["rust", "web", "android"] },
         { label: "Reference", items: ["draw-list", "api-reference", { label: "Rust API (rustdoc)", link: "/api/walkit/" }] },
         { label: "Engine", items: ["traces", "contributing"] },

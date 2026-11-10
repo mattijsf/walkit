@@ -32,6 +32,11 @@ tools/web-build.sh       # the wasm modules (needs the wasm32-unknown-unknown ta
 [android/README.md](android/README.md) covers the Android library and
 [web/README.md](web/README.md) the web build.
 
+## Examples
+
+[`examples/`](examples/) has a small app for each host: a web page on the `walkit-web` package,
+an Android app on the AAR, and a macOS app on the crate.
+
 ## Documentation
 
 The guide and the API reference are at <https://mattijsf.github.io/walkit/>. Their sources are

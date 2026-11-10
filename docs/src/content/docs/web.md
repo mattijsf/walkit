@@ -13,6 +13,9 @@ tools/web-pack.sh <dir>   # the walkit-web package for a page to vendor
 
 The package holds the JS modules, their types in `embed.d.ts`, and the module as `walkit.wasm`.
 
+[`examples/web`](https://github.com/mattijsf/walkit/tree/main/examples/web) is a complete page
+built on it.
+
 ## Embedding
 
 `embed.mjs` is the entry point for a page that brings a player and places the windows itself. It
