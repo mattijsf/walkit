@@ -46,6 +46,9 @@ async function decodeOnce(bytes) {
 }
 
 /** The fonts the page registered: a font file (normalized path) or `id:<name>` to a CSS family. */
+// where the engine names the files of what lies under the skin (walkit::files::BASE_PREFIX)
+const BASE_PREFIX = "wasabi-base/";
+
 const families = new Map();
 const registered = new Set();
 
@@ -236,13 +239,13 @@ async function openSkin(name, entries, { clock = null } = {}) {
     state.rt = null;
   }
   const files = new Map();
-  for (const [n, b] of state.wasabi) files.set(normalize(n), b);
   for (const [n, b] of inSkinFolder(entries)) files.set(normalize(n), b);
   state.files = files;
   state.pictures = new Pictures(siblingPicture);
   const t0 = performance.now();
   for (const [k, pic] of await picturesOf(name, entries)) state.pictures.pics.set(k, pic);
-  for (const [k, pic] of await picturesOf("<wasabi>", state.wasabi)) if (!state.pictures.pics.has(k)) state.pictures.pics.set(k, pic);
+  // the engine names the files under the skin by the prefix (walkit::files::BASE_PREFIX)
+  for (const [k, pic] of await picturesOf("<wasabi>", state.wasabi)) state.pictures.pics.set(BASE_PREFIX + k, pic);
   for (const [n, b] of inSkinFolder(entries)) if (/\.ttf$/i.test(n)) await registerFont(n, b);
   const decodeMs = performance.now() - t0;
   state.renderer = new Renderer(state.pictures, families);
