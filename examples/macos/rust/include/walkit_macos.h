@@ -31,10 +31,15 @@ void walkit_string_free(char *text);
 /// Runs the engine's timers and animations; true when the skin wants a new frame.
 bool walkit_skin_tick(WalkitSkin *skin);
 
-/// The size the skin's windows take, in layout pixels.
+/// The size the skin's windows took as one stack when it opened, in layout pixels: the least
+/// room the app gives them.
 void walkit_skin_size(WalkitSkin *skin, int32_t *w, int32_t *h);
 
-/// Draws a frame of `w` x `h` device pixels, `scale` device pixels per layout pixel, and gives
+/// Sets the space the windows move in, `w` x `h` layout pixels: the app's view. The windows are
+/// set out apart, and each drags anywhere in it by its title bar.
+void walkit_skin_set_view(WalkitSkin *skin, int32_t w, int32_t h);
+
+/// Draws a frame of `w` x `h` device pixels (the view's), `scale` device pixels per layout pixel, and gives
 /// its `w * h` pixels, rows top first, each 0x00RRGGBB. They stay valid until the next draw or
 /// until the skin is freed; null when the skin broke.
 const uint32_t *walkit_skin_draw(WalkitSkin *skin, int32_t w, int32_t h, int32_t scale);

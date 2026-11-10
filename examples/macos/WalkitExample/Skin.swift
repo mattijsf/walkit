@@ -50,7 +50,8 @@ final class Skin {
         walkit_skin_tick(handle)
     }
 
-    /// The size the skin's windows take, in layout pixels: points on the screen.
+    /// The size the skin's windows took as one stack when it opened, in layout pixels: the
+    /// least room the view gives them.
     var size: CGSize {
         var w: Int32 = 0
         var h: Int32 = 0
@@ -58,11 +59,16 @@ final class Skin {
         return CGSize(width: Int(w), height: Int(h))
     }
 
-    /// Draws a frame of the skin's size at `scale` device pixels per point.
-    func draw(scale: Int) -> CGImage? {
-        let size = size
-        let w = Int(size.width) * scale
-        let h = Int(size.height) * scale
+    /// Sets the space the windows move in, in layout pixels: each window drags anywhere in it.
+    func setView(width: Int, height: Int) {
+        walkit_skin_set_view(handle, Int32(width), Int32(height))
+    }
+
+    /// Draws a frame of the view, `width` x `height` layout pixels, at `scale` device pixels per
+    /// layout pixel.
+    func draw(width: Int, height: Int, scale: Int) -> CGImage? {
+        let w = width * scale
+        let h = height * scale
         guard let pixels = walkit_skin_draw(handle, Int32(w), Int32(h), Int32(scale)) else {
             return nil
         }

@@ -29,9 +29,10 @@ Winamp's `wasabi` folder, which some modern skins draw lists, scrollbars and fra
 ([how to make the zip](https://mattijsf.github.io/walkit/wasabi-base/)). The stand-in fonts in
 `../skins/fonts`, built into the app, lie under every skin.
 
-The window resizes, down to the skin's own size: the skin sits in the middle at the largest
-whole zoom that fits, so it stays sharp at twice or three times its size. The equalizer and the
-playlist open with the skin. The engine's demo player answers the skin's
+The skin's windows are set out apart, as on Winamp's desktop: drag one by its title bar
+anywhere in the app's window, and it docks to the others' edges. The app's window resizes, down
+to the size the skin's windows take together, and zooms in whole steps once it is twice that
+size or more, so the pixels stay sharp. The equalizer and the playlist open with the skin. The engine's demo player answers the skin's
 buttons and sliders: play, pause, stop, seek, volume, pan, the equalizer, shuffle and repeat.
 
 From a terminal, the app takes the skin to open first, and can write its window as a PNG:
@@ -52,7 +53,7 @@ The engine is Rust; the app calls it through a small C interface.
   repository's crates.
   - `src/lib.rs` is the C interface ([`include/walkit_macos.h`](rust/include/walkit_macos.h)):
     it unzips the skin, lays it over the base skin or the wasabi base and the fonts, runs the
-    engine with its demo player, and draws frames.
+    engine with its demo player and its windows set out apart, and draws frames.
   - `src/host.rs` is the engine's host: pictures decoded with `image`, text measured with
     `fontdue`.
   - `src/render.rs` draws the draw list into a buffer of pixels: pictures, fills, text, clips
@@ -60,8 +61,8 @@ The engine is Rust; the app calls it through a small C interface.
 - [`WalkitExample/`](WalkitExample) is the SwiftUI app.
   - `ContentView.swift`: the buttons, the file pickers and the command line.
   - `SkinLibrary.swift`: the downloads, the fallbacks, and what lies under each skin.
-  - `SkinView.swift`: a tick on every display frame, each new frame shown as a picture at the
-    window's zoom, and the mouse passed to the engine.
+  - `SkinView.swift`: the space the skin's windows move in, a tick on every display frame,
+    each new frame shown as a picture at the window's zoom, and the mouse passed to the engine.
   - `Skin.swift`: the Swift face of the C interface.
 
 `WalkitExample.xcodeproj` is made from [`project.yml`](project.yml) with

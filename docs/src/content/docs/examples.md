@@ -65,5 +65,6 @@ xcodebuild -project WalkitExample.xcodeproj -scheme WalkitExample -derivedDataPa
 open build/Build/Products/Debug/walkit.app
 ```
 
-Or open `WalkitExample.xcodeproj` in Xcode and run it. The window resizes, and the skin zooms
-in whole steps to fill it. Drop another skin on the window to open it.
+Or open `WalkitExample.xcodeproj` in Xcode and run it. The skin's windows are set out apart, as
+on the web: drag one by its title bar anywhere in the app's window, which resizes. Drop another
+skin on the window to open it.

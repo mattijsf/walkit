@@ -40,6 +40,8 @@ pub struct WalkitSkin {
     assets: Rc<RefCell<Assets>>,
     redraw: Rc<Cell<bool>>,
     frame: Vec<u32>,
+    /// The size of the skin's windows as one stack when it opened, in layout pixels.
+    natural: (i32, i32),
     /// Set when the engine panicked: the skin does nothing more.
     broken: bool,
 }
@@ -112,22 +114,32 @@ impl WalkitSkin {
         runtime.open_window("equalizer");
         runtime.open_window("pledit");
         runtime.tick();
+        let (w, h) = runtime.drawn_size();
+        let natural = if w > 0 && h > 0 { (w, h) } else { (275, 116) };
+        // then the windows are set out apart, each moved on its own as on Winamp's desktop;
+        // they keep the spots the stack gave them
+        let mut presentation = runtime.presentation();
+        presentation.free_windows = true;
+        presentation.viewport = natural;
+        runtime.set_presentation(&presentation);
+        runtime.tick();
         Ok(WalkitSkin {
             runtime,
             assets,
             redraw,
             frame: Vec::new(),
+            natural,
             broken: false,
         })
     }
 
-    /// The part of the stack the windows show, in layout pixels.
-    fn size(&mut self) -> (i32, i32) {
-        let (w, h) = self.runtime.drawn_size();
-        if w > 0 && h > 0 {
-            (w, h)
-        } else {
-            (275, 116)
+    /// Sets the space the windows move in, in layout pixels.
+    fn set_view(&mut self, w: i32, h: i32) {
+        let mut presentation = self.runtime.presentation();
+        if presentation.viewport != (w, h) {
+            presentation.viewport = (w, h);
+            self.runtime.set_presentation(&presentation);
+            self.redraw.set(true);
         }
     }
 
@@ -322,15 +334,26 @@ pub unsafe extern "C" fn walkit_skin_tick(skin: *mut WalkitSkin) -> bool {
     with_skin(skin, false, |s| s.runtime.tick() || s.redraw.get())
 }
 
-/// The size the skin's windows take, in layout pixels.
+/// The size the skin's windows took as one stack when it opened, in layout pixels: the least
+/// room the app gives them.
 ///
 /// # Safety
 /// `skin` is null or a live skin; `w` and `h` point at ints.
 #[no_mangle]
 pub unsafe extern "C" fn walkit_skin_size(skin: *mut WalkitSkin, w: *mut i32, h: *mut i32) {
-    let (sw, sh) = with_skin(skin, (275, 116), |s| s.size());
+    let (sw, sh) = with_skin(skin, (275, 116), |s| s.natural);
     *w = sw;
     *h = sh;
+}
+
+/// Sets the space the windows move in, `w` x `h` layout pixels: the app's view. A window drags
+/// anywhere in it.
+///
+/// # Safety
+/// `skin` is null or a live skin.
+#[no_mangle]
+pub unsafe extern "C" fn walkit_skin_set_view(skin: *mut WalkitSkin, w: i32, h: i32) {
+    with_skin(skin, (), |s| s.set_view(w.max(1), h.max(1)));
 }
 
 /// Draws a frame of `w` x `h` device pixels, `scale` device pixels per layout pixel, and
@@ -396,4 +419,45 @@ pub unsafe extern "C" fn walkit_skin_double_click(
     touch: i32,
 ) {
     with_skin(skin, (), |s| s.runtime.double_tap(x, y, touch));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use walkit::draw::Rect;
+
+    /// A window dragged by its title bar moves within the view, and the others stay.
+    #[test]
+    fn a_window_drags_within_the_view() {
+        let skin = std::fs::read("../../skins/walkit-classic.wsz").expect("the original skin");
+        let mut s = WalkitSkin::open(skin, "walkit-classic.wsz", None, None, MemoryFiles::new())
+            .expect("it opens");
+        s.set_view(800, 600);
+        s.runtime.tick();
+        let before: Vec<_> = s.runtime.draw_windows().into_iter().map(|w| w.0).collect();
+        assert!(
+            before.len() >= 3,
+            "main, equalizer and playlist show: {before:?}"
+        );
+        // the windows come bottom to top; the press lands on the bottom one's title bar
+        let dragged = before[0];
+        let (x, y) = (dragged.left + 100, dragged.top + 5);
+        s.runtime.pointer_down(x, y, 1);
+        for step in 1..=10 {
+            s.runtime.pointer_move(x + step * 30, y + step * 20);
+            s.runtime.tick();
+        }
+        s.runtime.pointer_up(x + 300, y + 200);
+        s.runtime.tick();
+        let after: Vec<_> = s.runtime.draw_windows().into_iter().map(|w| w.0).collect();
+        // it moved by as much as the mouse, and came to the front; the others stayed
+        let moved = Rect::new(
+            dragged.left + 300,
+            dragged.top + 200,
+            dragged.width,
+            dragged.height,
+        );
+        assert_eq!(after.last(), Some(&moved), "{after:?}");
+        assert_eq!(&after[..after.len() - 1], &before[1..]);
+    }
 }
