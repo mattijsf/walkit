@@ -9,10 +9,13 @@ assets. There is also an "Open skin" button for a `.wsz`
 (classic) or `.wal` (modern) skin, a "Wasabi base" button for a zip of Winamp's
 `wasabi` folder, which some modern skins draw lists and frames from (classic skins never do;
 [how to make the zip](https://mattijsf.github.io/walkit/wasabi-base/)), and a view that runs and draws the skin. The skin opened last opens again on
-start.
+start. Winamp's base skin (or the original classic skin when the download fails) lies under
+every classic skin as its [base skin](https://mattijsf.github.io/walkit/base-skin/), kept in
+the app's files: a skin that draws only its main window shows Winamp's equalizer and playlist.
 
 - `MainActivity.kt`: the buttons, the picks, and the skin's files (`ZipSkinFiles`, with
-  `LayeredSkinFiles` for the wasabi base).
+  `LayeredSkinFiles` for the base skin under a classic skin or the wasabi base under a modern
+  one).
 - `SkinView.kt`: the `SkinRuntime`, the `SkinHost` (pictures through `BitmapFactory`, text
   widths through `Paint`, the log to Logcat), a tick on every display frame, every `DrawCmd` on a
   `Canvas`, and touches to the engine.

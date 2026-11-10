@@ -148,15 +148,33 @@ export interface Skin {
 
 export type Source = string | URL | ArrayBuffer | Uint8Array;
 
+/** How `openSkin` opens a skin. An archive given as a URL or bytes is kept once opened. */
+export interface OpenOptions {
+  /** The skin's folder name, as its scripts know it. */
+  name?: string;
+  /**
+   * A classic base skin (such as Winamp's base skin), used only under a classic skin: it gives
+   * every bitmap the skin leaves out, as Winamp takes them from its base skin.
+   */
+  base?: Source | Map<string, Uint8Array> | null;
+  /**
+   * Winamp's wasabi base, used only under a modern skin: the lists, scrollbars and frames the
+   * skin does not define. Give the stand-in fonts to `addFonts` as well.
+   */
+  wasabi?: Source | Map<string, Uint8Array> | null;
+  /** Runs the engine's own demo player instead of the page's. */
+  demoPlayer?: boolean;
+}
+
 export interface Walkit {
   setHandlers(handlers: Handlers): void;
   /** The stand-in fonts a modern skin lays out text with: path ("fonts/LiberationSans.ttf") to bytes. */
   addFonts(fonts: Map<string, Uint8Array>): Promise<void>;
-  /** A classic .wsz, or a modern .wal over `wasabi` (Winamp's wasabi base). */
-  openSkin(
-    source: Source,
-    options?: { name?: string; wasabi?: Source | Map<string, Uint8Array> | null; demoPlayer?: boolean }
-  ): Promise<Skin>;
+  /**
+   * Opens a skin. The skin's own files tell a classic skin (.wsz) from a modern one (.wal), and
+   * that picks what lies under it: `base` under a classic skin, `wasabi` under a modern one.
+   */
+  openSkin(source: Source, options?: OpenOptions): Promise<Skin>;
 }
 
 /** Loads the engine, from `walkit.wasm` next to this module unless `wasm` says otherwise. */

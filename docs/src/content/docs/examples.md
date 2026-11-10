@@ -18,9 +18,11 @@ from `examples/skins/fonts`, under every skin, where the engine looks for them; 
 draws those faces with the system's own Arial and Tahoma. A classic playlist then sets its rows
 in Arial's widths, as Winamp does.
 
-Any other `.wsz` or `.wal` opens too. A modern skin that borrows frames, scrollbars or lists
-from Winamp's [wasabi base](/walkit/wasabi-base/) also needs it, as a zip: each example takes
-one ("Wasabi base", or `--wasabi` on macOS).
+Any other `.wsz` or `.wal` opens too. Under every classic skin, each example puts Winamp's base
+skin (the original classic skin when the download fails) as its [base skin](/walkit/base-skin/),
+so a skin that draws only its main window shows Winamp's equalizer and playlist. A modern skin
+that borrows frames, scrollbars or lists from Winamp's [wasabi base](/walkit/wasabi-base/) also
+needs it, as a zip: each example takes one ("Wasabi base", or `--wasabi` on macOS).
 
 ## Web
 

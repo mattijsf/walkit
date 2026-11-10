@@ -89,9 +89,12 @@ export class Walkit {
     return id;
   }
 
-  /** A stack: the skin's files over the wasabi base (or -1), with siblings {name: filesId}. */
-  stack(skinId, wasabiId = -1, siblings = {}) {
-    const id = this.x.wk_stack_new(skinId, wasabiId);
+  /**
+   * A stack: the skin's files over its base (or -1: the wasabi base under a modern skin, a base
+   * skin under a classic one), with siblings {name: filesId}.
+   */
+  stack(skinId, baseId = -1, siblings = {}) {
+    const id = this.x.wk_stack_new(skinId, baseId);
     for (const [name, files] of Object.entries(siblings)) {
       this.withString(name, (p, n) => this.x.wk_stack_sibling(id, p, n, files));
     }

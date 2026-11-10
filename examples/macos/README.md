@@ -18,7 +18,10 @@ and Winamp Modern, 3 and 4 the built-in classic and modern skins.
 
 A modern skin (`.wal`) draws lists, scrollbars and frames it does not define from Winamp's
 [wasabi base](https://mattijsf.github.io/walkit/wasabi-base/): pass its zip with `--wasabi`.
-A classic skin (`.wsz`) needs none. Drop another skin on the window to open it.
+Under a classic skin (`.wsz`) the app puts Winamp's base skin (the built-in classic skin when
+the download fails) as its [base skin](https://mattijsf.github.io/walkit/base-skin/): a skin
+that draws only its main window shows Winamp's equalizer and playlist. Drop another skin on the
+window to open it.
 
 `--screenshot <out.png>` draws a second of frames without a window, writes the last one and
 exits; `--scale <n>` sets its size (2 by default).

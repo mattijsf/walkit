@@ -5,9 +5,10 @@
 //! (measured against Winamp 5.666 in a VM). The windows themselves, their docking,
 //! raising and the touch routing are the engine's, as for a modern skin.
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::files::SkinFiles;
+use crate::files::{SkinFiles, BASE_PREFIX};
 
 pub mod cursor;
 pub(crate) mod eq;
@@ -100,6 +101,44 @@ const CLASSIC_XML: &str = "classic.xml";
 /// Whether `files` hold a classic skin: a `main.bmp` and no `skin.xml`.
 pub fn is_classic(files: &dyn SkinFiles) -> bool {
     !files.exists("skin.xml") && files.exists("main.bmp")
+}
+
+/// Where a classic skin's bitmaps come from. A skin may leave bitmaps out (many skin only the
+/// main window); Winamp takes each missing one from its base skin, which a host lays under the
+/// skin at [`BASE_PREFIX`]. Worked out once when the skin loads.
+#[derive(Debug, Default)]
+pub struct Sheets {
+    from_base: HashMap<String, Rc<str>>,
+}
+
+impl Sheets {
+    /// The sheets of `files`, a classic skin's: each file directly under [`BASE_PREFIX`] that
+    /// the skin itself lacks comes from the base.
+    pub fn of(files: &dyn SkinFiles) -> Self {
+        let from_base = files
+            .names()
+            .into_iter()
+            .filter_map(|n| {
+                let name = n.strip_prefix(BASE_PREFIX)?;
+                (!name.contains('/') && !files.exists(name))
+                    .then(|| (name.to_string(), Rc::from(n.as_str())))
+            })
+            .collect();
+        Sheets { from_base }
+    }
+
+    /// The path the host reads `file` (a lowercase name in the skin, such as `eqmain.bmp`)
+    /// from: the skin's own file, or the base skin's when only the base has it.
+    pub fn path<'a>(&'a self, file: &'a str) -> &'a str {
+        self.from_base.get(file).map_or(file, |p| p)
+    }
+}
+
+impl crate::runtime::SkinRuntime {
+    /// The path the host reads classic sheet `file` from (see [`Sheets::path`]).
+    pub(crate) fn classic_sheet(&self, file: &str) -> String {
+        self.classic_sheets.path(file).to_string()
+    }
 }
 
 /// The containers of a classic skin, as the engine reads a modern skin's: the main window,

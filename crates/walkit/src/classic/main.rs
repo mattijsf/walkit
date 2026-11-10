@@ -90,7 +90,11 @@ impl SkinRuntime {
             _ => None,
         };
         let palette = self.classic_palette;
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         // the background, then the title bar over it
         p.blit("main.bmp", 0, 0, 275, 116, 0, 0);
         if let Some(px) = &vis {
@@ -298,7 +302,11 @@ impl SkinRuntime {
             _ => None,
         };
         let palette = self.classic_palette;
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         p.blit(
             "titlebar.bmp",
             27,
@@ -573,10 +581,12 @@ impl SkinRuntime {
     }
 }
 
-/// Blits into a window's draw list at the window's place.
+/// Blits into a window's draw list at the window's place, each sheet from the skin or, when
+/// only the base skin has it, from the base.
 pub(super) struct Painter<'a> {
     pub(super) at: Rect,
     pub(super) out: &'a mut Vec<DrawCmd>,
+    pub(super) sheets: std::rc::Rc<crate::classic::Sheets>,
 }
 
 impl Painter<'_> {
@@ -597,6 +607,7 @@ impl Painter<'_> {
         if w <= 0 || h <= 0 || dw <= 0 || dh <= 0 {
             return;
         }
+        let file = self.sheets.path(file);
         self.out.push(DrawCmd::Image {
             bitmap: BitmapDef::new(file, file, sx, sy, Some(w), Some(h), None),
             dst: Rect::new(self.at.left + dx, self.at.top + dy, dw, dh),
@@ -658,6 +669,7 @@ impl Painter<'_> {
         if w <= 0 || h <= 0 {
             return;
         }
+        let file = self.sheets.path(file);
         self.out.push(DrawCmd::Image {
             bitmap: BitmapDef::new(file, file, sx, sy, Some(w), Some(h), None),
             dst: Rect::new(self.at.left + dx, self.at.top + dy, w, h),

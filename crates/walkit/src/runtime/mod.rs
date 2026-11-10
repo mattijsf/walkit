@@ -116,6 +116,8 @@ pub struct SkinRuntime {
     pub(crate) classic_regions: HashMap<String, Vec<Vec<(i32, i32)>>>,
     /// A classic skin's playlist look (`pledit.txt`).
     pub(crate) classic_pledit: crate::classic::pledit::PleditStyle,
+    /// Where a classic skin's bitmaps come from: its own files, or the base skin's.
+    pub(crate) classic_sheets: Rc<crate::classic::Sheets>,
     /// `gen.bmp`'s font, once read.
     pub(crate) classic_gen_font: Option<Rc<crate::classic::gen::GenFont>>,
     /// The skin's cursor files, decoded as they are first asked for.
@@ -376,6 +378,7 @@ impl SkinRuntime {
             files,
             classic_regions: HashMap::new(),
             classic_pledit: crate::classic::pledit::PleditStyle::default(),
+            classic_sheets: Rc::default(),
             classic_gen_font: None,
             classic_cursors: HashMap::new(),
             classic_palette: crate::classic::viscolor::BASE,

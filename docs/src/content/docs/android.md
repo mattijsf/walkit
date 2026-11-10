@@ -47,6 +47,9 @@ the `SkinHost` and drives the `Player` through callbacks on that thread.
 - The fonts that stand in for Windows' system fonts (`fonts/LiberationSans.ttf` and others)
   are read from the skin's files, so a host puts them under the skin, beside the
   [wasabi base](/walkit/wasabi-base/) when it has one.
+- Under a classic skin, `LayeredSkinFiles` takes a classic [base skin](/walkit/base-skin/)
+  instead of the wasabi base (`WalArchive.isModern` tells the two kinds apart). The engine
+  takes every bitmap the skin leaves out from it.
 
 [`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is a
 complete app built this way, drawing every command on a `Canvas`.

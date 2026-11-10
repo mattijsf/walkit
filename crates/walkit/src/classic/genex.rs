@@ -105,11 +105,12 @@ fn half(c: u32) -> u32 {
 impl SkinRuntime {
     /// The colors a classic skin's `genex.bmp` gives what the host draws in a gen window (the
     /// media library's lists, a plug-in's controls), indexed by [`GenexColor`]. A skin without
-    /// the sheet gets the media library's colors.
+    /// the sheet takes the base skin's; without either it gets the media library's colors.
     pub fn classic_genex_colors(&mut self) -> [Rgb; GENEX_COLORS] {
-        let width = self.image_size(SHEET).map_or(0, |s| s.0);
+        let sheet = self.classic_sheet(SHEET);
+        let width = self.image_size(&sheet).map_or(0, |s| s.0);
         let row = (width > 0)
-            .then(|| self.host.pixels(SHEET, 0, 0, width, 1))
+            .then(|| self.host.pixels(&sheet, 0, 0, width, 1))
             .flatten();
         colors(row.as_deref())
     }

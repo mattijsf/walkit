@@ -16,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import nl.mattix.walkit.LayeredSkinFiles
 import nl.mattix.walkit.SkinFiles
+import nl.mattix.walkit.WalArchive
 import nl.mattix.walkit.WithGeneratedImages
 import nl.mattix.walkit.ZipSkinFiles
 import java.io.File
@@ -29,7 +30,8 @@ import java.net.URL
  * when the download fails; the classic one opens on the first start. "Open skin" picks a `.wsz` (classic) or `.wal` (modern) skin;
  * "Wasabi base" picks a zip of Winamp's wasabi folder, which modern skins draw lists,
  * scrollbars and frames from. Both are copied into the app's files and the skin opened last
- * opens again on start.
+ * opens again on start. Winamp's base skin (or the original classic skin when its download
+ * fails) lies under every classic skin and gives the bitmaps the skin leaves out.
  */
 class MainActivity : Activity() {
     private lateinit var skinView: SkinView
@@ -37,6 +39,7 @@ class MainActivity : Activity() {
 
     private val skinDir get() = File(filesDir, "skin")
     private val wasabiBase get() = File(filesDir, "wasabi-base.zip")
+    private val classicBase get() = File(filesDir, "classic-base.wsz")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -174,30 +177,52 @@ class MainActivity : Activity() {
         // the download lands in the cache; the skin shown keeps its file until the swap
         val downloaded = File(cacheDir, "download")
         Thread {
-            val name =
-                try {
-                    val connection = URL(remote.url).openConnection() as HttpURLConnection
-                    connection.connectTimeout = 10_000
-                    connection.readTimeout = 10_000
-                    try {
-                        if (connection.responseCode != 200) error("HTTP ${connection.responseCode}")
-                        connection.inputStream.use { input -> downloaded.outputStream().use { input.copyTo(it) } }
-                    } finally {
-                        connection.disconnect()
-                    }
-                    remote.name
-                } catch (e: Exception) {
-                    Log.w("walkit", "${remote.url} failed; showing ${remote.fallback}", e)
-                    assets.open(remote.fallback).use { input -> downloaded.outputStream().use { input.copyTo(it) } }
-                    remote.fallback
-                }
+            val name = fetch(remote, downloaded)
             runOnUiThread {
+                // Winamp's base skin is also the base under every classic skin
+                if (remote === CLASSIC) downloaded.copyTo(classicBase, overwrite = true)
                 downloaded.inputStream().use { keepSkin(name, it) }
                 downloaded.delete()
                 openSkin()
             }
         }.start()
     }
+
+    /** Downloads Winamp's base skin off the main thread as the base under classic skins, then opens the skin. */
+    private fun downloadClassicBase() {
+        status.text = "Downloading ${CLASSIC.name}..."
+        val downloaded = File(cacheDir, "classic-base")
+        Thread {
+            fetch(CLASSIC, downloaded)
+            runOnUiThread {
+                downloaded.copyTo(classicBase, overwrite = true)
+                downloaded.delete()
+                openSkin()
+            }
+        }.start()
+    }
+
+    /** Writes [remote] into [to], or its fallback from the assets when the download fails; the name of what it wrote. Blocks. */
+    private fun fetch(
+        remote: Remote,
+        to: File,
+    ): String =
+        try {
+            val connection = URL(remote.url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            try {
+                if (connection.responseCode != 200) error("HTTP ${connection.responseCode}")
+                connection.inputStream.use { input -> to.outputStream().use { input.copyTo(it) } }
+            } finally {
+                connection.disconnect()
+            }
+            remote.name
+        } catch (e: Exception) {
+            Log.w("walkit", "${remote.url} failed; showing ${remote.fallback}", e)
+            assets.open(remote.fallback).use { input -> to.outputStream().use { input.copyTo(it) } }
+            remote.fallback
+        }
 
     /** Opens the original skin of [remote]'s kind from the app's assets, without the download. */
     private fun openBuiltin(remote: Remote) {
@@ -238,9 +263,15 @@ class MainActivity : Activity() {
         }
         try {
             val skin = ZipSkinFiles(file)
-            val haveWasabi = wasabiBase.exists()
-            // a modern skin reads Winamp's wasabi base under paths starting with wasabi-base/
-            val files = if (haveWasabi) LayeredSkinFiles(skin, ZipSkinFiles(wasabiBase)) else skin
+            val classic = !WalArchive.isModern(skin.names())
+            if (classic && !classicBase.exists()) {
+                downloadClassicBase()
+                return
+            }
+            // what lies under the skin, read under paths starting with wasabi-base/: Winamp's base
+            // skin under a classic skin, the wasabi base (when picked) under a modern one
+            val base = if (classic) classicBase else wasabiBase.takeIf { it.exists() }
+            val files = if (base != null) LayeredSkinFiles(skin, ZipSkinFiles(base)) else skin
             skinView.show(WithGeneratedImages(WithStandInFonts(files)), file.nameWithoutExtension)
             status.text = file.name
         } catch (e: Exception) {

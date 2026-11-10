@@ -27,7 +27,8 @@ title: How it works
 The engine has no file, screen, font, clock or thread access. The host supplies them:
 
 - **Files.** The host opens the skin archive and hands the engine its files. A modern skin sits
-  over Winamp's [wasabi base](/walkit/wasabi-base/) when the host has it.
+  over Winamp's [wasabi base](/walkit/wasabi-base/) when the host has it, a classic skin over a
+  [base skin](/walkit/base-skin/) that gives the bitmaps it leaves out.
 - **Pictures and text.** The engine asks for a picture's size and pixels, and for a text's width
   and line metrics. The host decodes and measures with whatever libraries it has.
 - **The clock.** Every timer, animation and script reads one clock, in milliseconds. A host

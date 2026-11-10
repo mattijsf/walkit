@@ -4,7 +4,8 @@
 import { loadWalkit } from "./walkit-web/embed.mjs";
 
 // Winamp's own skins, from the Winamp Skin Museum. When a download fails, the page shows the
-// original skin of the same kind that ships beside the examples.
+// original skin of the same kind that ships beside the examples. Winamp's base skin also lies
+// under every classic skin: it gives the bitmaps a skin leaves out.
 const SKINS = {
   classic: {
     url: "https://r2.webampskins.org/skins/5e4f10275dcb1fb211d4a8b4f1bda236.wsz",
@@ -101,14 +102,22 @@ async function fetchSkin(kind) {
   }
 }
 
+// Winamp's base skin (or the built-in classic skin when the download fails), fetched once: the
+// same bytes each time, so the engine opens it once
+let classicBase = null;
+function baseSkin() {
+  classicBase ??= fetchSkin("classic").then(async (file) => ({ file, bytes: new Uint8Array(await file.arrayBuffer()) }));
+  return classicBase;
+}
+
 async function open(file) {
   skin?.free();
   for (const canvas of canvases.values()) canvas.remove();
   canvases.clear();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  // a modern skin sits over Winamp's wasabi base; a classic one needs none
-  const modern = /\.wal$/i.test(file.name);
-  skin = await walkit.openSkin(bytes, { name: file.name.replace(/\.\w+$/, ""), wasabi: modern ? wasabi : null });
+  // a classic skin lies over Winamp's base skin, a modern one over the wasabi base
+  const base = (await baseSkin()).bytes;
+  skin = await walkit.openSkin(bytes, { name: file.name.replace(/\.\w+$/, ""), base, wasabi });
   skin.rt.setFree(true, stage.clientWidth, stage.clientHeight);
   skin.rt.setPlaylist(tracks);
   // a classic skin opens with its main window alone; show the equalizer and the playlist too
@@ -199,8 +208,9 @@ document.getElementById("wasabi").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (file) wasabi = new Uint8Array(await file.arrayBuffer());
 });
+document.getElementById("classic").addEventListener("click", async () => open((await baseSkin()).file));
+document.getElementById("modern").addEventListener("click", async () => open(await fetchSkin("modern")));
 for (const kind of Object.keys(SKINS)) {
-  document.getElementById(kind).addEventListener("click", async () => open(await fetchSkin(kind)));
   // the original skin of the same kind, without trying the download
   document.getElementById(`walkit-${kind}`).addEventListener("click", async () => {
     const path = SKINS[kind].fallback;
@@ -220,4 +230,4 @@ document.body.addEventListener("drop", (e) => {
   if (file) open(file);
 });
 
-open(await fetchSkin("classic"));
+open((await baseSkin()).file);

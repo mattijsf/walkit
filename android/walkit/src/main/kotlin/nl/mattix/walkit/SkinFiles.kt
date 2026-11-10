@@ -168,9 +168,11 @@ public class ZipSkinFiles(
 }
 
 /**
- * A skin's files with Winamp's wasabi base behind them: paths under `wasabi-base/` read
- * from [base] (the `Plugins\freeform\xml\wasabi` folder, zipped), everything else from [skin].
- * Winamp draws lists, scrollbars and frames a skin does not define from that set.
+ * A skin's files with a base behind them: paths under `wasabi-base/` read from [base],
+ * everything else from [skin]. Under a modern skin the base is Winamp's wasabi base (the
+ * `Plugins\freeform\xml\wasabi` folder, zipped), which Winamp draws lists, scrollbars and frames
+ * a skin does not define from. Under a classic skin it is a classic base skin (such as Winamp's
+ * base skin), which gives every bitmap and cursor the skin leaves out.
  */
 public class LayeredSkinFiles(
     private val skin: SkinFiles,

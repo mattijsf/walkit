@@ -101,9 +101,10 @@ impl SkinRuntime {
         if let Some(f) = &self.classic_gen_font {
             return f.clone();
         }
-        let width = self.image_size(SHEET).map_or(0, |s| s.0);
-        let letters = self.host.pixels(SHEET, 0, 90, width, 1);
-        let digits = self.host.pixels(SHEET, 0, 74, width, 1);
+        let sheet = self.classic_sheet(SHEET);
+        let width = self.image_size(&sheet).map_or(0, |s| s.0);
+        let letters = self.host.pixels(&sheet, 0, 90, width, 1);
+        let digits = self.host.pixels(&sheet, 0, 74, width, 1);
         let font = std::rc::Rc::new(GenFont {
             letters: letters
                 .as_deref()
@@ -144,7 +145,11 @@ impl SkinRuntime {
             .chars()
             .take(TITLE_CHARS)
             .collect();
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         // the client area, black under what the window holds
         p.fill(
             LEFT,

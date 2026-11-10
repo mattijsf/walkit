@@ -16,6 +16,10 @@ in [`../skins`](../skins); "walkit classic" and "walkit modern" open those direc
 also hands the engine the stand-in fonts in `../skins/fonts`, which is why the server serves
 `examples/` as a whole.
 
+Winamp's base skin (or the original classic skin when the download fails) also lies under every
+classic skin the page opens, as its [base skin](https://mattijsf.github.io/walkit/base-skin/):
+a skin that draws only its main window shows Winamp's equalizer and playlist.
+
 "Skin" opens a `.wsz` or `.wal` of your own, as does dropping one on the page. "Wasabi base"
 takes a zip of Winamp's `wasabi` folder, for a modern skin that draws lists or frames from it;
 the guide's [wasabi base](https://mattijsf.github.io/walkit/wasabi-base/) page shows how to

@@ -9,7 +9,7 @@
 //     player(command, value) {},        // a button for the page's player (see Walkit.hostedRuntime)
 //     action(action, param, from) {},   // MENU, CLOSE, PLAYLIST, ...; from: {rect, point} in the viewport
 //   });                                 // the module next to this file, or { wasm: url } after
-//   const skin = await walkit.openSkin(wszBytes);  // a .wal: { wasabi }, after addFonts(fonts)
+//   const skin = await walkit.openSkin(skinBytes, { base, wasabi });  // base under a .wsz, wasabi under a .wal
 //   skin.rt.setFree(true, innerWidth, innerHeight);
 //   // each animation frame:
 //   skin.rt.setPlayerState({ status: "playing", positionMs, lengthMs, title });
@@ -43,6 +43,9 @@ async function bytesOf(source) {
 }
 
 const isClassic = (names) => names.has("main.bmp") && !names.has("skin.xml");
+
+// where the engine names the files of what lies under the skin (walkit::files::BASE_PREFIX)
+const BASE_PREFIX = "wasabi-base/";
 
 // the free fonts that stand in for the Windows fonts skins name
 const STAND_INS = {
@@ -108,7 +111,7 @@ class Embed {
     this.families = new Map([["", "Arial"]]);
     this.registered = new Set();
     this.measures = new Map();
-    this.wasabiBases = new Map();
+    this.bases = new Map();
     this.measure = document.createElement("canvas").getContext("2d");
   }
 
@@ -122,10 +125,10 @@ class Embed {
   }
 
   /**
-   * A wasabi base, opened once: its files in the engine, its pictures decoded. An archive is
-   * kept by its source; path -> bytes is opened each time.
+   * What lies under a skin (a base skin, the wasabi base), opened once: its files in the engine,
+   * its pictures decoded. An archive is kept by its source; path -> bytes is opened each time.
    */
-  wasabiBase(source) {
+  baseLayer(source) {
     const open = async () => {
       const entries = source instanceof Map ? source : inSkinFolder(await unzipAsync(await bytesOf(source), inflateRaw));
       const pictures = new Pictures();
@@ -133,8 +136,8 @@ class Embed {
       return { pics: pictures.pics, id: this.w.filesFrom(entries) };
     };
     if (source instanceof Map) return open();
-    if (!this.wasabiBases.has(source)) this.wasabiBases.set(source, open());
-    return this.wasabiBases.get(source);
+    if (!this.bases.has(source)) this.bases.set(source, open());
+    return this.bases.get(source);
   }
 
   /** Replaces the page's handlers, as when another part of the page takes the engine over. */
@@ -209,22 +212,24 @@ class Embed {
   }
 
   /**
-   * Opens a skin archive (a URL, an ArrayBuffer or bytes) over `wasabi`, an archive like the
-   * skin (kept once opened) or path -> bytes: for a classic .wsz the base skin its missing
-   * bitmaps come from, as Winamp takes them from its base skin; for a modern .wal Winamp's wasabi
-   * base, with the fonts given to `addFonts`. On the page's player unless `demoPlayer`.
+   * Opens a skin archive (a URL, an ArrayBuffer or bytes). What lies under it is an archive like
+   * the skin (kept once opened) or path -> bytes, and depends on the skin's own files: under a
+   * classic skin (.wsz) `base`, a classic base skin (such as Winamp's base skin) that gives every
+   * bitmap the skin leaves out, as Winamp takes them from its base skin; under a modern skin
+   * (.wal) `wasabi`, Winamp's wasabi base, with the fonts given to `addFonts`. The other one is
+   * not used. On the page's player unless `demoPlayer`.
    */
-  async openSkin(source, { name = "skin", wasabi = null, demoPlayer = false } = {}) {
-    const [entries, base] = await Promise.all([
-      bytesOf(source).then((b) => unzipAsync(b, inflateRaw)).then(inSkinFolder),
-      wasabi ? this.wasabiBase(wasabi) : null,
-    ]);
+  async openSkin(source, { name = "skin", wasabi = null, base = null, demoPlayer = false } = {}) {
+    const entries = inSkinFolder(await unzipAsync(await bytesOf(source), inflateRaw));
     const names = new Set([...entries.keys()].map(normalize));
+    const classic = isClassic(names);
+    const underSource = classic ? base : wasabi;
     const pictures = new Pictures();
-    await pictures.add(entries, inflate);
-    for (const [key, pic] of base?.pics ?? []) if (!pictures.pics.has(key)) pictures.pics.set(key, pic);
+    const [under] = await Promise.all([underSource ? this.baseLayer(underSource) : null, pictures.add(entries, inflate)]);
+    // the engine names the files under the skin by the prefix, as every host reads them
+    for (const [key, pic] of under?.pics ?? []) pictures.pics.set(BASE_PREFIX + key, pic);
     this.pictures = pictures;
-    this.classic = isClassic(names);
+    this.classic = classic;
     this.measures.clear();
     // the engine has the archive; the page keeps only the fonts it may ask for again
     this.skinFiles = new Map(
@@ -233,7 +238,7 @@ class Embed {
     for (const [path, bytes] of entries) {
       if (/\.ttf$/i.test(path)) await this.registerFont(path, bytes);
     }
-    const stack = this.w.stack(this.w.filesFrom(entries), base ? base.id : -1);
+    const stack = this.w.stack(this.w.filesFrom(entries), under ? under.id : -1);
     const make = demoPlayer ? "runtime" : "hostedRuntime";
     const rt = this.w[make](stack, name, false, performance.now());
     rt.load();

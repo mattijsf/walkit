@@ -9,7 +9,11 @@ use crate::runtime::SkinRuntime;
 
 impl SkinRuntime {
     pub(crate) fn draw_classic_eq(&mut self, o: ObjId, at: Rect, out: &mut Vec<DrawCmd>) {
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         // the background, the title bar over it; its buttons are the strip's until pressed
         p.blit("eqmain.bmp", 0, 0, 275, 116, 0, 0);
         let active = self
@@ -67,7 +71,11 @@ impl SkinRuntime {
             .is_some_and(|l| self.has_focus(Some(l)));
         let volume = self.player.volume().clamp(0, 255);
         let balance = self.player.pan().clamp(-127, 127) + 128;
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         p.blit("eq_ex.bmp", 0, if active { 0 } else { 15 }, 275, 14, 0, 0);
         p.blit(
             "eq_ex.bmp",

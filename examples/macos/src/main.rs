@@ -12,7 +12,8 @@
 //! With no skin file, the app downloads one of Winamp's own skins from the Winamp Skin Museum.
 //! When that fails, it shows the original skin of the same kind built into the app. In the
 //! window, keys 1 and 2 open Winamp's base skin and Winamp Modern, 3 and 4 the built-in classic
-//! and modern skins.
+//! and modern skins. Under a classic skin lies Winamp's base skin (or the built-in classic skin),
+//! which gives every bitmap the skin leaves out.
 //!
 //! The engine lays the skin out and hands back a draw list each frame; this app unzips the
 //! skin, decodes its pictures and fonts ([`host`]), draws the list into a window with a
@@ -67,6 +68,36 @@ const MODERN: Remote = Remote {
     fallback: include_bytes!("../../skins/walkit-modern.wal"),
     fallback_name: "walkit-modern.wal",
 };
+
+/// What lies under a skin: Winamp's base skin under a classic skin, fetched when one first
+/// needs it, and the wasabi base under a modern skin.
+struct Bases {
+    classic: Option<MemoryFiles>,
+    wasabi: Option<MemoryFiles>,
+}
+
+impl Bases {
+    /// Fetches Winamp's base skin to show, keeping it as the base for classic skins.
+    fn fetch_classic(&mut self) -> (Vec<u8>, String) {
+        let (bytes, name) = CLASSIC.fetch();
+        self.classic = unzip(bytes.clone()).ok();
+        (bytes, name)
+    }
+
+    /// The files under `skin`: Winamp's base skin under a classic skin (the built-in classic
+    /// skin when the download fails), the wasabi base under a modern one.
+    fn under(&mut self, skin: &MemoryFiles) -> Option<MemoryFiles> {
+        if !walkit::classic::is_classic(skin) {
+            return self.wasabi.clone();
+        }
+        let classic = self.classic.get_or_insert_with(|| {
+            unzip(CLASSIC.fetch().0)
+                .or_else(|_| unzip(CLASSIC.fallback.to_vec()))
+                .unwrap_or_default()
+        });
+        Some(classic.clone())
+    }
+}
 
 struct Remote {
     url: &'static str,
@@ -137,6 +168,10 @@ fn main() {
         }
         None => None,
     };
+    let mut bases = Bases {
+        classic: None,
+        wasabi,
+    };
     let (bytes, name) = match &options.skin {
         Some(path) => match std::fs::read(path) {
             Ok(bytes) => (bytes, title(path)),
@@ -145,16 +180,14 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        None => {
-            let remote = if options.modern { &MODERN } else { &CLASSIC };
-            if options.builtin {
-                remote.builtin()
-            } else {
-                remote.fetch()
-            }
-        }
+        None => match (options.modern, options.builtin) {
+            (true, true) => MODERN.builtin(),
+            (true, false) => MODERN.fetch(),
+            (false, true) => CLASSIC.builtin(),
+            (false, false) => bases.fetch_classic(),
+        },
     };
-    let skin = match Skin::open(bytes, &name, wasabi.as_ref()) {
+    let skin = match Skin::open(bytes, &name, &mut bases) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{name}: {e}");
@@ -171,7 +204,7 @@ fn main() {
     let event_loop = EventLoop::new().expect("an event loop");
     let mut app = App {
         skin,
-        wasabi,
+        bases,
         window: None,
         surface: None,
         cursor: PhysicalPosition::new(0.0, 0.0),
@@ -265,19 +298,17 @@ struct Skin {
 }
 
 impl Skin {
-    /// Opens the skin archive `bytes`, named `file_name`, over `wasabi`.
-    fn open(
-        bytes: Vec<u8>,
-        file_name: &str,
-        wasabi: Option<&MemoryFiles>,
-    ) -> Result<Skin, String> {
+    /// Opens the skin archive `bytes`, named `file_name`, over the base `bases` give it.
+    fn open(bytes: Vec<u8>, file_name: &str, bases: &mut Bases) -> Result<Skin, String> {
         let archive = unzip(bytes)?;
-        // the engine and the host each read the files; the bytes are shared, not copied
+        let under = bases.under(&archive);
+        // the engine and the host each read the files, so the host decodes wasabi-base/...
+        // pictures from the base too; the bytes are shared, not copied
         let layered = || -> Box<dyn SkinFiles> {
-            match wasabi {
-                Some(d) => Box::new(LayeredFiles::new(
+            match &under {
+                Some(base) => Box::new(LayeredFiles::new(
                     Box::new(archive.clone()),
-                    Box::new(d.clone()),
+                    Box::new(base.clone()),
                 )),
                 None => Box::new(archive.clone()),
             }
@@ -366,7 +397,7 @@ fn screenshot(mut skin: Skin, out: &Path, scale: i32) -> Result<(), String> {
 /// The window, its surface and the mouse.
 struct App {
     skin: Skin,
-    wasabi: Option<MemoryFiles>,
+    bases: Bases,
     window: Option<Rc<Window>>,
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     cursor: PhysicalPosition<f64>,
@@ -428,7 +459,7 @@ impl App {
 
     /// Shows the skin archive `bytes`, named `name`, in place of the one shown.
     fn show(&mut self, bytes: Vec<u8>, name: &str) {
-        match Skin::open(bytes, name, self.wasabi.as_ref()) {
+        match Skin::open(bytes, name, &mut self.bases) {
             Ok(skin) => {
                 self.skin = skin;
                 if let Some(window) = &self.window {
@@ -477,7 +508,7 @@ impl ApplicationHandler for App {
             WindowEvent::DroppedFile(path) => self.open(&path),
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 let skin = match event.logical_key.to_text() {
-                    Some("1") => CLASSIC.fetch(),
+                    Some("1") => self.bases.fetch_classic(),
                     Some("2") => MODERN.fetch(),
                     Some("3") => CLASSIC.builtin(),
                     Some("4") => MODERN.builtin(),

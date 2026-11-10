@@ -116,6 +116,7 @@ impl SkinRuntime {
             let inner =
                 std::mem::replace(&mut self.files, Box::new(crate::files::MemoryFiles::new()));
             self.files = Box::new(crate::classic::ClassicFiles::new(inner));
+            self.classic_sheets = Rc::new(crate::classic::Sheets::of(&*self.files));
             if let Some(text) = self.files.read("region.txt") {
                 self.classic_regions = crate::classic::region::parse(&utf8(&text));
             }

@@ -14,7 +14,8 @@ It is Winamp's art, so walkit doesn't ship it. A host that wants it supplies it 
 
 Often not.
 
-- **Classic skins** (`.wsz`) never use it.
+- **Classic skins** (`.wsz`) never use it. They take what they leave out from a classic
+  [base skin](/walkit/base-skin/) instead.
 - **Many modern skins** (`.wal`) draw everything themselves. Winamp Modern does, and so do the
   skins in the [examples](/walkit/examples/).
 - **Some modern skins** borrow parts from it, such as a list's scrollbar or a window's frame.

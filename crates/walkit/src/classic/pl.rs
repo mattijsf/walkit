@@ -90,7 +90,11 @@ impl SkinRuntime {
             .layout_object(o)
             .is_some_and(|l| self.has_focus(Some(l)));
         let y = if active { 42 } else { 57 };
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         p.blit("pledit.bmp", 72, y, 25, 14, 0, 0);
         let mut x = 25;
         for _ in 1..(w - 50) / 25 {
@@ -237,10 +241,11 @@ impl SkinRuntime {
     fn classic_list_ink(&mut self) -> Option<std::rc::Rc<ListInk>> {
         if !self.classic_list_ink_read {
             self.classic_list_ink_read = true;
+            let sheet = self.classic_sheet("text.bmp");
             self.classic_list_ink = self
-                .image_size("text.bmp")
+                .image_size(&sheet)
                 .and_then(|(w, h)| {
-                    let px = self.host.pixels("text.bmp", 0, 0, w, h)?;
+                    let px = self.host.pixels(&sheet, 0, 0, w, h)?;
                     ListInk::of(&px, w, h)
                 })
                 .map(std::rc::Rc::new);
@@ -398,7 +403,11 @@ impl SkinRuntime {
         let style = self.classic_pledit.clone();
         let tracks = self.player.tracks();
         let current = self.player.track_index();
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         // the list's background, under the frame, and the rows on it: "n. Title" with the
         // length at the right, the current song in the current color
         p.fill(12, 20, w - 32, h - 58, style.normal_bg);
@@ -717,6 +726,7 @@ mod tests {
         let mut p = Painter {
             at: Rect::new(0, 0, 275, 14),
             out: &mut out,
+            sheets: std::rc::Rc::default(),
         };
         SkinRuntime::shade_line_291(&mut p, 275, "1. Andamp", 600);
         let xs: Vec<i32> = out
@@ -738,6 +748,7 @@ mod tests {
         let mut p = Painter {
             at: Rect::new(0, 0, 275, 14),
             out: &mut out,
+            sheets: std::rc::Rc::default(),
         };
         SkinRuntime::shade_line_291(&mut p, 275, &"x".repeat(60), 61);
         let cells: Vec<(i32, i32)> = out

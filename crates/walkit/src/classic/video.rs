@@ -33,7 +33,11 @@ impl SkinRuntime {
             .layout_object(o)
             .is_some_and(|l| self.has_focus(Some(l)));
         let press = self.classic_press_on(o);
-        let mut p = Painter { at, out };
+        let mut p = Painter {
+            at,
+            out,
+            sheets: self.classic_sheets.clone(),
+        };
         p.fill(
             LEFT,
             TITLE_H,

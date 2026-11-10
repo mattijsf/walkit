@@ -25,7 +25,7 @@ const w = await Walkit.load(wasmBytes, {
   log: (line) => console.log(line),
 });
 const skin = w.filesFrom(entriesOfTheWal);          // path -> Uint8Array
-const stack = w.stack(skin, w.filesFrom(wasabi)); // the skin over Winamp's wasabi base
+const stack = w.stack(skin, w.filesFrom(wasabi)); // over the wasabi base, or a classic base skin
 const rt = w.runtime(stack, "Winamp Modern");
 rt.load();
 rt.setNow(performance.now());
@@ -54,7 +54,7 @@ const walkit = await loadWalkit({
   action(action, param, from) {},    // MENU, CLOSE, MINIMIZE, EQ_PRESETS, PLAYLIST, ...;
                                      // from.rect is where the button sits, for a menu
 });                                  // walkit.wasm next to embed.mjs, or { wasm: url } after
-const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { wasabi }
+const skin = await walkit.openSkin(skinBytes, { base, wasabi }); // or a URL; see below
 skin.rt.setFree(true, innerWidth, innerHeight); // windows apart, docked as on Winamp's desktop
 
 function frame(now) {
@@ -67,6 +67,12 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 ```
+
+`openSkin` tells a classic skin from a modern one by its own files and lays the matching base
+under it: `base`, a classic base skin such as Winamp's, only under a classic skin (`.wsz`), where
+it gives every bitmap the skin leaves out; `wasabi`, Winamp's wasabi base, only under a modern
+skin (`.wal`). Each is an archive's bytes, its URL, or a `Map` of path to bytes, and either may
+be left out. The guide's [base skin](https://mattijsf.github.io/walkit/base-skin/) page says more.
 
 Each window is `{id, container, layout, rect}`, listed bottom to top. With one canvas per window
 at `rect`, the page between the windows stays clickable.

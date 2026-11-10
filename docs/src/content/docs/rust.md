@@ -96,8 +96,9 @@ engine reads no archive itself, so the host unzips the skin with any zip library
 [wasabi base](/walkit/wasabi-base/): paths under `wasabi-base/` read from the base, everything
 else from the skin. Winamp draws lists, scrollbars and frames a skin does not define from it.
 
-A classic skin needs no base. The engine recognizes it by its `main.bmp` and generates its
-layout.
+The engine recognizes a classic skin by its `main.bmp` and generates its layout. Under a
+classic skin, the base is a classic [base skin](/walkit/base-skin/) instead: Winamp's base skin,
+say, unzipped into a `MemoryFiles`. The engine takes every bitmap the skin leaves out from it.
 
 ## The clock
 

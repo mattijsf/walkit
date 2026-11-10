@@ -3496,3 +3496,115 @@ fn a_press_on_add_steered_up_its_menu_picks_the_picture_it_is_let_go_on() {
         actions.borrow()
     );
 }
+
+/// A classic runtime on `skin`'s sheets over a base skin with every sheet, opened with the
+/// equalizer and the playlist.
+fn over_base(skin: &[&str], host: Box<dyn SkinHost>) -> SkinRuntime {
+    let mut own = MemoryFiles::new();
+    for s in skin {
+        own.insert(s, &b"x"[..]);
+    }
+    let mut base = MemoryFiles::new();
+    for s in SHEETS {
+        base.insert(s, &b"x"[..]);
+    }
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(crate::files::LayeredFiles::new(
+            Box::new(own),
+            Box::new(base),
+        )),
+        host,
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    rt
+}
+
+/// The files every blit of every window draws from.
+fn blit_files(rt: &mut SkinRuntime) -> std::collections::BTreeSet<String> {
+    rt.draw_windows()
+        .iter()
+        .flat_map(|(_, cmds)| cmds.iter())
+        .filter_map(|c| match c {
+            DrawCmd::Image { bitmap, .. } => Some(bitmap.file.to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_skin_of_only_the_main_window_takes_the_rest_from_the_base_skin() {
+    let mut rt = over_base(&["main.bmp", "cbuttons.bmp"], Box::new(QuietHost));
+    let files = blit_files(&mut rt);
+    for own in ["main.bmp", "cbuttons.bmp"] {
+        assert!(files.contains(own), "{own} from the skin");
+        assert!(!files.contains(&format!("wasabi-base/{own}")));
+    }
+    for base in [
+        "wasabi-base/titlebar.bmp",
+        "wasabi-base/text.bmp",
+        "wasabi-base/eqmain.bmp",
+        "wasabi-base/pledit.bmp",
+    ] {
+        assert!(files.contains(base), "{base} from the base skin");
+    }
+    assert!(!files.contains("eqmain.bmp"));
+    assert!(!files.contains("pledit.bmp"));
+}
+
+#[test]
+fn a_full_skin_draws_nothing_from_the_base_skin() {
+    let mut rt = over_base(&SHEETS, Box::new(QuietHost));
+    let files = blit_files(&mut rt);
+    assert!(files.contains("eqmain.bmp") && files.contains("pledit.bmp"));
+    assert!(
+        files.iter().all(|f| !f.starts_with("wasabi-base/")),
+        "{files:?}"
+    );
+}
+
+#[test]
+fn a_skin_without_balance_bmp_keeps_its_volume_sheet_for_the_balance() {
+    let mut rt = over_base(&["main.bmp", "volume.bmp"], Box::new(QuietHost));
+    let files = blit_files(&mut rt);
+    assert!(files.contains("volume.bmp"));
+    assert!(!files.contains("wasabi-base/balance.bmp"));
+    assert!(!files.contains("wasabi-base/volume.bmp"));
+}
+
+/// A host that keeps the files the engine asks the size of.
+struct SizeHost(Rc<RefCell<Vec<String>>>);
+
+impl SkinHost for SizeHost {
+    fn image_size(&mut self, file: &str) -> Option<(i32, i32)> {
+        self.0.borrow_mut().push(file.to_string());
+        None
+    }
+
+    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, _bold: bool) -> i32 {
+        text.chars().count() as i32 * size * 6 / 10
+    }
+
+    fn log(&mut self, _message: &str) {}
+
+    fn invalidate(&mut self) {}
+}
+
+#[test]
+fn the_playlist_letters_read_the_base_skins_text_bmp() {
+    let asked = Rc::new(RefCell::new(Vec::new()));
+    let mut rt = over_base(&["main.bmp"], Box::new(SizeHost(asked.clone())));
+    rt.set_presentation(&crate::host::Presentation {
+        skin_list_font: true,
+        ..rt.presentation()
+    });
+    let _ = rt.draw_windows();
+    assert!(asked.borrow().iter().any(|f| f == "wasabi-base/text.bmp"));
+    assert!(!asked.borrow().iter().any(|f| f == "text.bmp"));
+}
