@@ -152,10 +152,10 @@ export interface Walkit {
   setHandlers(handlers: Handlers): void;
   /** The stand-in fonts a modern skin lays out text with: path ("fonts/LiberationSans.ttf") to bytes. */
   addFonts(fonts: Map<string, Uint8Array>): Promise<void>;
-  /** A classic .wsz, or a modern .wal over `defaults` (Winamp's default element set). */
+  /** A classic .wsz, or a modern .wal over `wasabi` (Winamp's wasabi base). */
   openSkin(
     source: Source,
-    options?: { name?: string; defaults?: Source | Map<string, Uint8Array> | null; demoPlayer?: boolean }
+    options?: { name?: string; wasabi?: Source | Map<string, Uint8Array> | null; demoPlayer?: boolean }
   ): Promise<Skin>;
 }
 

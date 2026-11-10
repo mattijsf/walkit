@@ -144,7 +144,7 @@ impl SkinRuntime {
         if group.xui_params.is_empty() {
             return;
         }
-        // a default-set group the engine runs hears its parameters at once
+        // a wasabi-base group the engine runs hears its parameters at once
         if group.behavior.is_some() {
             let params =
                 std::mem::take(&mut self.objects[g].group.as_mut().expect("a group").xui_params);

@@ -31,7 +31,7 @@ const walkit = await loadWalkit({
   action(action, param, from) {},    // MENU, CLOSE, MINIMIZE, EQ_PRESETS, PLAYLIST, ...;
                                      // from.rect is where the button sits, for a menu
 });                                  // walkit.wasm next to embed.mjs, or { wasm: url }
-const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { defaults }
+const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { wasabi }
 skin.rt.setFree(true, innerWidth, innerHeight); // windows apart, docked as on Winamp's desktop
 
 function frame(now) {
@@ -88,7 +88,7 @@ const w = await Walkit.load(wasmBytes, {
   log: (line) => console.log(line),
 });
 const skin = w.filesFrom(entriesOfTheWal);          // path -> Uint8Array
-const stack = w.stack(skin, w.filesFrom(defaults)); // the skin over Winamp's default set
+const stack = w.stack(skin, w.filesFrom(wasabi)); // the skin over Winamp's wasabi base
 const rt = w.runtime(stack, "Winamp Modern");
 rt.load();
 rt.setNow(performance.now());

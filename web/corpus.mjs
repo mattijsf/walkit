@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Runs the trace scenarios through the wasm module as walkit-trace runs them on a desktop:
-// each skin from its archive with the sibling skins of the folder and Winamp's default set,
+// each skin from its archive with the sibling skins of the folder and Winamp's wasabi base,
 // the stand-in fonts, pictures decoded by the host (png.mjs), and the run timed on the host's
 // clock. Shared by the node runner and the browser page; they differ only in how bytes arrive.
 
@@ -61,7 +61,7 @@ export function siblingName(file) {
 /**
  * Runs every scenario. `source` gives: `scenarios()` -> the JSON list, `wasm()` -> bytes,
  * `archive(file)` -> Map of entries of a `.wal` in the skins folder (or null), `walFiles()`
- * -> the `.wal` names in the folder, `defaults()` -> Map or null, `fonts()` -> Map or null,
+ * -> the `.wal` names in the folder, `wasabi()` -> Map or null, `fonts()` -> Map or null,
  * `inflate(bytes)` -> zlib-inflated bytes (sync or a Promise), `now()` -> ms. `report(line)`
  * hears one line per scenario. Returns [{name, lines, frames, crc, stats, text?}].
  */
@@ -92,8 +92,8 @@ export async function runCorpus(source, report = () => {}, keepText = false) {
     return id;
   };
   const walFiles = await source.walFiles();
-  const defaults = await source.defaults();
-  const defaultsId = defaults ? await filesOf("<defaults>", defaults) : -1;
+  const wasabi = await source.wasabi();
+  const wasabiId = wasabi ? await filesOf("<wasabi>", wasabi) : -1;
   const fonts = await source.fonts();
   const fontsId = fonts ? await filesOf("<fonts>", fonts) : -1;
   const results = [];
@@ -112,7 +112,7 @@ export async function runCorpus(source, report = () => {}, keepText = false) {
         if (e) siblings[siblingName(f)] = await filesOf(f, e);
       }
     }
-    const stack = w.stack(skinId, sc.noDefaults ? -1 : defaultsId, siblings);
+    const stack = w.stack(skinId, sc.noDefaults ? -1 : wasabiId, siblings);
     const { text, stats } = w.record(stack, fontsId, specOf(sc));
     const r = { name: sc.name, lines: text.split("\n").length - 1, frames: stats.frames, crc: crc32(text), stats };
     if (keepText) r.text = text;

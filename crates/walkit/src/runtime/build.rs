@@ -95,7 +95,7 @@ fn utf8(bytes: &[u8]) -> String {
 impl SkinRuntime {
     /// Loads `skin.xml` and everything it includes, builds the windows and starts the scripts.
     pub fn load(&mut self) {
-        // Winamp's default element set first, when the app has it (files under wasabi-base/): a
+        // Winamp's wasabi base first, when the app has it (files under wasabi-base/): a
         // skin's definitions then override it, as they do in Winamp
         if let Some(base_xml) = self.files.read(&format!("{BASE_PREFIX}wasabi.xml")) {
             let base_nodes = self.expand(
@@ -642,7 +642,7 @@ impl SkinRuntime {
             return;
         }
         let name = node.name.as_str();
-        // Wasabi's tags (Wasabi:Button, Wasabi:Text, ...) are xui groups of the default set when it
+        // Wasabi's tags (Wasabi:Button, Wasabi:Text, ...) are xui groups of the wasabi base when it
         // defines them: a framed button inside a group, and so on
         if name.starts_with("wasabi:") {
             if let Some(def_id) = self.xui_tags.get(name).cloned() {
@@ -1030,7 +1030,7 @@ fn behavior_of(def: &XmlNode) -> Option<Behavior> {
     }
 }
 
-/// The same tree with every `file` attribute under `prefix`: the default set's pictures live there.
+/// The same tree with every `file` attribute under `prefix`: the wasabi base's pictures live there.
 fn prefix_files(node: &Rc<XmlNode>, prefix: &str) -> Rc<XmlNode> {
     let attrs = if FILE_NODES.contains(&node.name.as_str()) && node.has("file") {
         node.attrs

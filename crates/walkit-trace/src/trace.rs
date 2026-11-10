@@ -388,7 +388,7 @@ mod tests {
             main_size: None,
             taps: taps.iter().map(std::string::ToString::to_string).collect(),
             have_library: true,
-            no_defaults: true,
+            no_wasabi: true,
             no_siblings: true,
         }
     }

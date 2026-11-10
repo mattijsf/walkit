@@ -16,7 +16,7 @@ import java.io.File
  * for the byte compare with the traces the same commit writes on a desktop: the proof that the
  * binding carries everything the engine does. The inputs are pushed to `/data/local/tmp/walkit` beforehand
  * (`scenarios.json`, the corpus skins in `skins/`, the small set in `small/` with
- * `scenarios-small.json`, `wasabi-defaults.zip`, the stand-in fonts in `fonts/`; see README.md);
+ * `scenarios-small.json`, `wasabi-base.zip`, the stand-in fonts in `fonts/`; see README.md);
  * the traces land in the test app's external files dir, to be pulled and diffed with
  * `tools/trace-diff.sh`. Skipped without the inputs.
  */
@@ -95,14 +95,14 @@ class CorpusTraceTest {
 
     /**
      * The skin with the other `.wal` files of its folder as siblings (by folder name, "BigBento.wal"
-     * is "Big Bento"), Winamp's default set under it, and the stand-in fonts in `fonts/` as the
+     * is "Big Bento"), Winamp's wasabi base under it, and the stand-in fonts in `fonts/` as the
      * engine asks for them.
      */
     private fun stack(
         skin: SkinFiles,
         folder: File,
         noSiblings: Boolean = false,
-        noDefaults: Boolean = false,
+        noWasabi: Boolean = false,
     ): SkinFiles {
         var files = skin
         if (!noSiblings) {
@@ -113,12 +113,12 @@ class CorpusTraceTest {
                     .associate { f -> f.nameWithoutExtension.replace(" ", "").lowercase() to ZipSkinFiles.OnDemand(f) }
             files = SkinsFolderFiles(files, siblings)
         }
-        val defaults = File(inputs, "wasabi-defaults.zip")
-        if (!noDefaults && defaults.exists()) files = LayeredSkinFiles(files, ZipSkinFiles(defaults))
+        val wasabi = File(inputs, "wasabi-base.zip")
+        if (!noWasabi && wasabi.exists()) files = LayeredSkinFiles(files, ZipSkinFiles(wasabi))
         return WithFonts(files, File(inputs, "fonts"))
     }
 
-    /** [files] with the stand-in fonts of [dir] at `fonts/<name>`, as a host's default set carries them. */
+    /** [files] with the stand-in fonts of [dir] at `fonts/<name>`, as a host's wasabi base carries them. */
     private class WithFonts(
         private val files: SkinFiles,
         private val dir: File,

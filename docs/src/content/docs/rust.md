@@ -50,13 +50,13 @@ impl SkinHost for Host {
 fn main() {
     let mut skin = MemoryFiles::new();
     // insert each entry of the .wal or .wsz archive: skin.insert(path, bytes)
-    let defaults = MemoryFiles::new(); // the entries of Winamp's wasabi folder, for a modern skin
+    let wasabi = MemoryFiles::new(); // the entries of Winamp's wasabi folder, for a modern skin
 
     let start = Instant::now();
     let clock: Clock = Rc::new(move || start.elapsed().as_millis() as i64);
 
     let mut rt = SkinRuntime::new(
-        Box::new(LayeredFiles::new(Box::new(skin), Box::new(defaults))),
+        Box::new(LayeredFiles::new(Box::new(skin), Box::new(wasabi))),
         Box::new(Host),
         Box::new(FakePlayer::new(clock.clone())),
         SkinSetup { skin_name: "Winamp Modern".into(), ..SkinSetup::default() },

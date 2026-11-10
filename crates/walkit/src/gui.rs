@@ -242,7 +242,7 @@ pub struct GroupData {
     pub auto_height_source: Option<String>,
     /// The scripts that live in this group, by System object index.
     pub system_objects: Vec<usize>,
-    /// What the engine does for this group where Winamp's default set runs a script.
+    /// What the engine does for this group where Winamp's wasabi base runs a script.
     pub behavior: Option<Behavior>,
     /// Attributes a xui tag got that are no GUI attributes; sent to its scripts as `onSetXuiParam`.
     pub xui_params: Vec<(String, String)>,
@@ -250,7 +250,7 @@ pub struct GroupData {
     pub embed_xui: Option<String>,
 }
 
-/// What the engine does for a default-set group where Winamp's default set runs a script.
+/// What the engine does for a wasabi-base group where Winamp's wasabi base runs a script.
 #[derive(Debug, Clone)]
 pub enum Behavior {
     /// A standard frame: `content` names the group placed in its client area.
@@ -679,7 +679,7 @@ pub struct FrameData {
     pub first: Option<ObjId>,
     /// The second pane.
     pub second: Option<ObjId>,
-    /// The divider picture ("" for none; `None` for the default set's).
+    /// The divider picture ("" for none; `None` for the wasabi base's).
     pub divider: Option<String>,
     /// The grabber picture.
     pub grabber: Option<String>,

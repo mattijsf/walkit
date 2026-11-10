@@ -1,7 +1,7 @@
 //! Times the frames a host draws while a skin plays: the engine's tick and drawing, the
 //! planner and the frame writer, each separately.
 //!
-//!   cargo run --release -p walkit-trace --example frames -- <skin> [defaults.zip] [fonts dir] [seconds]
+//!   cargo run --release -p walkit-trace --example frames -- <skin> [wasabi-base.zip] [fonts dir] [seconds]
 
 use std::cell::{Cell, RefCell};
 use std::path::Path;
@@ -36,7 +36,7 @@ fn main() {
     if let Some(d) = args.get(1).filter(|a| !a.is_empty()) {
         files = Box::new(walkit::files::LayeredFiles::new(
             files,
-            Box::new(read_wal(Path::new(d)).expect("the defaults")),
+            Box::new(read_wal(Path::new(d)).expect("the wasabi base")),
         ));
     }
     let font_files = args

@@ -44,8 +44,8 @@ async function run() {
       wasm: () => fetchBytes("/walkit.wasm"),
       archive,
       walFiles: async () => (await fetch("/wal-files.json")).json(),
-      defaults: async () => {
-        const b = await fetchBytes("/pack/defaults");
+      wasabi: async () => {
+        const b = await fetchBytes("/pack/wasabi");
         return b ? unpack(b) : null;
       },
       fonts: async () => {

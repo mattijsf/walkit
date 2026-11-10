@@ -2,7 +2,7 @@
 
 //! The skin's files as the Kotlin side holds them: every read goes to the `FilesBridge`
 //! (`read(path): ByteArray?`, `names(): Array<String>`), so the stack of files (a skin, its
-//! siblings, the default set) is composed on the Kotlin side and copied nowhere.
+//! siblings, the wasabi base) is composed on the Kotlin side and copied nowhere.
 
 use std::rc::Rc;
 

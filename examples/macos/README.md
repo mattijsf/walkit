@@ -8,7 +8,7 @@ software into a `winit` window through `softbuffer`, and passes the mouse back t
 cargo run --release                   # Winamp's base skin
 cargo run --release -- --modern       # Winamp Modern
 cargo run --release -- --builtin      # the built-in classic skin; with --modern, the modern one
-cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
+cargo run --release -- <skin.wsz|skin.wal> [--wasabi <wasabi-base.zip>]
 ```
 
 With no skin file, the app downloads Winamp's base skin or Winamp Modern from the Winamp Skin
@@ -17,8 +17,8 @@ Museum. When the download fails, it shows the original skin of the same kind fro
 and Winamp Modern, 3 and 4 the built-in classic and modern skins.
 
 A modern skin (`.wal`) draws lists, scrollbars and frames it does not define from Winamp's
-default element set: pass it as a zip of the `Plugins/freeform/xml/wasabi` folder with
-`--defaults`. A classic skin (`.wsz`) needs none. Drop another skin on the window to open it.
+wasabi base: pass it as a zip of the `Plugins/freeform/xml/wasabi` folder with
+`--wasabi`. A classic skin (`.wsz`) needs none. Drop another skin on the window to open it.
 
 `--screenshot <out.png>` draws a second of frames without a window, writes the last one and
 exits; `--scale <n>` sets its size (2 by default).

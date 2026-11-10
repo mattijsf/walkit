@@ -28,7 +28,7 @@ consumer's shrinker needs no extra rules.
 ```kotlin
 import nl.mattix.walkit.*
 
-val files = LayeredSkinFiles(ZipSkinFiles(File("skin.wal")), defaultSet)   // the skin over the default set
+val files = LayeredSkinFiles(ZipSkinFiles(File("skin.wal")), wasabiBase)   // the skin over the wasabi base
 val rt = SkinRuntime(files, host, player, SkinSetup(skinName = "Winamp Modern"))
 rt.load()
 if (rt.tick()) for ((rect, cmds) in rt.drawWindows()) draw(rect, cmds)
@@ -45,7 +45,7 @@ the `SkinHost` and drives the `Player` through callbacks on that thread.
 - A frame crosses the boundary once per `drawWindows`, as one packed buffer decoded into
   `DrawCmd`s.
 - The fonts that stand in for Windows' system fonts (`fonts/LiberationSans.ttf` and others)
-  are read from the skin's files, so a host puts its default set, fonts included, under the
+  are read from the skin's files, so a host puts its wasabi base, fonts included, under the
   skin.
 
 [`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is a

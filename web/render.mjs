@@ -155,7 +155,7 @@ function fillCanvas(c, argb, hard = false) {
 }
 
 /**
- * The pictures of a stack of files (the skin's over the default set's), decoded ahead so the
+ * The pictures of a stack of files (the skin's over the wasabi base's), decoded ahead so the
  * engine's questions (a picture's size, its pixels) are answered at once.
  */
 export class Pictures {

@@ -5,13 +5,13 @@
 //! line-by-line diff against the traces of the last release.
 //!
 //! ```text
-//! walkit-trace <scenarios.json> <out dir> [--skins <dir>] [--defaults <zip>] [--fonts <dir>] [--stats <file>]
+//! walkit-trace <scenarios.json> <out dir> [--skins <dir>] [--wasabi <zip>] [--fonts <dir>] [--stats <file>]
 //! ```
 //!
 //! The scenario file is a JSON list; each entry names the skin (`wal`, a file in the skins
 //! folder), the skin's folder name (`skin`), the songs (`playlist`), and what the run does
 //! (`theme`, `view`, `show`, `mainsize`, `taps`, `noLibrary`). The other `.wal` files in the
-//! skins folder are the skin's siblings, and Winamp's default element set (`--defaults`) is
+//! skins folder are the skin's siblings, and Winamp's wasabi base (`--wasabi`) is
 //! layered under the skin, unless the entry says `noSiblings` or `noDefaults`. `--fonts` names
 //! the folder with the free fonts that stand in for Windows' system fonts. `--stats` writes
 //! what each run took as JSON (see `walkit_trace::trace::Stats`).
@@ -24,7 +24,7 @@ use walkit_trace::trace::Stats;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: walkit-trace <scenarios.json> <out dir> [--skins <dir>] [--defaults <zip>] [--fonts <dir>] [--stats <file>]"
+        "usage: walkit-trace <scenarios.json> <out dir> [--skins <dir>] [--wasabi <zip>] [--fonts <dir>] [--stats <file>]"
     );
     eprintln!(
         "writes <out dir>/<scenario name>.trace, trace v{}",
@@ -88,20 +88,20 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut plain: Vec<String> = Vec::new();
     let mut skins: Option<PathBuf> = None;
-    let mut defaults: Option<PathBuf> = None;
+    let mut wasabi: Option<PathBuf> = None;
     let mut font_dir: Option<PathBuf> = None;
     let mut stats_path: Option<PathBuf> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--skins" | "--defaults" | "--fonts" | "--stats" => {
+            "--skins" | "--wasabi" | "--fonts" | "--stats" => {
                 let Some(v) = args.get(i + 1) else {
                     return usage();
                 };
                 let p = PathBuf::from(v);
                 match args[i].as_str() {
                     "--skins" => skins = Some(p),
-                    "--defaults" => defaults = Some(p),
+                    "--wasabi" => wasabi = Some(p),
                     "--fonts" => font_dir = Some(p),
                     _ => stats_path = Some(p),
                 }
@@ -149,7 +149,7 @@ fn main() -> ExitCode {
             failed += 1;
             continue;
         }
-        let files = match archive::skin_files(&wal, &siblings, defaults.as_deref(), sc) {
+        let files = match archive::skin_files(&wal, &siblings, wasabi.as_deref(), sc) {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("{}: {e}", sc.name);

@@ -9,7 +9,7 @@ API in package `nl.mattix.walkit`.
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
-./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.7.3
+./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.8.0
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
 
@@ -33,7 +33,7 @@ consumer's shrinker needs no extra rules.
 
 ## Test fixtures
 
-`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.7.3"))` adds the engine built for
+`testImplementation(testFixtures("nl.mattix.walkit:walkit:0.8.0"))` adds the engine built for
 the publishing machine (the `cargoBuildHost` task, a plain `cargo build`), so a consumer's JVM
 unit tests can run skins.
 
@@ -49,7 +49,7 @@ make a Config item, listen for events).
 ```kotlin
 import nl.mattix.walkit.*
 
-val files = LayeredSkinFiles(ZipSkinFiles(File("skin.wal")), defaultSet)   // the skin over the default set
+val files = LayeredSkinFiles(ZipSkinFiles(File("skin.wal")), wasabiBase)   // the skin over the wasabi base
 val rt = SkinRuntime(files, host, player, SkinSetup(skinName = "Winamp Modern"))
 rt.load()
 if (rt.tick()) for ((rect, cmds) in rt.drawWindows()) draw(rect, cmds)
@@ -66,7 +66,7 @@ the `SkinHost` and drives the `Player` through callbacks on that thread.
 - A frame crosses the boundary once per `drawWindows`, as one packed buffer decoded into
   `DrawCmd`s.
 - The fonts that stand in for Windows' system fonts (`fonts/LiberationSans.ttf` and others)
-  are read from the skin's files, so a host puts its default set, fonts included, under the
+  are read from the skin's files, so a host puts its wasabi base, fonts included, under the
   skin.
 
 `drawPlanned` returns each frame with a plan: which stretches of a window change from frame to
@@ -95,7 +95,7 @@ D=/data/local/tmp/walkit
 $ADB shell mkdir -p $D/skins $D/small $D/fonts
 $ADB push <corpus skins>/*.wal $D/skins/
 $ADB push <small skins>/*.wal $D/small/
-$ADB push <wasabi-defaults.zip> <scenarios.json> <scenarios-small.json> $D/
+$ADB push <wasabi-base.zip> <scenarios.json> <scenarios-small.json> $D/
 $ADB push <fonts>/*.ttf $D/fonts/
 ANDROID_SERIAL=emulator-5690 ./gradlew :walkit:connectedAndroidTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true   # keeps the APK and its traces

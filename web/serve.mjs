@@ -2,9 +2,9 @@
 
 // A local server for the browser page: serves the page, the wasm module, the scenarios, and
 // each archive unzipped as a pack (see corpus.mjs), and keeps the results a page posts.
-// The skins and the default set stay where they are on this machine; nothing is copied.
+// The skins and the wasabi base stay where they are on this machine; nothing is copied.
 //
-//   node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>]
+//   node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--wasabi <zip>]
 //                      [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765] [--host 127.0.0.1]
 //
 // `--host 0.0.0.0` opens the page to the local network, so a phone on the same wifi can show
@@ -26,7 +26,7 @@ const args = process.argv.slice(2);
 const opts = { port: "8765", host: "127.0.0.1" };
 for (let i = 0; i < args.length; i += 2) opts[args[i].slice(2)] = args[i + 1];
 if (!opts.wasm || !opts.scenarios || !opts.skins) {
-  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--defaults <zip>] [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765] [--host 127.0.0.1]");
+  console.error("usage: node web/serve.mjs --wasm <file> --scenarios <json> --skins <dir> [--wasabi <zip>] [--fonts <dir>] [--results <file>] [--snapshots <dir>] [--port 8765] [--host 127.0.0.1]");
   process.exit(2);
 }
 const here = dirname(fileURLToPath(import.meta.url));
@@ -107,9 +107,9 @@ const server = createServer((req, res) => {
       if (!existsSync(path) || file.includes("..")) return send(404, "no such skin", "text/plain");
       return send(200, packOf(`skin:${file}`, () => pack(unzip(new Uint8Array(readFileSync(path)), inflateRawSync))));
     }
-    if (url.pathname === "/pack/defaults") {
-      if (!opts.defaults || !existsSync(opts.defaults)) return send(404, "no defaults", "text/plain");
-      return send(200, packOf("defaults", () => pack(unzip(new Uint8Array(readFileSync(opts.defaults)), inflateRawSync))));
+    if (url.pathname === "/pack/wasabi") {
+      if (!opts.wasabi || !existsSync(opts.wasabi)) return send(404, "no wasabi base", "text/plain");
+      return send(200, packOf("wasabi", () => pack(unzip(new Uint8Array(readFileSync(opts.wasabi)), inflateRawSync))));
     }
     if (url.pathname === "/pack/fonts") {
       if (!opts.fonts || !existsSync(opts.fonts)) return send(404, "no fonts", "text/plain");

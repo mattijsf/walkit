@@ -900,7 +900,7 @@ impl SkinRuntime {
 
     /// The command buttons, left ones then right ones, each with its box, and the field
     /// between the two groups. The buttons fill the bar's height and sit edge to edge from
-    /// its ends, as the reference VM shows in MMD3 and the default set alike.
+    /// its ends, as the reference VM shows in MMD3 and the wasabi base alike.
     fn status_cells(&mut self, o: ObjId) -> (Vec<(&'static str, Rect)>, Rect) {
         let rect = self.objects[o].base.rect;
         let (left, right) = self.status_commands(o);

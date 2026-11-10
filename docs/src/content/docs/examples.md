@@ -18,8 +18,9 @@ from `examples/skins/fonts`, under every skin, where the engine looks for them; 
 draws those faces with the system's own Arial and Tahoma. A classic playlist then sets its rows
 in Arial's widths, as Winamp does.
 
-Any other `.wsz` or `.wal` opens too. A modern skin that draws lists or frames from Winamp's
-default element set also needs that set, a zip of its `wasabi` folder.
+Any other `.wsz` or `.wal` opens too. A modern skin that borrows frames, scrollbars or lists
+from Winamp's [wasabi base](/walkit/how-it-works/#the-wasabi-base) also needs that folder as a
+zip: each example takes one ("Wasabi base", or `--wasabi` on macOS).
 
 ## Web
 
@@ -37,7 +38,7 @@ python3 -m http.server -d examples 8000
 
 [`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is an app on
 the AAR, as the [Android](/walkit/android/) guide describes: buttons for the two Winamp skins,
-an "Open skin" button, a "Default set" button, and a view that runs the skin, draws every command on a `Canvas` and passes touches
+an "Open skin" button, a "Wasabi base" button, and a view that runs the skin, draws every command on a `Canvas` and passes touches
 to the engine. It builds the library from source through an `includeBuild`, so it needs the same
 toolchain.
 
@@ -56,7 +57,7 @@ software into a `winit` window, window shapes included.
 ```bash
 cd examples/macos
 cargo run --release                  # Winamp's base skin; --modern for Winamp Modern
-cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
+cargo run --release -- <skin.wsz|skin.wal> [--wasabi <wasabi-base.zip>]
 ```
 
 Drop another skin on the window to open it.

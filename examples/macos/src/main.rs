@@ -6,7 +6,7 @@
 //! cargo run --release                  # Winamp's base skin
 //! cargo run --release -- --modern       # Winamp Modern
 //! cargo run --release -- --builtin      # the original classic skin; with --modern, the modern one
-//! cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
+//! cargo run --release -- <skin.wsz|skin.wal> [--wasabi <wasabi-base.zip>]
 //! ```
 //!
 //! With no skin file, the app downloads one of Winamp's own skins from the Winamp Skin Museum.
@@ -111,7 +111,7 @@ struct Options {
     skin: Option<PathBuf>,
     modern: bool,
     builtin: bool,
-    defaults: Option<PathBuf>,
+    wasabi: Option<PathBuf>,
     screenshot: Option<PathBuf>,
     scale: i32,
 }
@@ -123,16 +123,16 @@ fn main() {
             eprintln!("{e}");
             eprintln!(
                 "usage: walkit-macos-example [<skin.wsz|skin.wal> | --modern | --builtin] \
-                 [--defaults <wasabi-defaults.zip>] [--screenshot <out.png>] [--scale <n>]"
+                 [--wasabi <wasabi-base.zip>] [--screenshot <out.png>] [--scale <n>]"
             );
             std::process::exit(2);
         }
     };
-    // a modern skin draws lists, scrollbars and frames it does not define from the default set
-    let defaults = match options.defaults.as_deref().map(read_archive) {
+    // a modern skin draws lists, scrollbars and frames it does not define from the wasabi base
+    let wasabi = match options.wasabi.as_deref().map(read_archive) {
         Some(Ok(d)) => Some(d),
         Some(Err(e)) => {
-            eprintln!("defaults: {e}");
+            eprintln!("wasabi: {e}");
             std::process::exit(1);
         }
         None => None,
@@ -154,7 +154,7 @@ fn main() {
             }
         }
     };
-    let skin = match Skin::open(bytes, &name, defaults.as_ref()) {
+    let skin = match Skin::open(bytes, &name, wasabi.as_ref()) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{name}: {e}");
@@ -171,7 +171,7 @@ fn main() {
     let event_loop = EventLoop::new().expect("an event loop");
     let mut app = App {
         skin,
-        defaults,
+        wasabi,
         window: None,
         surface: None,
         cursor: PhysicalPosition::new(0.0, 0.0),
@@ -185,7 +185,7 @@ fn main() {
 fn parse_args() -> Result<Options, String> {
     let mut args = std::env::args().skip(1);
     let mut skin = None;
-    let mut defaults = None;
+    let mut wasabi = None;
     let mut screenshot = None;
     let mut modern = false;
     let mut builtin = false;
@@ -195,7 +195,7 @@ fn parse_args() -> Result<Options, String> {
         match arg.as_str() {
             "--modern" => modern = true,
             "--builtin" => builtin = true,
-            "--defaults" => defaults = Some(PathBuf::from(value()?)),
+            "--wasabi" => wasabi = Some(PathBuf::from(value()?)),
             "--screenshot" => screenshot = Some(PathBuf::from(value()?)),
             "--scale" => {
                 scale = value()?
@@ -211,7 +211,7 @@ fn parse_args() -> Result<Options, String> {
         skin,
         modern,
         builtin,
-        defaults,
+        wasabi,
         screenshot,
         scale,
     })
@@ -265,16 +265,16 @@ struct Skin {
 }
 
 impl Skin {
-    /// Opens the skin archive `bytes`, named `file_name`, over `defaults`.
+    /// Opens the skin archive `bytes`, named `file_name`, over `wasabi`.
     fn open(
         bytes: Vec<u8>,
         file_name: &str,
-        defaults: Option<&MemoryFiles>,
+        wasabi: Option<&MemoryFiles>,
     ) -> Result<Skin, String> {
         let archive = unzip(bytes)?;
         // the engine and the host each read the files; the bytes are shared, not copied
         let layered = || -> Box<dyn SkinFiles> {
-            match defaults {
+            match wasabi {
                 Some(d) => Box::new(LayeredFiles::new(
                     Box::new(archive.clone()),
                     Box::new(d.clone()),
@@ -366,7 +366,7 @@ fn screenshot(mut skin: Skin, out: &Path, scale: i32) -> Result<(), String> {
 /// The window, its surface and the mouse.
 struct App {
     skin: Skin,
-    defaults: Option<MemoryFiles>,
+    wasabi: Option<MemoryFiles>,
     window: Option<Rc<Window>>,
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     cursor: PhysicalPosition<f64>,
@@ -428,7 +428,7 @@ impl App {
 
     /// Shows the skin archive `bytes`, named `name`, in place of the one shown.
     fn show(&mut self, bytes: Vec<u8>, name: &str) {
-        match Skin::open(bytes, name, self.defaults.as_ref()) {
+        match Skin::open(bytes, name, self.wasabi.as_ref()) {
             Ok(skin) => {
                 self.skin = skin;
                 if let Some(window) = &self.window {

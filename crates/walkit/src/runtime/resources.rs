@@ -268,7 +268,7 @@ impl SkinRuntime {
     }
 
     /// The name a color is defined under, as an RGB or an alias: `id` or its old-style twin, a
-    /// skin's definition before the default set's. `None` when neither is defined.
+    /// skin's definition before the wasabi base's. `None` when neither is defined.
     fn color_key(&self, id: &str) -> Option<String> {
         let names: Vec<String> = names_for(id)
             .into_iter()

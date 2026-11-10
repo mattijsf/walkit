@@ -19,7 +19,7 @@ a change moves.
 
    ```bash
    cargo run --release -p walkit-trace -- <scenarios.json> traces \
-     --skins <skins dir> --defaults <wasabi-defaults.zip> --fonts <fonts dir>
+     --skins <skins dir> --wasabi <wasabi-base.zip> --fonts <fonts dir>
    ```
 
 2. Compare them with the traces of the last release:
@@ -37,7 +37,7 @@ a change moves.
 The inputs stay outside the repository: the skins are other people's work, and the traces are
 tens of megabytes per run.
 
-`--defaults` takes a zip of Winamp's `wasabi` folder. `--fonts` takes a folder with DejaVu Sans
+`--wasabi` takes a zip of Winamp's `wasabi` folder. `--fonts` takes a folder with DejaVu Sans
 Condensed and Liberation Sans, which stand in for Windows' system fonts. Without Liberation
 Sans, text set in Arial lands on different baselines.
 

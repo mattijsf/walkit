@@ -195,7 +195,7 @@ class SkinView(
 
     // ---- SkinHost: text ----------------------------------------------------------------------
 
-    /** Typefaces made from font files of the skin (or of the default set under it), by path. */
+    /** Typefaces made from font files of the skin (or of the wasabi base under it), by path. */
     private val typefaces = HashMap<String, Typeface>()
 
     private fun typefaceFromFile(path: String): Typeface =
@@ -225,7 +225,7 @@ class SkinView(
             }
 
             is FontFace.StandIn -> {
-                // the free fonts for Windows' system fonts, when the default set carries them
+                // the free fonts for Windows' system fonts, when the wasabi base carries them
                 p.typeface = typefaceFromFile(face.file)
                 p.isFakeBoldText = false
             }

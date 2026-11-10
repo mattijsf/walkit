@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The inputs of a desktop run: skins read from `.wal` archives, with their siblings and the
-//! default element set, the picture decoder and the stand-in fonts.
+//! wasabi base, the picture decoder and the stand-in fonts.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -102,12 +102,12 @@ impl Siblings {
     }
 }
 
-/// The files of a scenario's skin: the archive, its siblings and the default set layered as the
+/// The files of a scenario's skin: the archive, its siblings and the wasabi base layered as the
 /// scenario asks.
 pub fn skin_files(
     wal: &Path,
     siblings: &Rc<Siblings>,
-    defaults: Option<&Path>,
+    wasabi: Option<&Path>,
     sc: &Scenario,
 ) -> Result<Box<dyn SkinFiles>, String> {
     let mut skin: Box<dyn SkinFiles> = Box::new(read_wal(wal)?);
@@ -118,9 +118,9 @@ pub fn skin_files(
             Box::new(move |name| s.get(name)),
         ));
     }
-    if let Some(defaults) = defaults.filter(|_| !sc.no_defaults) {
-        if defaults.exists() {
-            skin = Box::new(LayeredFiles::new(skin, Box::new(read_wal(defaults)?)));
+    if let Some(wasabi) = wasabi.filter(|_| !sc.no_wasabi) {
+        if wasabi.exists() {
+            skin = Box::new(LayeredFiles::new(skin, Box::new(read_wal(wasabi)?)));
         }
     }
     Ok(skin)

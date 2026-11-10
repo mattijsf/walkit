@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The files of a skin, looked up by path without regard to case or slash direction, and the
-//! ways a host stacks them: Winamp's default element set under a skin, and the sibling skins
+//! ways a host stacks them: Winamp's wasabi base under a skin, and the sibling skins
 //! of a Skins folder a path may reach into.
 
 use std::collections::BTreeMap;
@@ -106,10 +106,10 @@ impl SkinFiles for MemoryFiles {
     }
 }
 
-/// Where Winamp's default element set lives under a skin's paths.
+/// Where Winamp's wasabi base lives under a skin's paths.
 pub const BASE_PREFIX: &str = "wasabi-base/";
 
-/// A skin's files with Winamp's default element set behind them: paths under [`BASE_PREFIX`]
+/// A skin's files with Winamp's wasabi base behind them: paths under [`BASE_PREFIX`]
 /// read from the base (the `Plugins\freeform\xml\wasabi` folder, zipped), everything else from
 /// the skin. Winamp draws lists, scrollbars and frames a skin does not define from that set.
 pub struct LayeredFiles {

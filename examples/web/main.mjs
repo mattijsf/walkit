@@ -70,7 +70,7 @@ function command(name, value, now = performance.now()) {
 }
 
 let skin = null;
-let defaults = null;
+let wasabi = null;
 const canvases = new Map(); // window id -> canvas
 
 const walkit = await loadWalkit({
@@ -106,9 +106,9 @@ async function open(file) {
   for (const canvas of canvases.values()) canvas.remove();
   canvases.clear();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  // a modern skin sits over Winamp's default element set; a classic one needs none
+  // a modern skin sits over Winamp's wasabi base; a classic one needs none
   const modern = /\.wal$/i.test(file.name);
-  skin = await walkit.openSkin(bytes, { name: file.name.replace(/\.\w+$/, ""), defaults: modern ? defaults : null });
+  skin = await walkit.openSkin(bytes, { name: file.name.replace(/\.\w+$/, ""), wasabi: modern ? wasabi : null });
   skin.rt.setFree(true, stage.clientWidth, stage.clientHeight);
   skin.rt.setPlaylist(tracks);
   // a classic skin opens with its main window alone; show the equalizer and the playlist too
@@ -195,9 +195,9 @@ stage.addEventListener("contextmenu", (e) => e.preventDefault());
 new ResizeObserver(() => skin?.rt.setFree(true, stage.clientWidth, stage.clientHeight)).observe(stage);
 
 document.getElementById("skin").addEventListener("change", (e) => e.target.files[0] && open(e.target.files[0]));
-document.getElementById("defaults").addEventListener("change", async (e) => {
+document.getElementById("wasabi").addEventListener("change", async (e) => {
   const file = e.target.files[0];
-  if (file) defaults = new Uint8Array(await file.arrayBuffer());
+  if (file) wasabi = new Uint8Array(await file.arrayBuffer());
 });
 for (const kind of Object.keys(SKINS)) {
   document.getElementById(kind).addEventListener("click", async () => open(await fetchSkin(kind)));

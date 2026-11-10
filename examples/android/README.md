@@ -6,13 +6,13 @@ the original skin of the same kind from [`../skins`](../skins), packed into its 
 classic one opens on the first start; "walkit classic" and "walkit modern" open the original
 skins directly. The stand-in fonts in `../skins/fonts` sit under every skin, read from the
 assets. There is also an "Open skin" button for a `.wsz`
-(classic) or `.wal` (modern) skin, a "Default set" button for a zip of Winamp's
+(classic) or `.wal` (modern) skin, a "Wasabi base" button for a zip of Winamp's
 `Plugins\freeform\xml\wasabi` folder (modern skins draw their lists and frames from it; classic
 skins need none), and a view that runs and draws the skin. The skin opened last opens again on
 start.
 
 - `MainActivity.kt`: the buttons, the picks, and the skin's files (`ZipSkinFiles`, with
-  `LayeredSkinFiles` for the default set).
+  `LayeredSkinFiles` for the wasabi base).
 - `SkinView.kt`: the `SkinRuntime`, the `SkinHost` (pictures through `BitmapFactory`, text
   widths through `Paint`, the log to Logcat), a tick on every display frame, every `DrawCmd` on a
   `Canvas`, and touches to the engine.
@@ -38,5 +38,5 @@ A debug build imports files from its external files folder, named on `am start`:
 ```bash
 D=/sdcard/Android/data/nl.mattix.walkit.example/files   # made on the app's first start
 adb push skin.wal wasabi.zip $D/
-adb shell am start -S -n nl.mattix.walkit.example/.MainActivity --es skin skin.wal --es defaults wasabi.zip
+adb shell am start -S -n nl.mattix.walkit.example/.MainActivity --es skin skin.wal --es wasabi wasabi.zip
 ```

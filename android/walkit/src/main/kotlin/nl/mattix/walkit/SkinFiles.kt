@@ -11,7 +11,7 @@ import java.util.zip.ZipFile
 /**
  * The files of one skin, looked up by path without regard to case or slash direction. The engine
  * reads through this from one thread, one read at a time; a stack of files (the skin, its
- * siblings, the default set) is composed here and copied nowhere.
+ * siblings, the wasabi base) is composed here and copied nowhere.
  */
 public interface SkinFiles {
     public fun read(path: String): ByteArray?
@@ -168,7 +168,7 @@ public class ZipSkinFiles(
 }
 
 /**
- * A skin's files with Winamp's default element set behind them: paths under `wasabi-base/` read
+ * A skin's files with Winamp's wasabi base behind them: paths under `wasabi-base/` read
  * from [base] (the `Plugins\freeform\xml\wasabi` folder, zipped), everything else from [skin].
  * Winamp draws lists, scrollbars and frames a skin does not define from that set.
  */

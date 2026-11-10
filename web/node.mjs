@@ -3,7 +3,7 @@
 // Runs the trace scenarios through the wasm module in node and writes each run's trace,
 // for a byte compare with the traces walkit-trace writes on a desktop:
 //
-//   node web/node.mjs <scenarios.json> <out dir> --wasm <file> [--skins <dir>] [--defaults <zip>]
+//   node web/node.mjs <scenarios.json> <out dir> --wasm <file> [--skins <dir>] [--wasabi <zip>]
 //                     [--fonts <dir>] [--stats <file>]
 
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -14,7 +14,7 @@ import { unzip } from "./zip.mjs";
 import { runCorpus } from "./corpus.mjs";
 
 function usage() {
-  console.error("usage: node web/node.mjs <scenarios.json> <out dir> --wasm <file> [--skins <dir>] [--defaults <zip>] [--fonts <dir>] [--stats <file>]");
+  console.error("usage: node web/node.mjs <scenarios.json> <out dir> --wasm <file> [--skins <dir>] [--wasabi <zip>] [--fonts <dir>] [--stats <file>]");
   process.exit(2);
 }
 
@@ -52,7 +52,7 @@ const results = await runCorpus(
     wasm: () => readFileSync(opts.wasm),
     archive,
     walFiles: () => readdirSync(skins).filter((f) => f.endsWith(".wal")),
-    defaults: () => (opts.defaults && existsSync(opts.defaults) ? unzip(new Uint8Array(readFileSync(opts.defaults)), inflateRawSync) : null),
+    wasabi: () => (opts.wasabi && existsSync(opts.wasabi) ? unzip(new Uint8Array(readFileSync(opts.wasabi)), inflateRawSync) : null),
     fonts: () => fonts,
     inflate: (b) => inflateSync(b),
     now: () => performance.now(),

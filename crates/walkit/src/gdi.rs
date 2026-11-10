@@ -53,7 +53,7 @@ impl FontFace {
         }
     }
 
-    /// Where the default set keeps a stand-in font.
+    /// Where the wasabi base keeps a stand-in font.
     pub fn file(&self) -> Option<String> {
         match self {
             FontFace::StandIn { family, bold } => Some(format!(

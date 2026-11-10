@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // A player page on the wasm engine: a skin from the server's folder (or a `.wal` dropped on
-// the page) over Winamp's default set, drawn on a canvas from the engine's packed frames,
+// the page) over Winamp's wasabi base, drawn on a canvas from the engine's packed frames,
 // driven by the pointer, on the engine's fake player. The same engine, frames and plans the
 // Android library gets, for trying a skin and comparing the two platforms.
 
@@ -125,10 +125,10 @@ const state = {
   pictures: null,
   renderer: null,
   reader: null,
-  files: null, // normalized path -> bytes, the skin over the default set
-  defaults: null,
+  files: null, // normalized path -> bytes, the skin over the wasabi base
+  wasabi: null,
   fonts: null,
-  defaultsId: -1,
+  wasabiId: -1,
   dirty: true,
   clock: null,
   frame: null,
@@ -170,9 +170,9 @@ async function loadModule() {
     hostAction: (action, param) => say(`host action ${action} ${param}`),
     now: () => performance.now(),
   });
-  state.defaults = await fetchBytes("/pack/defaults").then((b) => (b ? unpack(b) : new Map()));
-  state.defaultsId = state.defaults.size ? state.w.filesFrom(state.defaults) : -1;
-  say(`engine loaded; default set ${state.defaults.size} files`);
+  state.wasabi = await fetchBytes("/pack/wasabi").then((b) => (b ? unpack(b) : new Map()));
+  state.wasabiId = state.wasabi.size ? state.w.filesFrom(state.wasabi) : -1;
+  say(`engine loaded; wasabi base ${state.wasabi.size} files`);
 }
 
 /**
@@ -236,13 +236,13 @@ async function openSkin(name, entries, { clock = null } = {}) {
     state.rt = null;
   }
   const files = new Map();
-  for (const [n, b] of state.defaults) files.set(normalize(n), b);
+  for (const [n, b] of state.wasabi) files.set(normalize(n), b);
   for (const [n, b] of inSkinFolder(entries)) files.set(normalize(n), b);
   state.files = files;
   state.pictures = new Pictures(siblingPicture);
   const t0 = performance.now();
   for (const [k, pic] of await picturesOf(name, entries)) state.pictures.pics.set(k, pic);
-  for (const [k, pic] of await picturesOf("<defaults>", state.defaults)) if (!state.pictures.pics.has(k)) state.pictures.pics.set(k, pic);
+  for (const [k, pic] of await picturesOf("<wasabi>", state.wasabi)) if (!state.pictures.pics.has(k)) state.pictures.pics.set(k, pic);
   for (const [n, b] of inSkinFolder(entries)) if (/\.ttf$/i.test(n)) await registerFont(n, b);
   const decodeMs = performance.now() - t0;
   state.renderer = new Renderer(state.pictures, families);
@@ -274,7 +274,7 @@ async function openSkin(name, entries, { clock = null } = {}) {
   } else {
     await loadFonts();
   }
-  const stack = state.w.stack(skinId, state.defaultsId, siblings);
+  const stack = state.w.stack(skinId, state.wasabiId, siblings);
   const skinName = name.replace(/\.(wal|wsz)$/i, "");
   const t1 = performance.now();
   state.rt = state.w.runtime(stack, skinName, true, clock === null ? performance.now() : clock);

@@ -213,7 +213,7 @@ pub struct SkinRuntime {
     base_group_defs: HashSet<usize>,
     base_colors: HashSet<String>,
     collecting_base: bool,
-    /// What of the default element set this skin used so far.
+    /// What of the wasabi base this skin used so far.
     pub(crate) base_usage: BTreeSet<String>,
     resolved_fonts: HashMap<String, Option<Rc<BitmapFontDef>>>,
     fits: crate::fasthash::FastMap<BitmapDef, Fit>,
@@ -718,7 +718,7 @@ pub(crate) fn switches_of(p: &dyn Player) -> i32 {
 }
 
 /// An element id and its old-style twin: Winamp's objects ask for `wasabi.list.text`, the
-/// default set aliases `studio.list.text` to it, and an older skin (MMD3) defines the `studio.`
+/// wasabi base aliases `studio.list.text` to it, and an older skin (MMD3) defines the `studio.`
 /// name itself, which Winamp still finds.
 pub(crate) fn names_for(id: &str) -> Vec<String> {
     let k = id.to_lowercase();

@@ -27,8 +27,8 @@ pub struct Scenario {
     pub taps: Vec<String>,
     /// Whether the host has a media library.
     pub have_library: bool,
-    /// Whether the default element set is left out.
-    pub no_defaults: bool,
+    /// Whether the wasabi base is left out.
+    pub no_wasabi: bool,
     /// Whether the sibling skins are left out.
     pub no_siblings: bool,
 }
@@ -59,7 +59,7 @@ impl Scenario {
         if !self.have_library {
             s.push_str("nolibrary=1\n");
         }
-        if self.no_defaults {
+        if self.no_wasabi {
             s.push_str("nodefaults=1\n");
         }
         if self.no_siblings {
@@ -81,7 +81,7 @@ impl Scenario {
             main_size: None,
             taps: Vec::new(),
             have_library: true,
-            no_defaults: false,
+            no_wasabi: false,
             no_siblings: false,
         };
         let list = |v: &str| -> Vec<String> {
@@ -109,7 +109,7 @@ impl Scenario {
                 "mainsize" => sc.main_size = pair(v),
                 "taps" => sc.taps = list(v),
                 "nolibrary" => sc.have_library = v != "1",
-                "nodefaults" => sc.no_defaults = v == "1",
+                "nodefaults" => sc.no_wasabi = v == "1",
                 "nosiblings" => sc.no_siblings = v == "1",
                 _ => {}
             }
@@ -168,7 +168,7 @@ pub fn parse_json(text: &str) -> Result<Vec<Scenario>, String> {
                 main_size: pair(o, "mainsize"),
                 taps: strings(o, "taps").unwrap_or_default(),
                 have_library: !flag(o, "noLibrary"),
-                no_defaults: flag(o, "noDefaults"),
+                no_wasabi: flag(o, "noDefaults"),
                 no_siblings: flag(o, "noSiblings"),
             })
         })
@@ -192,7 +192,7 @@ mod tests {
             main_size: None,
             taps: vec!["pl".into(), "winshade".into()],
             have_library: false,
-            no_defaults: true,
+            no_wasabi: true,
             no_siblings: false,
         };
         assert_eq!(Scenario::from_spec(&sc.spec()), sc);

@@ -25,7 +25,7 @@ const w = await Walkit.load(wasmBytes, {
   log: (line) => console.log(line),
 });
 const skin = w.filesFrom(entriesOfTheWal);          // path -> Uint8Array
-const stack = w.stack(skin, w.filesFrom(defaults)); // the skin over Winamp's default set
+const stack = w.stack(skin, w.filesFrom(wasabi)); // the skin over Winamp's wasabi base
 const rt = w.runtime(stack, "Winamp Modern");
 rt.load();
 rt.setNow(performance.now());
@@ -54,7 +54,7 @@ const walkit = await loadWalkit({
   action(action, param, from) {},    // MENU, CLOSE, MINIMIZE, EQ_PRESETS, PLAYLIST, ...;
                                      // from.rect is where the button sits, for a menu
 });                                  // walkit.wasm next to embed.mjs, or { wasm: url } after
-const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { defaults }
+const skin = await walkit.openSkin(wszBytes);  // or a URL; a .wal takes { wasabi }
 skin.rt.setFree(true, innerWidth, innerHeight); // windows apart, docked as on Winamp's desktop
 
 function frame(now) {
@@ -93,7 +93,7 @@ The runtime also:
 ## The player page
 
 `player.html` shows a skin from the server's folder, or a `.wal` dropped on the page. The skin
-sits over Winamp's default set, and the other archives in the folder are reachable as its
+sits over Winamp's wasabi base, and the other archives in the folder are reachable as its
 siblings. Pictures are decoded by `pictures.mjs`, and text is drawn with the fonts the server serves (Liberation
 Sans stands in for Arial) and any TrueType file in the skin.
 
@@ -111,7 +111,7 @@ and docks and snaps as in Winamp 5.666.
 
 ```bash
 node web/serve.mjs --wasm web/dist/walkit-release.wasm --scenarios <json> --skins <dir> \
-  --defaults <zip> --fonts <dir> --snapshots snapshots
+  --wasabi <zip> --fonts <dir> --snapshots snapshots
 # then open http://127.0.0.1:8765/player.html?skin=Bento.wal
 # add --host 0.0.0.0 to serve it on the local network; a narrow screen gets zoom 1
 # (`?zoom=2` asks for more)
@@ -139,13 +139,13 @@ draw list.
 node web/node.mjs <scenarios.json> traces-wasm \
   --wasm web/dist/walkit-release-trace.wasm \
   --skins <skins dir> \
-  --defaults <wasabi-defaults.zip> \
+  --wasabi <wasabi-base.zip> \
   --fonts <fonts dir> \
   --stats node-stats.json
 
 # in a browser: serves the page and the archives (unzipped as packs), keeps the posted results
 node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios <scenarios.json> \
-  --skins ... --defaults ... --fonts ... --results results.jsonl
+  --skins ... --wasabi ... --fonts ... --results results.jsonl
 # then open http://127.0.0.1:8765/?auto in each browser
 ```
 

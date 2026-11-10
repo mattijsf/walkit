@@ -16,7 +16,7 @@ public sealed interface FontFace {
      * A free font that stands in for a Windows system font the skin names without a file: [family]
      * (DejaVu Sans Condensed for Tahoma, metric-compatible Liberation Sans for Arial), in its bold
      * cut when [bold], so it is never made bold by the renderer. [file] is where the engine reads
-     * it from the skin's files: a host puts its default set, with these fonts, under the skin.
+     * it from the skin's files: a host puts its wasabi base, with these fonts, under the skin.
      */
     public data class StandIn(
         val family: String,

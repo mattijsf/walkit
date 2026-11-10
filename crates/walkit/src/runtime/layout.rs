@@ -960,7 +960,7 @@ impl SkinRuntime {
 
     // ---- behaviors ---------------------------------------------------------------------------
 
-    /// A default-set group's behavior hears a xui parameter.
+    /// A wasabi-base group's behavior hears a xui parameter.
     pub(crate) fn behavior_xui_param(&mut self, g: ObjId, key: &str, value: &str) {
         let Some(behavior) = self.objects[g]
             .group
@@ -1024,7 +1024,7 @@ impl SkinRuntime {
         }
     }
 
-    /// A default-set group's behavior runs after every layout pass.
+    /// A wasabi-base group's behavior runs after every layout pass.
     fn behavior_after_layout(&mut self, g: ObjId) {
         let Some(Behavior::TitleBar {
             pad_left,

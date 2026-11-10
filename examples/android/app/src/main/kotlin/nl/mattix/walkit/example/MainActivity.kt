@@ -27,7 +27,7 @@ import java.net.URL
  * Buttons and a [SkinView]. "Winamp classic" and "Winamp Modern" download Winamp's own skins
  * from the Winamp Skin Museum, or show the original skin of the same kind in the app's assets
  * when the download fails; the classic one opens on the first start. "Open skin" picks a `.wsz` (classic) or `.wal` (modern) skin;
- * "Default set" picks a zip of Winamp's wasabi folder, which modern skins draw lists,
+ * "Wasabi base" picks a zip of Winamp's wasabi folder, which modern skins draw lists,
  * scrollbars and frames from. Both are copied into the app's files and the skin opened last
  * opens again on start.
  */
@@ -36,7 +36,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
 
     private val skinDir get() = File(filesDir, "skin")
-    private val defaultSet get() = File(filesDir, "default-set.zip")
+    private val wasabiBase get() = File(filesDir, "wasabi-base.zip")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         val buttons =
             LinearLayout(this).apply {
                 addView(button("Open skin") { pick(PICK_SKIN) })
-                addView(button("Default set") { pick(PICK_DEFAULT_SET) })
+                addView(button("Wasabi base") { pick(PICK_WASABI_BASE) })
             }
         val root =
             LinearLayout(this).apply {
@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         val opened = contentResolver.openInputStream(uri) ?: return
         when (requestCode) {
             PICK_SKIN -> opened.use { keepSkin(displayName(uri), it) }
-            PICK_DEFAULT_SET -> opened.use { keepDefaultSet(it) }
+            PICK_WASABI_BASE -> opened.use { keepWasabiBase(it) }
         }
         openSkin()
     }
@@ -142,20 +142,20 @@ class MainActivity : Activity() {
         File(skinDir, File(name).name).outputStream().use { input.copyTo(it) }
     }
 
-    private fun keepDefaultSet(input: InputStream) {
-        defaultSet.outputStream().use { input.copyTo(it) }
+    private fun keepWasabiBase(input: InputStream) {
+        wasabiBase.outputStream().use { input.copyTo(it) }
     }
 
     /**
      * For a check without the picker, in a debug build only: `--es skin <name>` and
-     * `--es defaults <name>` on `am start` import those files from the app's external files
+     * `--es wasabi <name>` on `am start` import those files from the app's external files
      * folder (`/sdcard/Android/data/nl.mattix.walkit.example/files`, made on the first start) as
      * if picked. The app reads that folder without a permission, and `adb push` writes to it.
      */
     private fun importForTesting(intent: Intent) {
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
         val dir = getExternalFilesDir(null) ?: return
-        intent.getStringExtra("defaults")?.let { name -> File(dir, name).inputStream().use { keepDefaultSet(it) } }
+        intent.getStringExtra("wasabi")?.let { name -> File(dir, name).inputStream().use { keepWasabiBase(it) } }
         intent.getStringExtra("skin")?.let { name -> File(dir, name).inputStream().use { keepSkin(name, it) } }
     }
 
@@ -238,9 +238,9 @@ class MainActivity : Activity() {
         }
         try {
             val skin = ZipSkinFiles(file)
-            val haveDefaults = defaultSet.exists()
-            // a modern skin reads Winamp's default set under paths starting with wasabi-base/
-            val files = if (haveDefaults) LayeredSkinFiles(skin, ZipSkinFiles(defaultSet)) else skin
+            val haveWasabi = wasabiBase.exists()
+            // a modern skin reads Winamp's wasabi base under paths starting with wasabi-base/
+            val files = if (haveWasabi) LayeredSkinFiles(skin, ZipSkinFiles(wasabiBase)) else skin
             skinView.show(WithGeneratedImages(WithStandInFonts(files)), file.nameWithoutExtension)
             status.text = file.name
         } catch (e: Exception) {
@@ -251,7 +251,7 @@ class MainActivity : Activity() {
 
     private companion object {
         const val PICK_SKIN = 1
-        const val PICK_DEFAULT_SET = 2
+        const val PICK_WASABI_BASE = 2
 
         val CLASSIC =
             Remote(

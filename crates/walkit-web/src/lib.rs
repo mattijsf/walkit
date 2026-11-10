@@ -49,10 +49,10 @@ use walkit::SkinRuntime;
 
 use host::JsHost;
 
-/// A stack of files: a skin over the default set, with the siblings a path may reach into.
+/// A stack of files: a skin over the wasabi base, with the siblings a path may reach into.
 struct Stack {
     skin: usize,
-    defaults: Option<usize>,
+    wasabi: Option<usize>,
     siblings: Vec<(String, usize)>,
 }
 
@@ -127,7 +127,7 @@ fn stack_files(st: &State, id: usize) -> Option<Box<dyn SkinFiles>> {
             Box::new(move |name| map.get(name).cloned()),
         ));
     }
-    if let Some(d) = stack.defaults.and_then(|d| st.files.get(d)) {
+    if let Some(d) = stack.wasabi.and_then(|d| st.files.get(d)) {
         files = Box::new(LayeredFiles::new(files, Box::new(FilesHandle(d.clone()))));
     }
     Some(files)
@@ -232,13 +232,13 @@ pub extern "C" fn wk_files_strip_folder(id: i32) -> i32 {
     })
 }
 
-/// A new stack: the skin's files `skin` over the default set `defaults` (-1 for none); its id.
+/// A new stack: the skin's files `skin` over the wasabi base `wasabi` (-1 for none); its id.
 #[unsafe(no_mangle)]
-pub extern "C" fn wk_stack_new(skin: i32, defaults: i32) -> i32 {
+pub extern "C" fn wk_stack_new(skin: i32, wasabi: i32) -> i32 {
     with_state(|s| {
         s.stacks.push(Stack {
             skin: skin as usize,
-            defaults: usize::try_from(defaults).ok(),
+            wasabi: usize::try_from(wasabi).ok(),
             siblings: Vec::new(),
         });
         s.stacks.len() as i32 - 1
