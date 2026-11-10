@@ -1,0 +1,50 @@
+# The Xcode project, WalkitExample.xcodeproj, is made from this file with XcodeGen
+# (`xcodegen generate` in this folder); both are committed, so building needs only Xcode.
+name: WalkitExample
+options:
+  bundleIdPrefix: nl.mattix.walkit
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.9.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  WalkitExample:
+    type: application
+    platform: macOS
+    sources:
+      - path: WalkitExample
+      - path: rust/include/walkit_macos.h
+        buildPhase: none
+      - path: ../skins/walkit-classic.wsz
+        buildPhase: resources
+      - path: ../skins/walkit-modern.wal
+        buildPhase: resources
+      - path: ../skins/fonts
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: walkit
+        PRODUCT_BUNDLE_IDENTIFIER: nl.mattix.walkit.example
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: walkit
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
+        INFOPLIST_KEY_NSHumanReadableCopyright: GPL-3.0-or-later
+        SWIFT_OBJC_BRIDGING_HEADER: rust/include/walkit_macos.h
+        LIBRARY_SEARCH_PATHS: $(PROJECT_DIR)/rust/target/macos
+        OTHER_LDFLAGS: -lwalkit_macos
+        ONLY_ACTIVE_ARCH: YES
+    preBuildScripts:
+      - name: Build the walkit library
+        script: exec "$PROJECT_DIR/rust/build.sh"
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(PROJECT_DIR)/rust/target/macos/libwalkit_macos.a

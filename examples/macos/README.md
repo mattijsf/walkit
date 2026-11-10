@@ -1,33 +1,67 @@
 # A macOS app
 
-A small desktop app that shows a Winamp skin with the `walkit` crate: it unzips the skin,
-decodes its pictures with `image`, draws text with `fontdue`, renders the engine's draw list in
-software into a `winit` window through `softbuffer`, and passes the mouse back to the engine.
+A small SwiftUI app that shows a Winamp skin with the `walkit` crate. It follows the
+[Examples](https://mattijsf.github.io/walkit/examples/) and [Rust](https://mattijsf.github.io/walkit/rust/)
+guides.
 
 ```sh
-cargo run --release                   # Winamp's base skin
-cargo run --release -- --modern       # Winamp Modern
-cargo run --release -- --builtin      # the built-in classic skin; with --modern, the modern one
-cargo run --release -- <skin.wsz|skin.wal> [--wasabi <wasabi-base.zip>]
+cd examples/macos
+xcodebuild -project WalkitExample.xcodeproj -scheme WalkitExample -derivedDataPath build build
+open build/Build/Products/Debug/walkit.app
 ```
 
-With no skin file, the app downloads Winamp's base skin or Winamp Modern from the Winamp Skin
-Museum. When the download fails, it shows the original skin of the same kind from
-[`../skins`](../skins), built into the app. In the window, keys 1 and 2 open Winamp's base skin
-and Winamp Modern, 3 and 4 the built-in classic and modern skins.
+Or open `WalkitExample.xcodeproj` in Xcode and run it. The build needs Xcode and Rust (rustup's
+`cargo` in `~/.cargo/bin`): a build phase runs [`rust/build.sh`](rust/build.sh), which builds the
+Rust library for the architectures Xcode builds and puts it at `rust/target/macos/`.
 
-A modern skin (`.wal`) draws lists, scrollbars and frames it does not define from Winamp's
-[wasabi base](https://mattijsf.github.io/walkit/wasabi-base/): pass its zip with `--wasabi`.
-Under a classic skin (`.wsz`) the app puts Winamp's base skin (the built-in classic skin when
-the download fails) as its [base skin](https://mattijsf.github.io/walkit/base-skin/): a skin
-that draws only its main window shows Winamp's equalizer and playlist. Drop another skin on the
-window to open it.
+## What it does
 
-`--screenshot <out.png>` draws a second of frames without a window, writes the last one and
-exits; `--scale <n>` sets its size (2 by default).
+"Winamp classic" and "Winamp Modern" download Winamp's own skins from the Winamp Skin Museum;
+when a download fails, the app shows the original skin of the same kind from
+[`../skins`](../skins), built into the app. Winamp's base skin opens on start; "walkit classic"
+and "walkit modern" open the original skins directly. "Open skin…" opens a `.wsz` (classic) or
+`.wal` (modern) of your own, as does dropping one on the window.
 
-- `src/main.rs` reads the skin, runs the engine and the window.
-- `src/host.rs` is the engine's host: pictures, fonts, text measures.
-- `src/render.rs` draws the draw list: pictures, fills, text, clips and window shapes.
+Winamp's base skin (or the original classic skin when the download fails) lies under every
+classic skin as its [base skin](https://mattijsf.github.io/walkit/base-skin/): a skin that draws
+only its main window shows Winamp's equalizer and playlist. "Wasabi base…" takes a zip of
+Winamp's `wasabi` folder, which some modern skins draw lists, scrollbars and frames from
+([how to make the zip](https://mattijsf.github.io/walkit/wasabi-base/)). The stand-in fonts in
+`../skins/fonts`, built into the app, lie under every skin.
 
-The example has its own workspace and lock file, apart from the repository's crates.
+The equalizer and the playlist open with the skin. The engine's demo player answers the skin's
+buttons and sliders: play, pause, stop, seek, volume, pan, the equalizer, shuffle and repeat.
+
+From a terminal, the app takes the skin to open first, and can write its window as a PNG:
+
+```sh
+APP=build/Build/Products/Debug/walkit.app/Contents/MacOS/walkit
+$APP --modern                      # Winamp Modern
+$APP --builtin                     # the original classic skin; with --modern, the modern one
+$APP <skin.wsz|skin.wal> [--wasabi <wasabi-base.zip>]
+$APP --modern --screenshot out.png # writes the window once the skin shows, and quits
+```
+
+## How it fits together
+
+The engine is Rust; the app calls it through a small C interface.
+
+- [`rust/`](rust) is a static library with its own workspace and lock file, apart from the
+  repository's crates.
+  - `src/lib.rs` is the C interface ([`include/walkit_macos.h`](rust/include/walkit_macos.h)):
+    it unzips the skin, lays it over the base skin or the wasabi base and the fonts, runs the
+    engine with its demo player, and draws frames.
+  - `src/host.rs` is the engine's host: pictures decoded with `image`, text measured with
+    `fontdue`.
+  - `src/render.rs` draws the draw list into a buffer of pixels: pictures, fills, text, clips
+    and window shapes.
+- [`WalkitExample/`](WalkitExample) is the SwiftUI app.
+  - `ContentView.swift`: the buttons, the file pickers and the command line.
+  - `SkinLibrary.swift`: the downloads, the fallbacks, and what lies under each skin.
+  - `SkinView.swift`: a tick on every display frame, each new frame shown as a picture, and the
+    mouse passed to the engine.
+  - `Skin.swift`: the Swift face of the C interface.
+
+`WalkitExample.xcodeproj` is made from [`project.yml`](project.yml) with
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) (`xcodegen generate`); both are committed, so
+building needs only Xcode and Rust.

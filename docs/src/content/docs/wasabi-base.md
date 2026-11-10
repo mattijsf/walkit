@@ -80,7 +80,7 @@ with `wasabi-base/`.
 | Web | `walkit.openSkin(bytes, { wasabi })`, with the zip's bytes or its URL ([guide](/walkit/web/#embedding)). |
 | Android | `LayeredSkinFiles(skinFiles, ZipSkinFiles(File("wasabi-base.zip")))` ([guide](/walkit/android/#using-it)). |
 | Command line | `--wasabi wasabi-base.zip` on `walkit-trace`, `web/node.mjs` and `web/serve.mjs` ([traces](/walkit/traces/)). |
-| Examples | The "Wasabi base" button on the web and Android, `--wasabi` on macOS ([examples](/walkit/examples/)). |
+| Examples | The "Wasabi base" button on the web, Android and macOS ([examples](/walkit/examples/)). |
 
 ## Fonts are separate
 

@@ -85,7 +85,8 @@ fn main() {
 ```
 
 [`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a complete
-desktop app built this way, with a software renderer for the draw list.
+desktop app built this way: a SwiftUI app over a small Rust library that runs the engine behind
+a C interface and draws the draw list with a software renderer.
 
 ## Files
 
