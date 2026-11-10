@@ -3608,3 +3608,66 @@ fn the_playlist_letters_read_the_base_skins_text_bmp() {
     assert!(asked.borrow().iter().any(|f| f == "wasabi-base/text.bmp"));
     assert!(!asked.borrow().iter().any(|f| f == "text.bmp"));
 }
+
+#[test]
+fn a_skin_without_text_files_keeps_winamps_colors_and_shape_over_the_base_skins() {
+    // Winamp 5.666 in a VM, a skin without pledit.txt, viscolor.txt and region.txt: the
+    // selected row is 0000c6 and the analyzer takes Winamp's palette, whatever a base skin says
+    let mut own = MemoryFiles::new();
+    own.insert("main.bmp", &b"x"[..]);
+    let mut base = MemoryFiles::new();
+    base.insert("main.bmp", &b"x"[..]);
+    base.insert(
+        "pledit.txt",
+        &b"[Text]\nNormal=#FF0000\nSelectedBG=#0000FF\n[Misc]\nUseGenNums=1\n"[..],
+    );
+    base.insert("viscolor.txt", &b"255,0,0\n"[..]);
+    base.insert(
+        "region.txt",
+        &b"[Normal]\nNumPoints=4\nPointList=0,0,10,0,10,10,0,10\n"[..],
+    );
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(crate::files::LayeredFiles::new(
+            Box::new(own),
+            Box::new(base),
+        )),
+        Box::new(QuietHost),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    assert_eq!(
+        rt.classic_pledit,
+        crate::classic::pledit::PleditStyle::default()
+    );
+    assert_eq!(rt.classic_palette, crate::classic::viscolor::BASE);
+    assert!(rt.classic_regions.is_empty());
+}
+
+#[test]
+fn a_skin_without_genex_bmp_takes_the_base_skins_colors() {
+    // Winamp 5.666 in a VM: without genex.bmp the media library shows the base skin's colors
+    let mut own = MemoryFiles::new();
+    own.insert("main.bmp", &b"x"[..]);
+    let mut base = MemoryFiles::new();
+    base.insert("main.bmp", &b"x"[..]);
+    base.insert("genex.bmp", &b"x"[..]);
+    let asked = Rc::new(RefCell::new(Vec::new()));
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = SkinRuntime::new(
+        Box::new(crate::files::LayeredFiles::new(
+            Box::new(own),
+            Box::new(base),
+        )),
+        Box::new(SizeHost(asked.clone())),
+        Box::new(FakePlayer::new(clock.clone())),
+        SkinSetup::default(),
+        clock,
+    );
+    rt.load();
+    let _ = rt.classic_genex_colors();
+    assert!(asked.borrow().iter().any(|f| f == "wasabi-base/genex.bmp"));
+    assert!(!asked.borrow().iter().any(|f| f == "genex.bmp"));
+}

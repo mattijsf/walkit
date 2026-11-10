@@ -24,8 +24,13 @@ and works as a base too.
 
 The engine takes a bitmap from the base only when the skin itself lacks it. Winamp's own
 stand-ins come first: a skin without `balance.bmp` shows its `volume.bmp` there, and a skin
-without `nums_ex.bmp` shows its `numbers.bmp`. A skin's `pledit.txt`, `viscolor.txt` and
-`region.txt` are its own; without them the engine uses Winamp's colors and plain rectangles.
+without `nums_ex.bmp` shows its `numbers.bmp`.
+
+The text files are never taken from the base. A skin without `pledit.txt`, `viscolor.txt` or
+`region.txt` gets Winamp's playlist colors, Winamp's vis palette and plain rectangles, even
+when the base skin has those files, as in Winamp. `genex.bmp` is a bitmap like the others: a
+skin without it gives the media library and plug-in windows the base skin's colors
+([`classic_genex_colors`](/walkit/api/walkit/struct.SkinRuntime.html#method.classic_genex_colors)).
 
 ## Use it
 
