@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>walkit web example</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #202124; color: #e8eaed; font: 14px system-ui, sans-serif; }
+      body { display: flex; flex-direction: column; }
+      header { display: flex; gap: 12px; align-items: center; padding: 8px 12px; background: #2b2c2f; flex-wrap: wrap; }
+      #stage { position: relative; flex: 1; overflow: hidden; touch-action: none; }
+      #stage canvas { position: absolute; image-rendering: pixelated; }
+      #hint { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0.6; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <label>Skin <input id="skin" type="file" accept=".wsz,.wal,.zip" /></label>
+      <label>Default set <input id="defaults" type="file" accept=".zip" /></label>
+      <button id="play">Play</button>
+      <button id="pause">Pause</button>
+      <button id="stop">Stop</button>
+    </header>
+    <div id="stage"><div id="hint">Pick or drop a .wsz or .wal skin</div></div>
+    <script type="module" src="main.mjs"></script>
+  </body>
+</html>
