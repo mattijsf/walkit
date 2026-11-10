@@ -15,14 +15,17 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import nl.mattix.walkit.LayeredSkinFiles
-import nl.mattix.walkit.WalArchive
 import nl.mattix.walkit.WithGeneratedImages
 import nl.mattix.walkit.ZipSkinFiles
 import java.io.File
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * Two buttons and a [SkinView]. "Open skin" picks a `.wsz` (classic) or `.wal` (modern) skin;
+ * Buttons and a [SkinView]. "Winamp classic" and "Winamp Modern" download Winamp's own skins
+ * from the Winamp Skin Museum, or show the original skin of the same kind in the app's assets
+ * when the download fails; the classic one opens on the first start. "Open skin" picks a `.wsz` (classic) or `.wal` (modern) skin;
  * "Default set" picks a zip of Winamp's wasabi folder, which modern skins draw lists,
  * scrollbars and frames from. Both are copied into the app's files and the skin opened last
  * opens again on start.
@@ -38,6 +41,11 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         skinView = SkinView(this)
         status = TextView(this).apply { setTextColor(Color.LTGRAY) }
+        val remote =
+            LinearLayout(this).apply {
+                addView(button("Winamp classic") { download(CLASSIC) })
+                addView(button("Winamp Modern") { download(MODERN) })
+            }
         val buttons =
             LinearLayout(this).apply {
                 addView(button("Open skin") { pick(PICK_SKIN) })
@@ -47,6 +55,7 @@ class MainActivity : Activity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.rgb(24, 24, 28))
+                addView(remote)
                 addView(buttons)
                 addView(status)
                 addView(skinView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -64,7 +73,7 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         importForTesting(intent)
-        openSkin()
+        if (skinDir.listFiles().isNullOrEmpty()) download(CLASSIC) else openSkin()
     }
 
     override fun onDestroy() {
@@ -143,6 +152,46 @@ class MainActivity : Activity() {
         intent.getStringExtra("skin")?.let { name -> File(dir, name).inputStream().use { keepSkin(name, it) } }
     }
 
+    // ---- downloading a skin -----------------------------------------------------------------
+
+    /** One of Winamp's skins in the Winamp Skin Museum, and the original skin shown without it. */
+    private class Remote(
+        val url: String,
+        val name: String,
+        val fallback: String,
+    )
+
+    /** Downloads [remote] off the main thread, keeps it, and opens it; the fallback when that fails. */
+    private fun download(remote: Remote) {
+        status.text = "Downloading ${remote.name}..."
+        // the download lands in the cache; the skin shown keeps its file until the swap
+        val downloaded = File(cacheDir, "download")
+        Thread {
+            val name =
+                try {
+                    val connection = URL(remote.url).openConnection() as HttpURLConnection
+                    connection.connectTimeout = 10_000
+                    connection.readTimeout = 10_000
+                    try {
+                        if (connection.responseCode != 200) error("HTTP ${connection.responseCode}")
+                        connection.inputStream.use { input -> downloaded.outputStream().use { input.copyTo(it) } }
+                    } finally {
+                        connection.disconnect()
+                    }
+                    remote.name
+                } catch (e: Exception) {
+                    Log.w("walkit", "${remote.url} failed; showing ${remote.fallback}", e)
+                    assets.open(remote.fallback).use { input -> downloaded.outputStream().use { input.copyTo(it) } }
+                    remote.fallback
+                }
+            runOnUiThread {
+                downloaded.inputStream().use { keepSkin(name, it) }
+                downloaded.delete()
+                openSkin()
+            }
+        }.start()
+    }
+
     // ---- opening the skin --------------------------------------------------------------------
 
     private fun openSkin() {
@@ -153,16 +202,11 @@ class MainActivity : Activity() {
         }
         try {
             val skin = ZipSkinFiles(file)
-            val modern = WalArchive.isModern(skin.names())
             val haveDefaults = defaultSet.exists()
             // a modern skin reads Winamp's default set under paths starting with wasabi-base/
             val files = if (haveDefaults) LayeredSkinFiles(skin, ZipSkinFiles(defaultSet)) else skin
             skinView.show(WithGeneratedImages(files), file.nameWithoutExtension)
-            status.text =
-                when {
-                    modern && !haveDefaults -> "${file.name}: a modern skin; pick a default set for its lists and frames."
-                    else -> file.name
-                }
+            status.text = file.name
         } catch (e: Exception) {
             Log.w("walkit", "cannot open ${file.name}", e)
             status.text = "${file.name}: ${e.message}"
@@ -172,5 +216,18 @@ class MainActivity : Activity() {
     private companion object {
         const val PICK_SKIN = 1
         const val PICK_DEFAULT_SET = 2
+
+        val CLASSIC =
+            Remote(
+                "https://r2.webampskins.org/skins/5e4f10275dcb1fb211d4a8b4f1bda236.wsz",
+                "Winamp Base.wsz",
+                "walkit-classic.wsz",
+            )
+        val MODERN =
+            Remote(
+                "https://r2.webampskins.org/skins/b3fa3160814d1689a3f2bacda72b2926.wal",
+                "Winamp Modern.wal",
+                "walkit-modern.wal",
+            )
     }
 }

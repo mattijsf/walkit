@@ -3,8 +3,13 @@
 //! A small macOS app that shows a Winamp skin with the walkit engine.
 //!
 //! ```text
+//! cargo run --release                  # Winamp's base skin
+//! cargo run --release -- --modern       # Winamp Modern
 //! cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
 //! ```
+//!
+//! With no skin file, the app downloads one of Winamp's own skins from the Winamp Skin Museum.
+//! When that fails, it shows the original skin of the same kind built into the app.
 //!
 //! The engine lays the skin out and hands back a draw list each frame; this app unzips the
 //! skin, decodes its pictures and fonts ([`host`]), draws the list into a window with a
@@ -16,7 +21,7 @@ mod host;
 mod render;
 
 use std::cell::{Cell, RefCell};
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -45,8 +50,58 @@ const VIEWPORT: (i32, i32) = (1440, 900);
 const MAX_ENTRY: u64 = 32 * 1024 * 1024;
 const MAX_TOTAL: u64 = 128 * 1024 * 1024;
 
+/// Winamp's base skin and Winamp Modern in the Winamp Skin Museum, each with the original skin
+/// of the same kind shown when the download fails.
+const CLASSIC: Remote = Remote {
+    url: "https://r2.webampskins.org/skins/5e4f10275dcb1fb211d4a8b4f1bda236.wsz",
+    name: "Winamp Base.wsz",
+    fallback: include_bytes!("../../skins/walkit-classic.wsz"),
+    fallback_name: "walkit-classic.wsz",
+};
+const MODERN: Remote = Remote {
+    url: "https://r2.webampskins.org/skins/b3fa3160814d1689a3f2bacda72b2926.wal",
+    name: "Winamp Modern.wal",
+    fallback: include_bytes!("../../skins/walkit-modern.wal"),
+    fallback_name: "walkit-modern.wal",
+};
+
+struct Remote {
+    url: &'static str,
+    name: &'static str,
+    fallback: &'static [u8],
+    fallback_name: &'static str,
+}
+
+impl Remote {
+    /// The skin's bytes and file name: downloaded, or the built-in fallback.
+    fn fetch(&self) -> (Vec<u8>, String) {
+        let download = || -> Result<Vec<u8>, String> {
+            let response = ureq::get(self.url)
+                .timeout(Duration::from_secs(10))
+                .call()
+                .map_err(|e| e.to_string())?;
+            let mut bytes = Vec::new();
+            response
+                .into_reader()
+                .take(MAX_TOTAL)
+                .read_to_end(&mut bytes)
+                .map_err(|e| e.to_string())?;
+            Ok(bytes)
+        };
+        match download() {
+            Ok(bytes) => (bytes, self.name.to_string()),
+            Err(e) => {
+                eprintln!("{}: {e}; showing {}", self.url, self.fallback_name);
+                (self.fallback.to_vec(), self.fallback_name.to_string())
+            }
+        }
+    }
+}
+
 struct Options {
-    skin: PathBuf,
+    /// A skin file, or none for the remote skin.
+    skin: Option<PathBuf>,
+    modern: bool,
     defaults: Option<PathBuf>,
     screenshot: Option<PathBuf>,
     scale: i32,
@@ -58,8 +113,8 @@ fn main() {
         Err(e) => {
             eprintln!("{e}");
             eprintln!(
-                "usage: walkit-macos-example <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>] \
-                 [--screenshot <out.png>] [--scale <n>]"
+                "usage: walkit-macos-example [<skin.wsz|skin.wal> | --modern] \
+                 [--defaults <wasabi-defaults.zip>] [--screenshot <out.png>] [--scale <n>]"
             );
             std::process::exit(2);
         }
@@ -73,10 +128,21 @@ fn main() {
         }
         None => None,
     };
-    let skin = match Skin::open(&options.skin, defaults.as_ref()) {
+    let (bytes, name) = match &options.skin {
+        Some(path) => match std::fs::read(path) {
+            Ok(bytes) => (bytes, title(path)),
+            Err(e) => {
+                eprintln!("{}: {e}", path.display());
+                std::process::exit(1);
+            }
+        },
+        None if options.modern => MODERN.fetch(),
+        None => CLASSIC.fetch(),
+    };
+    let skin = match Skin::open(bytes, &name, defaults.as_ref()) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("{}: {e}", options.skin.display());
+            eprintln!("{name}: {e}");
             std::process::exit(1);
         }
     };
@@ -106,10 +172,12 @@ fn parse_args() -> Result<Options, String> {
     let mut skin = None;
     let mut defaults = None;
     let mut screenshot = None;
+    let mut modern = false;
     let mut scale = 2;
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
+            "--modern" => modern = true,
             "--defaults" => defaults = Some(PathBuf::from(value()?)),
             "--screenshot" => screenshot = Some(PathBuf::from(value()?)),
             "--scale" => {
@@ -123,7 +191,8 @@ fn parse_args() -> Result<Options, String> {
         }
     }
     Ok(Options {
-        skin: skin.ok_or("no skin file given")?,
+        skin,
+        modern,
         defaults,
         screenshot,
         scale,
@@ -133,8 +202,12 @@ fn parse_args() -> Result<Options, String> {
 /// Reads a `.wsz`, `.wal` or `.zip` (all zip archives) into memory. A skin zipped inside a
 /// folder has that folder stripped.
 fn read_archive(path: &Path) -> Result<MemoryFiles, String> {
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    unzip(std::fs::read(path).map_err(|e| e.to_string())?)
+}
+
+/// The files of a zip archive in memory.
+fn unzip(bytes: Vec<u8>) -> Result<MemoryFiles, String> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let mut all = MemoryFiles::new();
     let mut names = Vec::new();
     let mut total = 0;
@@ -174,8 +247,13 @@ struct Skin {
 }
 
 impl Skin {
-    fn open(path: &Path, defaults: Option<&MemoryFiles>) -> Result<Skin, String> {
-        let archive = read_archive(path)?;
+    /// Opens the skin archive `bytes`, named `file_name`, over `defaults`.
+    fn open(
+        bytes: Vec<u8>,
+        file_name: &str,
+        defaults: Option<&MemoryFiles>,
+    ) -> Result<Skin, String> {
+        let archive = unzip(bytes)?;
         // the engine and the host each read the files; the bytes are shared, not copied
         let layered = || -> Box<dyn SkinFiles> {
             match defaults {
@@ -195,7 +273,7 @@ impl Skin {
         let start = Instant::now();
         let clock: Clock = Rc::new(move || start.elapsed().as_millis() as i64);
         // the folder name scripts know the skin by
-        let name = path
+        let name = Path::new(file_name)
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
@@ -220,7 +298,7 @@ impl Skin {
             runtime,
             assets,
             redraw,
-            title: title(path),
+            title: file_name.to_string(),
         })
     }
 
@@ -324,7 +402,10 @@ impl App {
     }
 
     fn open(&mut self, path: &Path) {
-        match Skin::open(path, self.defaults.as_ref()) {
+        let opened = std::fs::read(path)
+            .map_err(|e| e.to_string())
+            .and_then(|bytes| Skin::open(bytes, &title(path), self.defaults.as_ref()));
+        match opened {
             Ok(skin) => {
                 self.skin = skin;
                 if let Some(window) = &self.window {

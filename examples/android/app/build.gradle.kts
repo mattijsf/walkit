@@ -18,6 +18,10 @@ android {
         versionName = "1.0"
     }
 
+    // the original skins beside the examples, shown when a download fails
+    sourceSets.getByName("main").assets.srcDir("../../skins")
+    androidResources.ignoreAssetsPattern = "!*.py:!*.md"
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

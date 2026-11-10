@@ -3,6 +3,21 @@
 // player of its own, and the pointer passed to the engine.
 import { loadWalkit } from "./walkit-web/embed.mjs";
 
+// Winamp's own skins, from the Winamp Skin Museum. When a download fails, the page shows the
+// original skin of the same kind that ships beside the examples.
+const SKINS = {
+  classic: {
+    url: "https://r2.webampskins.org/skins/5e4f10275dcb1fb211d4a8b4f1bda236.wsz",
+    name: "Winamp Base.wsz",
+    fallback: "../skins/walkit-classic.wsz",
+  },
+  modern: {
+    url: "https://r2.webampskins.org/skins/b3fa3160814d1689a3f2bacda72b2926.wal",
+    name: "Winamp Modern.wal",
+    fallback: "../skins/walkit-modern.wal",
+  },
+};
+
 const stage = document.getElementById("stage");
 const hint = document.getElementById("hint");
 
@@ -42,6 +57,20 @@ const walkit = await loadWalkit({
   action: (action, param) => console.log("action", action, param),
   log: (line) => console.log(line),
 });
+
+/** Downloads skin `kind` ("classic" or "modern"), or reads its fallback when that fails. */
+async function fetchSkin(kind) {
+  const skin = SKINS[kind];
+  try {
+    const response = await fetch(skin.url, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error(`${response.status}`);
+    return new File([await response.blob()], skin.name);
+  } catch (e) {
+    console.log(`${skin.url} failed (${e}); showing ${skin.fallback}`);
+    const response = await fetch(skin.fallback);
+    return new File([await response.blob()], skin.fallback.split("/").pop());
+  }
+}
 
 async function open(file) {
   skin?.free();
@@ -135,6 +164,9 @@ document.getElementById("defaults").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (file) defaults = new Uint8Array(await file.arrayBuffer());
 });
+for (const kind of Object.keys(SKINS)) {
+  document.getElementById(kind).addEventListener("click", async () => open(await fetchSkin(kind)));
+}
 for (const name of ["play", "pause", "stop"]) {
   document.getElementById(name).addEventListener("click", () => {
     command(name);
@@ -147,3 +179,5 @@ document.body.addEventListener("drop", (e) => {
   const file = e.dataTransfer.files[0];
   if (file) open(file);
 });
+
+open(await fetchSkin("classic"));

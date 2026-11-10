@@ -5,8 +5,14 @@ decodes its pictures with `image`, draws text with `fontdue`, renders the engine
 software into a `winit` window through `softbuffer`, and passes the mouse back to the engine.
 
 ```sh
+cargo run --release                   # Winamp's base skin
+cargo run --release -- --modern       # Winamp Modern
 cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
 ```
+
+With no skin file, the app downloads Winamp's base skin or Winamp Modern from the Winamp Skin
+Museum. When the download fails, it shows the original skin of the same kind from
+[`../skins`](../skins), built into the app.
 
 A modern skin (`.wal`) draws lists, scrollbars and frames it does not define from Winamp's
 default element set: pass it as a zip of the `Plugins/freeform/xml/wasabi` folder with
