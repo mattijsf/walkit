@@ -17,8 +17,8 @@ Museum. When the download fails, it shows the original skin of the same kind fro
 and Winamp Modern, 3 and 4 the built-in classic and modern skins.
 
 A modern skin (`.wal`) draws lists, scrollbars and frames it does not define from Winamp's
-wasabi base: pass it as a zip of the `Plugins/freeform/xml/wasabi` folder with
-`--wasabi`. A classic skin (`.wsz`) needs none. Drop another skin on the window to open it.
+[wasabi base](https://mattijsf.github.io/walkit/wasabi-base/): pass its zip with `--wasabi`.
+A classic skin (`.wsz`) needs none. Drop another skin on the window to open it.
 
 `--screenshot <out.png>` draws a second of frames without a window, writes the last one and
 exits; `--scale <n>` sets its size (2 by default).

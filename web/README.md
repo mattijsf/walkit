@@ -149,5 +149,5 @@ node web/serve.mjs --wasm web/dist/walkit-release-trace.wasm --scenarios <scenar
 # then open http://127.0.0.1:8765/?auto in each browser
 ```
 
-The inputs are the ones [ENGINEERING.md](../ENGINEERING.md) describes. The skins, the default
-set and the fonts stay outside this repository; the server reads them where they are.
+The inputs are the ones [ENGINEERING.md](../ENGINEERING.md) describes. The skins, the wasabi
+base and the fonts stay outside this repository; the server reads them where they are.

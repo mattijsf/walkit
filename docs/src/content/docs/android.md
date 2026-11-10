@@ -45,8 +45,8 @@ the `SkinHost` and drives the `Player` through callbacks on that thread.
 - A frame crosses the boundary once per `drawWindows`, as one packed buffer decoded into
   `DrawCmd`s.
 - The fonts that stand in for Windows' system fonts (`fonts/LiberationSans.ttf` and others)
-  are read from the skin's files, so a host puts its wasabi base, fonts included, under the
-  skin.
+  are read from the skin's files, so a host puts them under the skin, beside the
+  [wasabi base](/walkit/wasabi-base/) when it has one.
 
 [`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is a
 complete app built this way, drawing every command on a `Canvas`.

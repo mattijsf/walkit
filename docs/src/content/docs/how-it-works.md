@@ -27,7 +27,7 @@ title: How it works
 The engine has no file, screen, font, clock or thread access. The host supplies them:
 
 - **Files.** The host opens the skin archive and hands the engine its files. A modern skin sits
-  over Winamp's wasabi base, which the host supplies too (see below).
+  over Winamp's [wasabi base](/walkit/wasabi-base/) when the host has it.
 - **Pictures and text.** The engine asks for a picture's size and pixels, and for a text's width
   and line metrics. The host decodes and measures with whatever libraries it has.
 - **The clock.** Every timer, animation and script reads one clock, in milliseconds. A host
@@ -52,16 +52,6 @@ forbids unsafe code.
 
 ## The wasabi base
 
-Winamp ships a folder of shared skin parts, `Plugins/freeform/xml/wasabi`: window frames,
-scrollbars, buttons, lists and the standard groups behind tags such as `Wasabi:Button`. Modern
-skins lean on it instead of drawing every part themselves, and Winamp lays it under every
-modern skin it loads. walkit calls that folder the wasabi base.
-
-A host that has it puts it under the skin, where the engine reads it at paths starting with
-`wasabi-base/`: [`LayeredFiles`](/walkit/api/walkit/files/struct.LayeredFiles.html) in Rust,
-`LayeredSkinFiles` on Android, the `wasabi` option of `openSkin` on the web, and `--wasabi`
-on the command line tools. It is Winamp's art, so walkit doesn't ship it.
-
-A classic skin never needs it, and many modern skins draw fine without it: Winamp Modern does.
-A skin that uses a part only the wasabi base has shows nothing in that part when it is missing.
-
+Winamp keeps a folder of shared skin parts, the wasabi base, that modern skins borrow frames,
+scrollbars and lists from. A host that has it lays it under the skin. walkit doesn't ship it:
+[The wasabi base](/walkit/wasabi-base/) says when a skin needs it and how to prepare it.

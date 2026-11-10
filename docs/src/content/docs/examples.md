@@ -19,8 +19,8 @@ draws those faces with the system's own Arial and Tahoma. A classic playlist the
 in Arial's widths, as Winamp does.
 
 Any other `.wsz` or `.wal` opens too. A modern skin that borrows frames, scrollbars or lists
-from Winamp's [wasabi base](/walkit/how-it-works/#the-wasabi-base) also needs that folder as a
-zip: each example takes one ("Wasabi base", or `--wasabi` on macOS).
+from Winamp's [wasabi base](/walkit/wasabi-base/) also needs it, as a zip: each example takes
+one ("Wasabi base", or `--wasabi` on macOS).
 
 ## Web
 

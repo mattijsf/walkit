@@ -17,6 +17,8 @@ also hands the engine the stand-in fonts in `../skins/fonts`, which is why the s
 `examples/` as a whole.
 
 "Skin" opens a `.wsz` or `.wal` of your own, as does dropping one on the page. "Wasabi base"
-takes a zip of Winamp's `wasabi` folder, for a modern skin that draws lists or frames from it.
+takes a zip of Winamp's `wasabi` folder, for a modern skin that draws lists or frames from it;
+the guide's [wasabi base](https://mattijsf.github.io/walkit/wasabi-base/) page shows how to
+make one.
 
 Any static server works; the page needs no build step.

@@ -92,9 +92,9 @@ desktop app built this way, with a software renderer for the draw list.
 [`MemoryFiles`](/walkit/api/walkit/files/struct.MemoryFiles.html) holds a skin's entries by path. The
 engine reads no archive itself, so the host unzips the skin with any zip library.
 
-[`LayeredFiles`](/walkit/api/walkit/files/struct.LayeredFiles.html) puts a skin over Winamp's default
-element set: paths under `wasabi-base/` read from the base, everything else from the skin.
-Winamp draws lists, scrollbars and frames a skin does not define from that set.
+[`LayeredFiles`](/walkit/api/walkit/files/struct.LayeredFiles.html) puts a skin over Winamp's
+[wasabi base](/walkit/wasabi-base/): paths under `wasabi-base/` read from the base, everything
+else from the skin. Winamp draws lists, scrollbars and frames a skin does not define from it.
 
 A classic skin needs no base. The engine recognizes it by its `main.bmp` and generates its
 layout.

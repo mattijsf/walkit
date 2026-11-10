@@ -211,8 +211,8 @@ class Embed {
   /**
    * Opens a skin archive (a URL, an ArrayBuffer or bytes) over `wasabi`, an archive like the
    * skin (kept once opened) or path -> bytes: for a classic .wsz the base skin its missing
-   * bitmaps come from, as Winamp takes them from its base skin; for a modern .wal Winamp's default
-   * element set, with the fonts given to `addFonts`. On the page's player unless `demoPlayer`.
+   * bitmaps come from, as Winamp takes them from its base skin; for a modern .wal Winamp's wasabi
+   * base, with the fonts given to `addFonts`. On the page's player unless `demoPlayer`.
    */
   async openSkin(source, { name = "skin", wasabi = null, demoPlayer = false } = {}) {
     const [entries, base] = await Promise.all([

@@ -37,9 +37,11 @@ a change moves.
 The inputs stay outside the repository: the skins are other people's work, and the traces are
 tens of megabytes per run.
 
-`--wasabi` takes a zip of Winamp's `wasabi` folder. `--fonts` takes a folder with DejaVu Sans
-Condensed and Liberation Sans, which stand in for Windows' system fonts. Without Liberation
-Sans, text set in Arial lands on different baselines.
+`--wasabi` takes a zip of Winamp's `wasabi` folder, made as
+[The wasabi base](/walkit/wasabi-base/#make-the-zip) shows. `--fonts` takes
+`examples/skins/fonts` from the repository: DejaVu Sans Condensed and Liberation Sans, which
+stand in for Windows' system fonts. Without Liberation Sans, text set in Arial lands on
+different baselines.
 
 ## Other targets
 

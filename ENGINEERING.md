@@ -53,10 +53,10 @@ else a change moves. Before a release:
 The inputs stay outside the repository: the skins are other people's work, and the traces are
 tens of megabytes per run.
 
-`--wasabi` takes a zip of Winamp's `wasabi` folder. `--fonts` must be Andamp's stand-in
-fonts folder (`app/src/main/resources/nl/mattix/andamp/wal/defaultset/fonts`). It
-holds DejaVu Sans Condensed and Liberation Sans, which stand in for Windows' system fonts.
-Without Liberation Sans, text set in Arial lands on different baselines.
+`--wasabi` takes a zip of Winamp's `wasabi` folder, made as the guide's
+[wasabi base](https://mattijsf.github.io/walkit/wasabi-base/) page shows. `--fonts` takes
+`examples/skins/fonts`: DejaVu Sans Condensed and Liberation Sans, which stand in for Windows'
+system fonts. Without Liberation Sans, text set in Arial lands on different baselines.
 
 [web/README.md](web/README.md) runs the same scenarios through the wasm module in node and in a
 browser, and [android/README.md](android/README.md) runs them through the AAR on a device.

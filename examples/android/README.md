@@ -7,8 +7,8 @@ classic one opens on the first start; "walkit classic" and "walkit modern" open 
 skins directly. The stand-in fonts in `../skins/fonts` sit under every skin, read from the
 assets. There is also an "Open skin" button for a `.wsz`
 (classic) or `.wal` (modern) skin, a "Wasabi base" button for a zip of Winamp's
-`Plugins\freeform\xml\wasabi` folder (modern skins draw their lists and frames from it; classic
-skins need none), and a view that runs and draws the skin. The skin opened last opens again on
+`wasabi` folder, which some modern skins draw lists and frames from (classic skins never do;
+[how to make the zip](https://mattijsf.github.io/walkit/wasabi-base/)), and a view that runs and draws the skin. The skin opened last opens again on
 start.
 
 - `MainActivity.kt`: the buttons, the picks, and the skin's files (`ZipSkinFiles`, with
