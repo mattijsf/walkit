@@ -2,7 +2,8 @@
 
 //! The host: the skin's pictures, decoded with the `image` crate, and its text, measured and
 //! drawn with `fontdue`. The engine reads them through [`Host`]; the renderer reads the same
-//! [`Assets`], so each picture and font is decoded once.
+//! [`Assets`], so each picture and font is decoded once. The free fonts that stand in for
+//! Arial and Tahoma lie under the skin's files as `fonts/LiberationSans.ttf` and the like.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -14,20 +15,13 @@ use walkit::files::SkinFiles;
 use walkit::gdi::{em_size, FontFace};
 use walkit::host::SkinHost;
 
-/// Where macOS keeps the fonts a skin names most.
-const SUPPLEMENTAL: &str = "/System/Library/Fonts/Supplemental";
-
-/// The font for text that names none, and the one a missing font falls back to.
-const DEFAULT_FONTS: [&str; 2] = [
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-    "/System/Library/Fonts/Helvetica.ttc",
-];
+/// The font for text that names none, and the one a missing font falls back to: the stand-in
+/// for Arial, read from the skin's files, else a font of the system.
+const DEFAULT_FONT: &str = "fonts/LiberationSans.ttf";
+const SYSTEM_FONT: &str = "/System/Library/Fonts/Helvetica.ttc";
 
 /// Its bold cut.
-const DEFAULT_BOLD_FONTS: [&str; 2] = [
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/System/Library/Fonts/Helvetica.ttc",
-];
+const DEFAULT_BOLD_FONT: &str = "fonts/LiberationSans-Bold.ttf";
 
 /// A decoded picture: its size and its pixels as ARGB, rows top first.
 pub struct Picture {
@@ -127,11 +121,10 @@ impl Assets {
     pub fn face(&mut self, font: Option<&FontDef>, bold: bool) -> Option<TextFace> {
         let face = FontFace::of(font, bold);
         let (found, fake_bold) = match &face {
-            // a Windows font the skin names without a file: the macOS font of that name
+            // a Windows font the skin names without a file: the free font standing in for it
             FontFace::StandIn { .. } => {
                 let file = face.file().unwrap_or_default();
-                let found = stand_in_path(&file).and_then(|p| self.system_font(&p));
-                (found, false)
+                (self.skin_font(&file), false)
             }
             FontFace::SkinFile { font, fake_bold } => {
                 let found = self.skin_font(&font.file);
@@ -143,19 +136,26 @@ impl Assets {
             return Some(TextFace { font, fake_bold });
         }
         // the default font, in its own bold cut
-        let list = if fake_bold {
-            DEFAULT_BOLD_FONTS
+        let file = if fake_bold {
+            DEFAULT_BOLD_FONT
         } else {
-            DEFAULT_FONTS
+            DEFAULT_FONT
         };
-        let font = list.iter().find_map(|p| self.system_font(p))?;
+        let font = self
+            .skin_font(file)
+            .or_else(|| self.system_font(SYSTEM_FONT))?;
         Some(TextFace {
             font,
             fake_bold: false,
         })
     }
 
-    /// A TrueType file inside the skin.
+    /// The bytes of `file` among the skin's files.
+    pub fn read(&self, file: &str) -> Option<Rc<[u8]>> {
+        self.files.read(file)
+    }
+
+    /// A TrueType file among the skin's files.
     fn skin_font(&mut self, file: &str) -> Option<Rc<FontEntry>> {
         if file.is_empty() {
             return None;
@@ -202,20 +202,6 @@ fn parse_font(bytes: &[u8]) -> Option<Rc<FontEntry>> {
     Font::from_bytes(bytes, FontSettings::default())
         .ok()
         .map(FontEntry::new)
-}
-
-/// The engine names the free fonts that stand in for Arial and Tahoma; macOS has the fonts
-/// themselves.
-fn stand_in_path(file: &str) -> Option<String> {
-    let name = file.to_lowercase();
-    let path = match name.as_str() {
-        "fonts/liberationsans.ttf" => "Arial.ttf",
-        "fonts/liberationsans-bold.ttf" => "Arial Bold.ttf",
-        "fonts/dejavusanscondensed.ttf" => "Tahoma.ttf",
-        "fonts/dejavusanscondensed-bold.ttf" => "Tahoma Bold.ttf",
-        _ => return None,
-    };
-    Some(format!("{SUPPLEMENTAL}/{path}"))
 }
 
 /// What the engine asks of the app. It shares [`Assets`] with the renderer, and raises
@@ -278,8 +264,7 @@ impl SkinHost for Host {
     }
 
     fn font_file(&mut self, file: &str) -> Option<Rc<[u8]>> {
-        let path = stand_in_path(file)?;
-        std::fs::read(path).ok().map(Rc::from)
+        self.assets.borrow().read(file)
     }
 
     fn log(&mut self, message: &str) {

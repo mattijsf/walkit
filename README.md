@@ -35,7 +35,7 @@ tools/web-build.sh       # the wasm modules (needs the wasm32-unknown-unknown ta
 ## Examples
 
 [`examples/`](examples/) has a small app for each host: a web page on the `walkit-web` package,
-an Android app on the AAR, and a macOS app on the crate.
+an Android app on the AAR, and a SwiftUI app for macOS on the crate.
 
 ## Documentation
 
