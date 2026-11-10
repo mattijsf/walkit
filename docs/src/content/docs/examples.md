@@ -54,7 +54,7 @@ cd examples/android
 
 ## macOS
 
-![The macOS example showing Winamp Modern](../../assets/example-macos.png)
+![The macOS example showing the original modern skin from examples/skins](../../assets/example-macos.png)
 
 [`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a SwiftUI app
 on the `walkit` crate, as the [Rust](/walkit/rust/) guide describes. A small Rust library in the
