@@ -1,0 +1,21 @@
+[package]
+name = "walkit-macos-example"
+description = "A small macOS app that shows a Winamp skin with the walkit crate"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+# its own workspace: the example builds on its own, outside the repository's crates
+[workspace]
+
+[dependencies]
+walkit = { path = "../../crates/walkit" }
+fontdue = "0.9.5"
+image = { version = "0.25.10", default-features = false, features = ["png", "bmp", "gif", "jpeg"] }
+softbuffer = "0.4.8"
+winit = "0.30.13"
+zip = { version = "2.6.1", default-features = false, features = ["deflate"] }
+
+[profile.release]
+opt-level = 3
