@@ -4,10 +4,12 @@ import AppKit
 import SwiftUI
 
 /// Runs a skin and shows it: a tick on every display frame, a new frame when the skin asks for
-/// one, and the mouse passed back to the engine. One point is one layout pixel.
+/// one, and the mouse passed back to the engine. The skin sits in the middle of the view at the
+/// largest whole zoom that fits: one layout pixel is one point, two when the window is twice
+/// the skin's size, and so on.
 struct SkinView: NSViewRepresentable {
     let skin: Skin?
-    /// The size the skin's windows take, in points: the view asks for it.
+    /// The size the skin's windows take, in layout pixels: the view is at least this big.
     @Binding var size: CGSize
 
     func makeNSView(context: Context) -> SkinNSView {
@@ -38,13 +40,19 @@ final class SkinNSView: NSView {
     private var pressed = false
     private var shownSize = CGSize.zero
     private var link: CADisplayLink?
+    /// Points per layout pixel, and where the skin's top left corner sits in the view.
+    private var zoom = 1
+    private var origin = CGPoint.zero
+    /// The layer the frame shows in, at the skin's place in the view.
+    private let skinLayer = CALayer()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = NSColor(white: 0.125, alpha: 1).cgColor
-        layer?.contentsGravity = .topLeft
-        layer?.magnificationFilter = .nearest
+        skinLayer.contentsGravity = .resize
+        skinLayer.magnificationFilter = .nearest
+        layer?.addSublayer(skinLayer)
     }
 
     required init?(coder: NSCoder) { fatalError("not from a nib") }
@@ -69,25 +77,48 @@ final class SkinNSView: NSView {
         dirty = true
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        dirty = true
+    }
+
+    /// The largest whole zoom at which the skin fits the view, and the skin's place at it.
+    private func place(_ size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        let fit = min(bounds.width / size.width, bounds.height / size.height)
+        zoom = max(1, Int(fit.rounded(.down)))
+        let w = size.width * CGFloat(zoom)
+        let h = size.height * CGFloat(zoom)
+        origin = CGPoint(
+            x: max(0, ((bounds.width - w) / 2).rounded(.down)),
+            y: max(0, ((bounds.height - h) / 2).rounded(.down)))
+    }
+
     /// Once per display frame: the engine runs its timers and animations, and the view draws
     /// again when something changed.
     @objc private func frame(_ link: CADisplayLink) {
         guard let skin else {
             image = nil
-            layer?.contents = nil
+            skinLayer.contents = nil
             return
         }
         let changed = skin.tick()
         guard changed || dirty else { return }
         dirty = false
-        let scale = max(1, Int((window?.backingScaleFactor ?? 2).rounded()))
+        let size = skin.size
+        place(size)
+        // device pixels per layout pixel: the zoom on a Retina screen's two per point
+        let backing = max(1, Int((window?.backingScaleFactor ?? 2).rounded()))
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        image = skin.draw(scale: scale)
-        layer?.contents = image
-        layer?.contentsScale = CGFloat(scale)
+        image = skin.draw(scale: zoom * backing)
+        skinLayer.contents = image
+        skinLayer.contentsScale = CGFloat(backing)
+        // the view is flipped, its layer is not: y counts from the bottom here
+        skinLayer.frame = CGRect(
+            x: origin.x, y: bounds.height - origin.y - size.height * CGFloat(zoom),
+            width: size.width * CGFloat(zoom), height: size.height * CGFloat(zoom))
         CATransaction.commit()
-        let size = skin.size
         if size != shownSize {
             shownSize = size
             onResize?(size)
@@ -97,16 +128,20 @@ final class SkinNSView: NSView {
     /// Draws the frame shown when the view is drawn into an image ([`NSView.cacheDisplay`]),
     /// as `--screenshot` does; on the screen the layer shows it.
     override func draw(_ dirtyRect: NSRect) {
+        NSColor(white: 0.125, alpha: 1).setFill()
+        bounds.fill()
         guard let image else { return }
+        let rect = CGRect(origin: origin, size: skinLayer.frame.size)
         NSGraphicsContext.current?.imageInterpolation = .none
-        NSImage(cgImage: image, size: bounds.size).draw(
-            in: bounds, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
+        NSImage(cgImage: image, size: rect.size).draw(
+            in: rect, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
     }
 
     /// The mouse in layout pixels.
     private func point(_ event: NSEvent) -> (Int32, Int32) {
         let p = convert(event.locationInWindow, from: nil)
-        return (Int32(p.x.rounded(.down)), Int32(p.y.rounded(.down)))
+        let z = CGFloat(zoom)
+        return (Int32(((p.x - origin.x) / z).rounded(.down)), Int32(((p.y - origin.y) / z).rounded(.down)))
     }
 
     override func mouseDown(with event: NSEvent) {

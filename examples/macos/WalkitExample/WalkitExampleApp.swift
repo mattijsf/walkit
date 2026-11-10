@@ -18,7 +18,7 @@ struct WalkitExampleApp: App {
         Window("walkit", id: "skin") {
             ContentView()
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
     }
 }
 

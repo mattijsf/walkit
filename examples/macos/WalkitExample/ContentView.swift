@@ -4,7 +4,8 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The buttons and the skin under them. The window takes the skin's size.
+/// The buttons and the skin under them. The window opens at the skin's size and resizes; it
+/// never gets smaller than the skin.
 struct ContentView: View {
     @State private var library = SkinLibrary()
     @State private var size = CGSize(width: 275, height: 116)
@@ -20,7 +21,9 @@ struct ContentView: View {
             buttons
             Divider()
             SkinView(skin: library.skin, size: $size)
-                .frame(width: size.width, height: size.height)
+                .frame(
+                    minWidth: size.width, idealWidth: size.width, maxWidth: .infinity,
+                    minHeight: size.height, idealHeight: size.height, maxHeight: .infinity)
                 .overlay {
                     if library.skin == nil {
                         Text(library.loading ? "Loading a skin" : "No skin").foregroundStyle(.secondary)
@@ -37,10 +40,9 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(6)
-                    .frame(maxWidth: size.width)
+                    .frame(maxWidth: .infinity)
             }
         }
-        .fixedSize()
         .navigationTitle(library.skin?.name ?? "walkit")
         .fileImporter(
             isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
@@ -74,7 +76,7 @@ struct ContentView: View {
         }
         .controlSize(.small)
         .padding(8)
-        .frame(minWidth: size.width, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The skin the command line names: a skin file, `--modern`, `--builtin` (the original
