@@ -207,7 +207,9 @@ class SkinView(
             runCatching { Typeface.Builder(f).build() }.getOrNull() ?: Typeface.SANS_SERIF
         }
 
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    // text is laid out at layout pixels and drawn scaled up: linear, subpixel glyph positions
+    // keep its spacing even, where hinting at the small size would not
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.LINEAR_TEXT_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
 
     /** [textPaint] set up for [font] at [size] as the engine chooses its face ([FontFace.of]). */
     private fun textPaint(

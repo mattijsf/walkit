@@ -15,6 +15,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import nl.mattix.walkit.LayeredSkinFiles
+import nl.mattix.walkit.SkinFiles
 import nl.mattix.walkit.WithGeneratedImages
 import nl.mattix.walkit.ZipSkinFiles
 import java.io.File
@@ -46,6 +47,11 @@ class MainActivity : Activity() {
                 addView(button("Winamp classic") { download(CLASSIC) })
                 addView(button("Winamp Modern") { download(MODERN) })
             }
+        val builtin =
+            LinearLayout(this).apply {
+                addView(button("walkit classic") { openBuiltin(CLASSIC) })
+                addView(button("walkit modern") { openBuiltin(MODERN) })
+            }
         val buttons =
             LinearLayout(this).apply {
                 addView(button("Open skin") { pick(PICK_SKIN) })
@@ -56,6 +62,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.rgb(24, 24, 28))
                 addView(remote)
+                addView(builtin)
                 addView(buttons)
                 addView(status)
                 addView(skinView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -192,6 +199,35 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    /** Opens the original skin of [remote]'s kind from the app's assets, without the download. */
+    private fun openBuiltin(remote: Remote) {
+        assets.open(remote.fallback).use { keepSkin(remote.fallback, it) }
+        openSkin()
+    }
+
+    /**
+     * The skin's files with the free fonts that stand in for Windows' Arial and Tahoma
+     * (`fonts/LiberationSans.ttf` and the others, in the app's assets) under them, where the
+     * engine looks for them.
+     */
+    private inner class WithStandInFonts(
+        private val skin: SkinFiles,
+    ) : SkinFiles {
+        override fun read(path: String): ByteArray? =
+            skin.read(path) ?: SkinFiles.normalize(path).takeIf { it.startsWith("fonts/") }?.let(::font)
+
+        override fun names(): List<String> = skin.names()
+
+        // paths come lowercase; the assets keep the fonts' own names
+        private fun font(path: String): ByteArray? =
+            fonts.getOrPut(path) {
+                val name = assets.list("fonts")?.firstOrNull { "fonts/$it".equals(path, ignoreCase = true) }
+                name?.let { n -> assets.open("fonts/$n").use { it.readBytes() } }
+            }
+    }
+
+    private val fonts = HashMap<String, ByteArray?>()
+
     // ---- opening the skin --------------------------------------------------------------------
 
     private fun openSkin() {
@@ -205,7 +241,7 @@ class MainActivity : Activity() {
             val haveDefaults = defaultSet.exists()
             // a modern skin reads Winamp's default set under paths starting with wasabi-base/
             val files = if (haveDefaults) LayeredSkinFiles(skin, ZipSkinFiles(defaultSet)) else skin
-            skinView.show(WithGeneratedImages(files), file.nameWithoutExtension)
+            skinView.show(WithGeneratedImages(WithStandInFonts(files)), file.nameWithoutExtension)
             status.text = file.name
         } catch (e: Exception) {
             Log.w("walkit", "cannot open ${file.name}", e)

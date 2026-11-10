@@ -5,11 +5,14 @@
 //! ```text
 //! cargo run --release                  # Winamp's base skin
 //! cargo run --release -- --modern       # Winamp Modern
+//! cargo run --release -- --builtin      # the original classic skin; with --modern, the modern one
 //! cargo run --release -- <skin.wsz|skin.wal> [--defaults <wasabi-defaults.zip>]
 //! ```
 //!
 //! With no skin file, the app downloads one of Winamp's own skins from the Winamp Skin Museum.
-//! When that fails, it shows the original skin of the same kind built into the app.
+//! When that fails, it shows the original skin of the same kind built into the app. In the
+//! window, keys 1 and 2 open Winamp's base skin and Winamp Modern, 3 and 4 the built-in classic
+//! and modern skins.
 //!
 //! The engine lays the skin out and hands back a draw list each frame; this app unzips the
 //! skin, decodes its pictures and fonts ([`host`]), draws the list into a window with a
@@ -73,6 +76,11 @@ struct Remote {
 }
 
 impl Remote {
+    /// The built-in skin's bytes and file name.
+    fn builtin(&self) -> (Vec<u8>, String) {
+        (self.fallback.to_vec(), self.fallback_name.to_string())
+    }
+
     /// The skin's bytes and file name: downloaded, or the built-in fallback.
     fn fetch(&self) -> (Vec<u8>, String) {
         let download = || -> Result<Vec<u8>, String> {
@@ -102,6 +110,7 @@ struct Options {
     /// A skin file, or none for the remote skin.
     skin: Option<PathBuf>,
     modern: bool,
+    builtin: bool,
     defaults: Option<PathBuf>,
     screenshot: Option<PathBuf>,
     scale: i32,
@@ -113,7 +122,7 @@ fn main() {
         Err(e) => {
             eprintln!("{e}");
             eprintln!(
-                "usage: walkit-macos-example [<skin.wsz|skin.wal> | --modern] \
+                "usage: walkit-macos-example [<skin.wsz|skin.wal> | --modern | --builtin] \
                  [--defaults <wasabi-defaults.zip>] [--screenshot <out.png>] [--scale <n>]"
             );
             std::process::exit(2);
@@ -136,8 +145,14 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        None if options.modern => MODERN.fetch(),
-        None => CLASSIC.fetch(),
+        None => {
+            let remote = if options.modern { &MODERN } else { &CLASSIC };
+            if options.builtin {
+                remote.builtin()
+            } else {
+                remote.fetch()
+            }
+        }
     };
     let skin = match Skin::open(bytes, &name, defaults.as_ref()) {
         Ok(s) => s,
@@ -173,11 +188,13 @@ fn parse_args() -> Result<Options, String> {
     let mut defaults = None;
     let mut screenshot = None;
     let mut modern = false;
+    let mut builtin = false;
     let mut scale = 2;
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
             "--modern" => modern = true,
+            "--builtin" => builtin = true,
             "--defaults" => defaults = Some(PathBuf::from(value()?)),
             "--screenshot" => screenshot = Some(PathBuf::from(value()?)),
             "--scale" => {
@@ -193,6 +210,7 @@ fn parse_args() -> Result<Options, String> {
     Ok(Options {
         skin,
         modern,
+        builtin,
         defaults,
         screenshot,
         scale,
@@ -402,10 +420,15 @@ impl App {
     }
 
     fn open(&mut self, path: &Path) {
-        let opened = std::fs::read(path)
-            .map_err(|e| e.to_string())
-            .and_then(|bytes| Skin::open(bytes, &title(path), self.defaults.as_ref()));
-        match opened {
+        match std::fs::read(path) {
+            Ok(bytes) => self.show(bytes, &title(path)),
+            Err(e) => eprintln!("{}: {e}", path.display()),
+        }
+    }
+
+    /// Shows the skin archive `bytes`, named `name`, in place of the one shown.
+    fn show(&mut self, bytes: Vec<u8>, name: &str) {
+        match Skin::open(bytes, name, self.defaults.as_ref()) {
             Ok(skin) => {
                 self.skin = skin;
                 if let Some(window) = &self.window {
@@ -414,7 +437,7 @@ impl App {
                 }
                 self.fit_window();
             }
-            Err(e) => eprintln!("{}: {e}", path.display()),
+            Err(e) => eprintln!("{name}: {e}"),
         }
     }
 }
@@ -452,6 +475,16 @@ impl ApplicationHandler for App {
                 self.skin.redraw.set(true);
             }
             WindowEvent::DroppedFile(path) => self.open(&path),
+            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                let skin = match event.logical_key.to_text() {
+                    Some("1") => CLASSIC.fetch(),
+                    Some("2") => MODERN.fetch(),
+                    Some("3") => CLASSIC.builtin(),
+                    Some("4") => MODERN.builtin(),
+                    _ => return,
+                };
+                self.show(skin.0, &skin.1);
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = position;
                 if self.pressed {

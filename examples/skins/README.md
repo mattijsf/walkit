@@ -12,6 +12,12 @@ Both share one flat dark look with a teal accent. Every picture is original: `ma
 draws them pixel by pixel, so the skins are under the repository's license,
 GPL-3.0-or-later.
 
+`fonts/` holds the free fonts that stand in for Windows' Arial and Tahoma: Liberation Sans
+(metric-compatible with Arial, SIL Open Font License) and DejaVu Sans Condensed (Bitstream
+Vera license), with their license texts. The engine reads them from a skin's files as
+`fonts/LiberationSans.ttf` and the like, so the web and Android examples put them under every skin: a classic
+playlist then sets its rows in Arial's widths, as Winamp does.
+
 To write the two archives again (Python 3, standard library only):
 
 ```sh

@@ -3,7 +3,9 @@
 A small app that draws a Winamp skin with the walkit AAR. "Winamp classic" and "Winamp Modern"
 download Winamp's own skins from the Winamp Skin Museum; when a download fails, the app shows
 the original skin of the same kind from [`../skins`](../skins), packed into its assets. The
-classic one opens on the first start. There is also an "Open skin" button for a `.wsz`
+classic one opens on the first start; "walkit classic" and "walkit modern" open the original
+skins directly. The stand-in fonts in `../skins/fonts` sit under every skin, read from the
+assets. There is also an "Open skin" button for a `.wsz`
 (classic) or `.wal` (modern) skin, a "Default set" button for a zip of Winamp's
 `Plugins\freeform\xml\wasabi` folder (modern skins draw their lists and frames from it; classic
 skins need none), and a view that runs and draws the skin. The skin opened last opens again on

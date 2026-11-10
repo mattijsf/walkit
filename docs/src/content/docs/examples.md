@@ -11,7 +11,12 @@ Each one shows Winamp's own skins, the base skin and Winamp Modern, downloaded f
 [Winamp Skin Museum](https://skins.webamp.org/). Those are Winamp's art, so the repository
 doesn't ship them. When a download fails, an example shows one of the two original skins in
 [`examples/skins`](https://github.com/mattijsf/walkit/tree/main/examples/skins) instead, a
-classic one and a modern one.
+classic one and a modern one. Each example also has a button or key that opens these directly.
+
+The web and Android examples put the free fonts that stand in for Windows' Arial and Tahoma,
+from `examples/skins/fonts`, under every skin, where the engine looks for them; the macOS one
+draws those faces with the system's own Arial and Tahoma. A classic playlist then sets its rows
+in Arial's widths, as Winamp does.
 
 Any other `.wsz` or `.wal` opens too. A modern skin that draws lists or frames from Winamp's
 default element set also needs that set, a zip of its `wasabi` folder.

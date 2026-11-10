@@ -12,7 +12,9 @@ python3 -m http.server -d examples 8000
 
 The page opens Winamp's base skin, downloaded from the Winamp Skin Museum; "Winamp Modern"
 downloads that one. When a download fails, the page shows the original skin of the same kind
-in [`../skins`](../skins), which is why the server serves `examples/` as a whole.
+in [`../skins`](../skins); "walkit classic" and "walkit modern" open those directly. The page
+also hands the engine the stand-in fonts in `../skins/fonts`, which is why the server serves
+`examples/` as a whole.
 
 "Skin" opens a `.wsz` or `.wal` of your own, as does dropping one on the page. "Default set"
 takes a zip of Winamp's `wasabi` folder, for a modern skin that draws lists or frames from it.

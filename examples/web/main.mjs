@@ -18,6 +18,9 @@ const SKINS = {
   },
 };
 
+// The free fonts that stand in for Windows' Arial and Tahoma, as the engine names them.
+const FONTS = ["LiberationSans.ttf", "LiberationSans-Bold.ttf", "DejaVuSansCondensed.ttf", "DejaVuSansCondensed-Bold.ttf"];
+
 const stage = document.getElementById("stage");
 const hint = document.getElementById("hint");
 
@@ -26,7 +29,19 @@ const tracks = [
   { title: "walkit - Example track", lengthMs: 215000 },
   { title: "walkit - Another track", lengthMs: 184000 },
 ];
-const player = { status: "stopped", index: 0, startedAt: 0, positionMs: 0, volume: 200 };
+const player = {
+  status: "stopped",
+  index: 0,
+  startedAt: 0,
+  positionMs: 0,
+  volume: 200,
+  pan: 0,
+  shuffle: false,
+  repeat: false,
+  eqOn: false,
+  preamp: 128,
+  bands: new Array(10).fill(128),
+};
 
 function positionMs(now) {
   return player.status === "playing" ? player.positionMs + (now - player.startedAt) : player.positionMs;
@@ -44,6 +59,13 @@ function command(name, value, now = performance.now()) {
     case "play_track": player.index = value; player.positionMs = 0; player.status = "playing"; break;
     case "seek": player.positionMs = value; break;
     case "volume": player.volume = value; break;
+    case "pan": player.pan = value; break;
+    case "shuffle": player.shuffle = value !== 0; break;
+    case "repeat": player.repeat = value !== 0; break;
+    case "eq": player.eqOn = value !== 0; break;
+    case "preamp": player.preamp = value; break;
+    default:
+      if (name.startsWith("band")) player.bands[Number(name.slice(4))] = value;
   }
 }
 
@@ -57,6 +79,13 @@ const walkit = await loadWalkit({
   action: (action, param) => console.log("action", action, param),
   log: (line) => console.log(line),
 });
+await walkit.addFonts(
+  new Map(
+    await Promise.all(
+      FONTS.map(async (name) => [`fonts/${name}`, new Uint8Array(await (await fetch(`../skins/fonts/${name}`)).arrayBuffer())]),
+    ),
+  ),
+);
 
 /** Downloads skin `kind` ("classic" or "modern"), or reads its fallback when that fails. */
 async function fetchSkin(kind) {
@@ -113,6 +142,12 @@ function frame(now) {
       title: tracks[player.index].title,
       trackIndex: player.index,
       volume: player.volume,
+      pan: player.pan,
+      shuffle: player.shuffle,
+      repeat: player.repeat,
+      eqOn: player.eqOn,
+      preamp: player.preamp,
+      bands: player.bands,
     });
     if (player.status === "playing") skin.rt.setVis(fakeVis(now));
     if (skin.tick(now)) {
@@ -166,6 +201,11 @@ document.getElementById("defaults").addEventListener("change", async (e) => {
 });
 for (const kind of Object.keys(SKINS)) {
   document.getElementById(kind).addEventListener("click", async () => open(await fetchSkin(kind)));
+  // the original skin of the same kind, without trying the download
+  document.getElementById(`walkit-${kind}`).addEventListener("click", async () => {
+    const path = SKINS[kind].fallback;
+    open(new File([await (await fetch(path)).blob()], path.split("/").pop()));
+  });
 }
 for (const name of ["play", "pause", "stop"]) {
   document.getElementById(name).addEventListener("click", () => {
