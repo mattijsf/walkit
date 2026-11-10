@@ -25,6 +25,8 @@ needs it, as a zip: each example takes one with its "Wasabi base" button.
 
 ## Web
 
+![The web example showing Winamp's base skin: the main window, the equalizer and the playlist](../../assets/example-web.png)
+
 [`examples/web`](https://github.com/mattijsf/walkit/tree/main/examples/web) is a page on the
 `walkit-web` package, as the [Web](/walkit/web/) guide describes: one canvas per window, laid out
 apart as on a desktop.
@@ -36,6 +38,8 @@ python3 -m http.server -d examples 8000
 ```
 
 ## Android
+
+![The Android example on a phone showing Winamp's base skin](../../assets/example-android.png)
 
 [`examples/android`](https://github.com/mattijsf/walkit/tree/main/examples/android) is an app on
 the AAR, as the [Android](/walkit/android/) guide describes: buttons for the two Winamp skins,
@@ -49,6 +53,8 @@ cd examples/android
 ```
 
 ## macOS
+
+![The macOS example showing Winamp Modern](../../assets/example-macos.png)
 
 [`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a SwiftUI app
 on the `walkit` crate, as the [Rust](/walkit/rust/) guide describes. A small Rust library in the

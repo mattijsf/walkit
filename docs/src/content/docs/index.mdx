@@ -4,6 +4,8 @@ description: A Winamp skin engine, as a library.
 template: splash
 hero:
   tagline: A Winamp skin engine, as a library. It reads modern and classic skins, runs their scripts and hands your app a draw list for every frame.
+  image:
+    html: '<img src="/walkit/winamp-skins.png" alt="Winamp''s base skin and Winamp Modern, drawn by walkit" width="734" height="347" style="max-width: 100%; height: auto" />'
   actions:
     - text: Get started
       link: /walkit/introduction/
@@ -29,8 +31,8 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
     A Rust crate, a wasm module with a JS package for web pages, and an Android library with a
     Kotlin API.
   </Card>
-  <Card title="Scripts in a sandbox" icon="approve-check">
-    Every loop, stack and allocation in the MAKI VM has a limit, and the engine crate forbids
-    unsafe code.
+  <Card title="Examples" icon="rocket">
+    A web page, an Android app and a SwiftUI macOS app that open Winamp's own skins, in the
+    [examples](/walkit/examples/).
   </Card>
 </CardGrid>
