@@ -26,6 +26,7 @@ engine of the [Andamp](https://andamp.nl) music player.
 | A Rust host | [Rust](/walkit/rust/) and the [API reference](/walkit/api-reference/) |
 | A web page | [Web](/walkit/web/) |
 | An Android app | [Android](/walkit/android/) |
+| A macOS app | The [macOS example](/walkit/examples/#macos): a SwiftUI app over the [Rust](/walkit/rust/) engine, behind a small C interface |
 | A renderer for another platform | [The draw list](/walkit/draw-list/) |
 | Changes to the engine | [Traces](/walkit/traces/) and [Contributing](/walkit/contributing/) |
 
