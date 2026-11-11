@@ -30,7 +30,9 @@ The engine has no file, screen, font, clock or thread access. The host supplies 
   over Winamp's [wasabi base](/walkit/wasabi-base/) when the host has it, a classic skin over a
   [base skin](/walkit/base-skin/) that gives the bitmaps it leaves out.
 - **Pictures and text.** The engine asks for a picture's size and pixels, and for a text's width
-  and line metrics. The host decodes and measures with whatever libraries it has.
+  and line metrics. The host decodes and measures with whatever libraries it has; a Rust
+  host can take the engine's own [TrueType letters](/walkit/rust/#text), drawn as Windows draws
+  them.
 - **The clock.** Every timer, animation and script reads one clock, in milliseconds. A host
   passes the wall clock; a test steps one so that every run lands on the same frames.
 - **The player.** The engine reads the player's state (status, position, title, playlist,

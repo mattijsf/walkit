@@ -10,7 +10,12 @@ rust-version.workspace = true
 [lib]
 crate-type = ["rlib"]
 
+[features]
+# `truetype`: TrueType text drawn as Windows draws it, for hosts that draw their own letters
+truetype = ["dep:skrifa"]
+
 [dependencies]
+skrifa = { version = "0.40", optional = true }
 
 [lints]
 workspace = true

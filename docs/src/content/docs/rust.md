@@ -2,7 +2,8 @@
 title: Rust
 ---
 
-The engine is the `walkit` crate. It has no dependencies. Until it is released, add it from the
+The engine is the `walkit` crate. It has no dependencies unless the host asks for the
+[`truetype`](#text) feature. Until it is released, add it from the
 repository:
 
 ```toml
@@ -87,6 +88,55 @@ fn main() {
 [`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a complete
 desktop app built this way: a SwiftUI app over a small Rust library that runs the engine behind
 a C interface and draws the draw list with a software renderer.
+
+## Text
+
+The engine places every run of text and the host draws its letters. A host with its own font
+library measures and draws with that. A host that draws into a buffer of pixels can take the
+engine's own letters instead, with the `truetype` feature (it adds the `skrifa` crate):
+
+```toml
+[dependencies]
+walkit = { git = "https://github.com/mattijsf/walkit", features = ["truetype"] }
+```
+
+[`walkit::truetype`](/walkit/api/walkit/truetype/index.html) draws TrueType text as Windows
+draws it for Winamp, so a playlist row has the letters and the widths it has there:
+
+- The font's own hinting fits each letter to the pixel grid.
+- Letters advance by whole pixels: the width the font's `hdmx` or `LTSH` table gives for the
+  size, else the hinted width. Pairs in the font's `kern` table move by whole pixels.
+- Letters are smoothed only at the sizes the font's `gasp` table asks for. Arial from 9 to 17
+  pixels, the classic playlist's font, is not smoothed.
+- A stroke thinner than a pixel that passes between two pixel centers still lights one pixel.
+
+```rust
+use walkit::truetype::{pixels, Font};
+
+let font = Font::parse(bytes).expect("a TrueType file"); // once per font file
+let px = pixels(size);                                    // a skin's font size in whole pixels
+
+// SkinHost::text_width and text_advance; `fake_bold` is FontFace's
+let width = font.width(text, px, fake_bold);
+// SkinHost::line_metrics
+let (ascent, descent) = font.line(px);
+
+// DrawCmd::Text: start on a whole pixel, then one bitmap per letter
+let (x, baseline) = (cmd.x.round() as i32, cmd.baseline.round() as i32);
+for (at, glyph) in font.run(&cmd.text, px) {
+    // glyph.coverage is glyph.w x glyph.h bytes, 255 the text's color;
+    // its corner is (x + at + glyph.left, baseline - glyph.top)
+}
+```
+
+A face the engine marks `fake_bold` has no bold cut: draw the run twice, one pixel apart. At
+a scale above one, ask for `pixels(size) * scale` and multiply the pen's place by the scale.
+The macOS example's `render.rs` draws text this way.
+
+With Arial itself, the rows of a classic playlist come out as Winamp 5.666 draws them, pixel
+for pixel but for the foot of a V. With the free fonts that stand in for Arial and Tahoma the
+letters differ, as the fonts do. Sizes a font smooths (Arial from 18 pixels), Tahoma and the
+text of modern skins have not been compared with Winamp yet.
 
 ## Files
 

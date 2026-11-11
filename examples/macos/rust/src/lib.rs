@@ -65,14 +65,17 @@ impl WalkitSkin {
         // the engine and the host each read the files, so the host decodes wasabi-base/...
         // pictures and the stand-in fonts from under the skin too; the bytes are shared
         let layered = || -> Box<dyn SkinFiles> {
-            let below: Box<dyn SkinFiles> = match &under {
+            let skin: Box<dyn SkinFiles> = match &under {
                 Some(base) => Box::new(LayeredFiles::new(
+                    Box::new(archive.clone()),
                     Box::new(base.clone()),
-                    Box::new(fonts.clone()),
                 )),
-                None => Box::new(fonts.clone()),
+                None => Box::new(archive.clone()),
             };
-            Box::new(LayeredFiles::new(Box::new(archive.clone()), below))
+            Box::new(WithFonts {
+                skin,
+                fonts: fonts.clone(),
+            })
         };
         let assets = Rc::new(RefCell::new(Assets::new(layered())));
         let redraw = Rc::new(Cell::new(true));
@@ -150,6 +153,25 @@ impl WalkitSkin {
         render::draw(&mut canvas, &mut self.assets.borrow_mut(), &windows, scale);
         self.redraw.set(false);
         self.frame = canvas.pixels;
+    }
+}
+
+/// A skin's files with the stand-in fonts where the engine looks for them, at `fonts/`. A
+/// file of the skin's own by the same path comes first.
+struct WithFonts {
+    skin: Box<dyn SkinFiles>,
+    fonts: MemoryFiles,
+}
+
+impl SkinFiles for WithFonts {
+    fn read(&self, path: &str) -> Option<Rc<[u8]>> {
+        self.skin.read(path).or_else(|| self.fonts.read(path))
+    }
+
+    fn names(&self) -> Vec<String> {
+        let mut names = self.skin.names();
+        names.extend(self.fonts.names());
+        names
     }
 }
 
@@ -424,7 +446,7 @@ pub unsafe extern "C" fn walkit_skin_double_click(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use walkit::draw::Rect;
+    use walkit::draw::{DrawCmd, Rect};
 
     /// A window dragged by its title bar moves within the view, and the others stay.
     #[test]
@@ -459,5 +481,54 @@ mod tests {
         );
         assert_eq!(after.last(), Some(&moved), "{after:?}");
         assert_eq!(&after[..after.len() - 1], &before[1..]);
+    }
+
+    /// Small text is drawn as Windows draws it: every pixel a letter touches takes the
+    /// text's color whole, none is smoothed.
+    #[test]
+    fn small_text_is_drawn_unsmoothed() {
+        let skin = std::fs::read("../../skins/walkit-classic.wsz").expect("the original skin");
+        let fonts = read_fonts(Path::new("../../skins/fonts"));
+        let mut s =
+            WalkitSkin::open(skin, "walkit-classic.wsz", None, None, fonts).expect("it opens");
+        s.set_view(800, 600);
+        s.runtime.tick();
+        let windows = s.runtime.draw_windows();
+        let mut colors = Vec::new();
+        let without: Vec<_> = windows
+            .iter()
+            .map(|(rect, commands)| {
+                let rest = commands
+                    .iter()
+                    .filter(|c| match c {
+                        DrawCmd::Text(t) => {
+                            assert!(walkit::truetype::pixels(t.size) < 18, "small text");
+                            colors.push(t.color.0 & 0x00ff_ffff);
+                            false
+                        }
+                        _ => true,
+                    })
+                    .cloned()
+                    .collect();
+                (*rect, rest)
+            })
+            .collect();
+        assert!(!colors.is_empty(), "the skin draws text");
+        let mut with = render::Canvas::new(800, 600);
+        render::draw(&mut with, &mut s.assets.borrow_mut(), &windows, 1);
+        let mut bare = render::Canvas::new(800, 600);
+        render::draw(&mut bare, &mut s.assets.borrow_mut(), &without, 1);
+        let inked: Vec<u32> = with
+            .pixels
+            .iter()
+            .zip(&bare.pixels)
+            .filter(|(a, b)| a != b)
+            .map(|(a, _)| *a)
+            .collect();
+        assert!(inked.len() > 50, "letters show: {} pixels", inked.len());
+        assert!(
+            inked.iter().all(|p| colors.contains(p)),
+            "every letter pixel is in a text's own color"
+        );
     }
 }
