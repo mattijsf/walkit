@@ -68,7 +68,7 @@ impl SkinRuntime {
             return text.to_string();
         }
         let chars: Vec<char> = text.chars().collect();
-        let cut = |n: usize| format!("{}...", chars[..n].iter().collect::<String>().trim_end());
+        let cut = |n: usize| format!("{}...", chars[..n].iter().collect::<String>());
         // the most letters that fit with the ellipsis
         let (mut lo, mut hi) = (0, chars.len());
         while lo < hi {
