@@ -1847,6 +1847,29 @@ fn in_the_skins_letters_the_rows_are_one_block_and_a_row_they_cannot_spell_keeps
 }
 
 #[test]
+fn a_title_cut_after_a_space_keeps_the_space_before_the_dots() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = vec![Track {
+        title: "Please judge my book by its cover".into(),
+        length_ms: 215_000,
+    }];
+    let mut rt = classic_with(player, clock);
+    assert!(rt.open_window("pledit"));
+    let windows = rt.draw_windows();
+    let (_, cmds) = windows
+        .iter()
+        .find(|(r, _)| r.top == 116)
+        .expect("the playlist");
+    let title = cmds.iter().find_map(|c| match c {
+        DrawCmd::Text(t) => Some(t.text.clone()),
+        _ => None,
+    });
+    // the sixteen letters that fit end on the space after "judge", as Winamp leaves it
+    assert_eq!(title.as_deref(), Some("1. Please judge ..."));
+}
+
+#[test]
 fn the_playlist_rows_ask_for_winamps_em_of_twelve_pixels() {
     let clock: Clock = Rc::new(|| 0);
     let mut player = FakePlayer::new(clock.clone());
