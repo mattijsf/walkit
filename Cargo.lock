@@ -529,6 +529,9 @@ dependencies = [
 [[package]]
 name = "walkit"
 version = "0.1.0"
+dependencies = [
+ "skrifa",
+]
 
 [[package]]
 name = "walkit-android"

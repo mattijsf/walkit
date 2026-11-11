@@ -54,10 +54,10 @@ The engine is Rust; the app calls it through a small C interface.
   - `src/lib.rs` is the C interface ([`include/walkit_macos.h`](rust/include/walkit_macos.h)):
     it unzips the skin, lays it over the base skin or the wasabi base and the fonts, runs the
     engine with its demo player and its windows set out apart, and draws frames.
-  - `src/host.rs` is the engine's host: pictures decoded with `image`, text measured with
-    `fontdue`.
-  - `src/render.rs` draws the draw list into a buffer of pixels: pictures, fills, text, clips
-    and window shapes.
+  - `src/host.rs` is the engine's host: pictures decoded with `image`, text measured with the
+    engine's `truetype` feature.
+  - `src/render.rs` draws the draw list into a buffer of pixels: pictures, fills, clips,
+    window shapes and text, its letters drawn by the `truetype` feature as Windows draws them.
 - [`WalkitExample/`](WalkitExample) is the SwiftUI app.
   - `ContentView.swift`: the buttons, the file pickers and the command line.
   - `SkinLibrary.swift`: the downloads, the fallbacks, and what lies under each skin.

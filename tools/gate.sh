@@ -10,6 +10,9 @@ if "$HOME/.cargo/bin/rustup" target list --installed 2>/dev/null | grep -q wasm3
   PATH="$HOME/.cargo/bin:$PATH" cargo clippy -p walkit-web --target wasm32-unknown-unknown -- -D warnings
 fi
 cargo test --workspace
+# the engine's optional TrueType letters, which no crate of the workspace turns on
+cargo clippy -p walkit --features truetype --all-targets -- -D warnings
+cargo test -p walkit --features truetype truetype
 # the web player's modules parse (node is what serves them)
 if command -v node >/dev/null 2>&1; then
   for f in web/*.mjs; do node --check "$f"; done

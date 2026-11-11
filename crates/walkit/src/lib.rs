@@ -24,6 +24,8 @@ pub mod plan;
 pub mod player;
 pub mod runtime;
 pub mod text;
+#[cfg(feature = "truetype")]
+pub mod truetype;
 pub mod xml;
 
 pub use runtime::SkinRuntime;
