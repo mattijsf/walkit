@@ -5,7 +5,8 @@
 
 use std::rc::Rc;
 
-use super::{SkinRuntime, EQ_FLAT};
+use super::SkinRuntime;
+use crate::classic::eq::band_step;
 use crate::draw::{DrawCmd, Gamma, Rgb};
 use crate::gui::{parse_rgb, to_bool, to_int_lenient, Kind, ObjId, ScopeStyle};
 use crate::player::Status;
@@ -30,7 +31,6 @@ const SCOPE_COLORS: usize = 5;
 /// The most pixels a made picture may hold.
 pub(crate) const MAX_PIXELS: i64 = 16 * 1024 * 1024;
 const NO_STOPS: u32 = 0xffff_00ff;
-const BIAS: f64 = 0.1;
 
 /// `px` (`w` x `h`) stretched to `dw` x `dh` as Winamp stretches the vis picture: target pixel
 /// x takes source column floor(x * w / dw).
@@ -432,8 +432,8 @@ impl SkinRuntime {
         true
     }
 
-    /// The EQ curve: a Kochanek-Bartels spline through the ten bands, each row in a color
-    /// blended from top to middle to bottom, the preamp first as a full row.
+    /// The EQ curve: a spline through the ten bands (see `eq_curve_rows`), each row in a color
+    /// blended from top to middle to bottom, the preamp's line first as a full row.
     pub(crate) fn draw_eqvis(&mut self, o: ObjId, out: &mut Vec<DrawCmd>) {
         let rect = self.objects[o].base.rect;
         let alpha = self.objects[o].base.effective_alpha;
@@ -469,35 +469,17 @@ impl SkinRuntime {
             })
             .collect();
         let mut px = vec![0u32; w * h];
-        let p = &*self.player;
-        let pre = (p.eq_preamp() - EQ_FLAT).clamp(-127, 127);
-        let pre_row = ((127 - pre) * h as i32 / 256).clamp(0, h as i32 - 1) as usize;
+        let pre_row = eq_preamp_row(band_step(self.player.eq_preamp()), h);
         let pc = self.vis_tint(e.gamma_group.as_deref(), e.preamp).0 | OPAQUE;
-        for x in 0..w {
-            px[pre_row * w + x] = pc;
-        }
-        // the bands as heights (a boost is up), the first and last doubled for the spline's ends
-        let bands = self.player.eq_bands();
-        let ys: Vec<f64> = (0..12)
-            .map(|i: i32| {
-                let band = (bands
-                    .get((i - 1).clamp(0, 9) as usize)
-                    .copied()
-                    .unwrap_or(EQ_FLAT)
-                    - EQ_FLAT)
-                    .clamp(-127, 127);
-                (127 - band) as f64 * h as f64 / 256.0
-            })
-            .collect();
-        let mut prev: i32 = -1;
-        for x in 0..w {
-            let t = x as f64 / (0.11 * w as f64) + 1.0;
-            let y = (spline(&ys, t) as i32).clamp(0, h as i32 - 1);
-            let from = if prev < 0 { y } else { prev };
+        px[pre_row * w..(pre_row + 1) * w].fill(pc);
+        let steps: Vec<i32> = self.player.eq_bands().into_iter().map(band_step).collect();
+        let mut prev: Option<usize> = None;
+        for (x, y) in eq_curve_rows(&steps, w, h).into_iter().enumerate() {
+            let from = prev.unwrap_or(y);
             for r in from.min(y)..=from.max(y) {
-                px[r as usize * w + x] = row_color[r as usize];
+                px[r * w + x] = row_color[r];
             }
-            prev = y;
+            prev = Some(y);
         }
         out.push(DrawCmd::Pixels {
             rect,
@@ -649,22 +631,150 @@ fn paint_gradient(
     }
 }
 
-/// Kochanek-Bartels (tension 0, continuity 0, bias `BIAS`) through `p` at parameter `t`.
-fn spline(p: &[f64], t: f64) -> f64 {
-    let n = p.len();
-    let i = (t.floor() as i64).clamp(1, n as i64 - 3) as usize;
-    let u = (t - i as f64).clamp(0.0, 1.0);
-    let tangent = |k: usize| -> f64 {
-        let before = p[k] - p[k.saturating_sub(1)];
-        let after = p[(k + 1).min(n - 1)] - p[k];
-        f64::midpoint(1.0, BIAS) * before + (1.0 - BIAS) / 2.0 * after
+/// The row (0 the top) of an EQ curve `h` rows high that the preamp's line lies on, from the
+/// preamp's step (0..=63, 0 the top of its slider): the steps counted up from the bottom, over
+/// 64 to the height, the fraction dropped. A boost lies low, as on the classic graph.
+fn eq_preamp_row(step: i32, h: usize) -> usize {
+    let up = (63 - step.clamp(0, 63)) as usize;
+    (up * h / 64).min(h.saturating_sub(1))
+}
+
+/// The EQ curve's row (0 the top) in each of its `w` columns, `h` rows high, from the bands'
+/// steps (0..=63, 0 the top): the classic graph's cardinal spline with tension 0.1 (a knot's
+/// tangent 0.9 * (next - previous) / 2) through the ten bands at height (step + 0.5) * h / 64,
+/// knots 0.11 * w columns apart from the first column, the first and the last band standing in
+/// for the neighbor they lack, past the last band still on the spline toward its repeat; each
+/// height cut down to a whole row. Probed in the VM over 138 equalizer states on curves 230x64,
+/// 115x15, 113x19 and 67x13: all but three pixels of the 230 wide one's last column land.
+fn eq_curve_rows(steps: &[i32], w: usize, h: usize) -> Vec<usize> {
+    let height = |band: usize| {
+        let step = steps.get(band.min(9)).copied().unwrap_or(31).clamp(0, 63);
+        (f64::from(step) + 0.5) * h as f64 / 64.0
     };
-    let m0 = tangent(i);
-    let m1 = tangent(i + 1);
-    let u2 = u * u;
-    let u3 = u2 * u;
-    (2.0 * u3 - 3.0 * u2 + 1.0) * p[i]
-        + (u3 - 2.0 * u2 + u) * m0
-        + (-2.0 * u3 + 3.0 * u2) * p[i + 1]
-        + (u3 - u2) * m1
+    // knot k is band k - 1: band 0 again before the first, band 9 again after the last
+    let knots: [f64; 12] = std::array::from_fn(|k| height(k.saturating_sub(1)));
+    let tangent = |k: usize| 0.9 * (knots[(k + 1).min(11)] - knots[k.saturating_sub(1)]) / 2.0;
+    let span = 0.11 * w as f64;
+    let bottom = h.saturating_sub(1);
+    (0..w)
+        .map(|x| {
+            let t = x as f64 / span + 1.0;
+            let i = (t.floor() as usize).min(10);
+            let u = t - i as f64;
+            let (u2, u3) = (u * u, u * u * u);
+            let y = (2.0 * u3 - 3.0 * u2 + 1.0) * knots[i]
+                + (u3 - 2.0 * u2 + u) * tangent(i)
+                + (-2.0 * u3 + 3.0 * u2) * knots[i + 1]
+                + (u3 - u2) * tangent(i + 1);
+            (y.floor().max(0.0) as usize).min(bottom)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{eq_curve_rows, eq_preamp_row};
+
+    // every expectation here was read off Winamp 5.666's own EQ curves, probed in the VM on
+    // a modern skin with curves 230x64, 115x15, 113x19 and 67x13
+
+    #[test]
+    fn flat_bands_draw_a_level_line_at_a_step_and_a_half_over_64() {
+        for step in 0..64 {
+            for (w, h) in [(230, 64), (115, 15), (113, 19), (67, 13)] {
+                let rows = eq_curve_rows(&[step; 10], w, h);
+                let want = ((2 * step + 1) as usize * h / 128).min(h - 1);
+                assert!(rows.iter().all(|y| *y == want), "{step} on {w}x{h}");
+            }
+        }
+        // the steps 21 and 42 on 15 rows: 4.9 and 9.8 down without the half step
+        assert_eq!(eq_curve_rows(&[21; 10], 115, 15)[0], 5);
+        assert_eq!(eq_curve_rows(&[42; 10], 115, 15)[0], 9);
+        assert_eq!(eq_curve_rows(&[63; 10], 67, 13)[0], 12);
+    }
+
+    #[test]
+    fn the_preamp_line_counts_up_from_the_bottom_so_a_boost_lies_low() {
+        assert_eq!(eq_preamp_row(0, 64), 63);
+        assert_eq!(eq_preamp_row(31, 64), 32);
+        assert_eq!(eq_preamp_row(63, 64), 0);
+        let fifteen: Vec<usize> = [0, 4, 8, 16, 20, 24, 28, 31, 36, 56, 60]
+            .iter()
+            .map(|s| eq_preamp_row(*s, 15))
+            .collect();
+        assert_eq!(fifteen, [14, 13, 12, 11, 10, 9, 8, 7, 6, 1, 0]);
+        let nineteen: Vec<usize> = [0, 16, 44, 60]
+            .iter()
+            .map(|s| eq_preamp_row(*s, 19))
+            .collect();
+        assert_eq!(nineteen, [18, 13, 5, 0]);
+    }
+
+    #[test]
+    fn one_band_up_peaks_on_its_knot_every_0_11_of_the_width() {
+        for (w, h) in [(230, 64), (115, 15), (67, 13)] {
+            for band in 1..9 {
+                let mut steps = [31; 10];
+                steps[band] = 0;
+                let rows = eq_curve_rows(&steps, w, h);
+                let top = *rows.iter().min().unwrap();
+                let peak: Vec<usize> = (0..w).filter(|x| rows[*x] == top).collect();
+                let knot = (band as f64 * 0.11 * w as f64).round() as usize;
+                assert!(peak.contains(&knot), "band {band} on {w}: {peak:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn alternating_extremes_on_115x15() {
+        let rows = eq_curve_rows(&[0, 63, 0, 63, 0, 63, 0, 63, 0, 63], 115, 15);
+        #[rustfmt::skip]
+        let want = [
+            0, 0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 14, 14, 14, 14, 13, 12, 10, 9, 7, 5, 4, 2, 1,
+            0, 0, 0, 0, 1, 3, 4, 6, 8, 9, 11, 12, 13, 14, 14, 14, 13, 12, 11, 9, 7, 6, 4, 3,
+            1, 0, 0, 0, 0, 1, 2, 4, 5, 7, 9, 11, 12, 13, 14, 14, 14, 14, 13, 11, 10, 8, 6, 5,
+            3, 2, 1, 0, 0, 0, 1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 14, 14, 14, 13, 12, 10, 9, 7,
+            5, 3, 2, 1, 0, 0, 0, 0, 1, 2, 4, 5, 7, 9, 10, 12, 13, 14, 14,
+        ];
+        assert_eq!(rows, want);
+    }
+
+    #[test]
+    fn a_mixed_setting_on_67x13() {
+        let rows = eq_curve_rows(&[27, 3, 32, 27, 37, 30, 41, 33, 53, 16], 67, 13);
+        #[rustfmt::skip]
+        let want = [
+            5, 5, 4, 3, 2, 1, 1, 0, 0, 1, 2, 3, 4, 5, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5,
+            5, 6, 6, 7, 7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 8, 8, 8, 8, 7,
+            7, 7, 6, 6, 6, 7, 8, 8, 9, 10, 10, 10, 10, 9, 8, 6, 5, 4, 3,
+        ];
+        assert_eq!(rows, want);
+    }
+
+    #[test]
+    fn a_mixed_setting_on_113x19() {
+        let rows = eq_curve_rows(&[32, 47, 8, 50, 49, 9, 46, 54, 35, 6], 113, 19);
+        #[rustfmt::skip]
+        let want = [
+            9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 14, 13, 13, 12, 11, 10, 8, 7, 6, 4, 3, 3,
+            2, 2, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 14, 15, 15, 15, 16, 16, 16, 16, 16, 15, 15,
+            15, 14, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3, 3, 2, 2, 3, 3, 4, 5, 7, 8, 9, 10,
+            11, 12, 13, 14, 14, 14, 15, 15, 15, 15, 16, 16, 16, 16, 16, 16, 16, 15, 15, 15, 14, 14, 13, 13,
+            12, 11, 11, 10, 10, 9, 8, 8, 7, 6, 5, 4, 4, 3, 2, 2, 1,
+        ];
+        assert_eq!(rows, want);
+    }
+
+    #[test]
+    fn past_the_last_band_the_curve_goes_on_toward_its_repeat() {
+        // band 9 sits at column 227.7 of 230; the last two columns carry on the slope
+        let mut steps = [31; 10];
+        steps[9] = 0;
+        let rows = eq_curve_rows(&steps, 230, 64);
+        assert_eq!(rows[227..], [0, 0, 0]);
+        steps[8] = 0;
+        steps[9] = 31;
+        let rows = eq_curve_rows(&steps, 230, 64);
+        assert_eq!(rows[228..], [31, 32]);
+    }
 }

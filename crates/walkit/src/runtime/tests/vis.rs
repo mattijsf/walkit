@@ -5,7 +5,7 @@
 //! `VisDrawerTest`).
 
 use super::runtime_with;
-use crate::draw::Rect;
+use crate::draw::{DrawCmd, Rect};
 use crate::host::SkinSetup;
 use crate::maki::{Handle, Value};
 use crate::runtime::SkinRuntime;
@@ -209,4 +209,41 @@ fn the_visualizers_random_button_is_the_hosts() {
     rt.pointer_down(5, 5, 1);
     rt.pointer_up(5, 5);
     assert_eq!(state.borrow().1, vec!["VIS_RANDOM 0".to_string()]);
+}
+
+#[test]
+fn an_eq_curve_draws_winamps_rows_with_a_boosted_preamp_along_the_bottom() {
+    // a 67x13 curve, white, its preamp line red; the setting and every column's row as
+    // Winamp 5.666 drew them in the VM
+    let mut rt = super::runtime(concat!(
+        r#"<container id="main" name="t" default_visible="1"><layout id="normal" w="80" h="20">"#,
+        r#"<eqvis id="curve" x="5" y="3" w="67" h="13" colortop="255,255,255" "#,
+        r#"colormiddle="255,255,255" colorbottom="255,255,255" colorpreamp="255,0,0"/>"#,
+        r#"</layout></container>"#,
+    ));
+    rt.load();
+    rt.ensure_layout();
+    // the player's 0..255 (255 the top) for a slider step 0..63 (0 the top)
+    let level = |step: i32| (63 - step) * 255 / 63;
+    rt.player.set_eq_preamp(level(4));
+    for (band, step) in [27, 3, 32, 27, 37, 30, 41, 33, 53, 16].iter().enumerate() {
+        rt.player.set_eq_band(band as i32, level(*step));
+    }
+    let px = rt
+        .draw_main()
+        .iter()
+        .find_map(|c| match c {
+            DrawCmd::Pixels { rect, argb, .. } if rect.width == 67 => Some(argb.to_vec()),
+            _ => None,
+        })
+        .expect("the curve's pixels");
+    let (white, red) = (0xffff_ffff, 0xffff_0000);
+    // the preamp 4 steps under the top lies on row 11 of 13: (63 - 4) * 13 / 64
+    assert!((0..67).all(|x| [red, white].contains(&px[11 * 67 + x])));
+    assert!((0..67).any(|x| px[11 * 67 + x] == red));
+    // the curve's first columns step down 5, 5, 4, 3, 2, 1, 1, 0, 0 rows from the top
+    let first: Vec<usize> = (0..9)
+        .map(|x| (0..13).rev().find(|r| px[r * 67 + x] == white).unwrap())
+        .collect();
+    assert_eq!(first, [5, 5, 5, 4, 3, 2, 1, 1, 0]);
 }
