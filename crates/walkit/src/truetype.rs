@@ -41,6 +41,9 @@ const EDGE: f32 = 1e-5;
 /// Smoothed classic letters are sampled this many times per pixel, across and down.
 const SAMPLES: i32 = 4;
 
+/// The gamma Windows blends a smoothed classic letter with (probed: green on black).
+const WINDOWS_GAMMA: f32 = 2.3;
+
 /// Modern text's kerning is scaled down below this many pixels per em.
 const KERN_FULL_PPEM: f32 = 25.0;
 
@@ -73,6 +76,23 @@ pub struct Glyph {
     pub coverage: Vec<u8>,
     /// Whole pixels the pen moves on after the letter.
     pub advance: i32,
+    /// The gamma the coverage blends with: 1 for a plain blend, more for a classic letter
+    /// Windows smooths (see [`blend`]).
+    pub gamma: f32,
+}
+
+/// `color` (`0xRRGGBB`) laid over `under` where a letter covers `coverage` of the pixel
+/// (0..255, times the text's own opacity), blended with the letter's `gamma`: each channel
+/// mixed as its value to the power of `gamma`. With a gamma of 1 it is a plain blend.
+pub fn blend(color: u32, under: u32, coverage: u8, gamma: f32) -> u32 {
+    let a = f32::from(coverage) / 255.0;
+    let mix = |shift: u32| {
+        let fg = ((color >> shift) & 0xff) as f32 / 255.0;
+        let bg = ((under >> shift) & 0xff) as f32 / 255.0;
+        let out = (a * fg.powf(gamma) + (1.0 - a) * bg.powf(gamma)).powf(gamma.recip());
+        ((out * 255.0).round() as u32).min(255) << shift
+    };
+    mix(16) | mix(8) | mix(0)
 }
 
 /// The pixels per em Winamp draws a skin's `fontsize` at in `style`: three quarters of it,
@@ -412,6 +432,9 @@ fn draw(font: &FontRef, sized: &Sized, c: char, px: u32) -> Glyph {
     }
     let mut glyph = path.fill(sized.smooth);
     glyph.advance = device.unwrap_or(advance);
+    if sized.smooth {
+        glyph.gamma = WINDOWS_GAMMA;
+    }
     glyph
 }
 
@@ -543,6 +566,7 @@ impl Path {
             h: 0,
             coverage: Vec::new(),
             advance: 0,
+            gamma: 1.0,
         };
         if points().next().is_none() {
             return empty;
@@ -618,6 +642,7 @@ impl Path {
             h,
             coverage,
             advance: 0,
+            gamma: 1.0,
         }
     }
 }
@@ -633,6 +658,7 @@ impl Path {
             h: 0,
             coverage: Vec::new(),
             advance: 0,
+            gamma: 1.0,
         };
         let mut points = self.contours.iter().flatten();
         let Some(&(x0, y0)) = points.next() else {
@@ -676,6 +702,7 @@ impl Path {
             h,
             coverage,
             advance: 0,
+            gamma: 1.0,
         }
     }
 }
@@ -932,6 +959,19 @@ mod tests {
         assert_eq!(em(Style::Classic, 0), 1.0);
         assert_eq!(em(Style::Modern, 14), 10.5);
         assert_eq!(em(Style::Modern, 16), 12.0);
+    }
+
+    #[test]
+    fn smoothed_classic_letters_blend_with_windows_gamma() {
+        let font = font();
+        assert!(font.glyph('o', Style::Classic, 24.0).gamma > 2.0);
+        assert_eq!(font.glyph('o', Style::Classic, 10.0).gamma, 1.0);
+        assert_eq!(font.glyph('o', Style::Modern, 24.0).gamma, 1.0);
+        // half covered, green on black: brighter than a plain half
+        assert_eq!(blend(0x00ff00, 0, 128, 1.0), 0x008000);
+        assert_eq!(blend(0x00ff00, 0, 128, 2.3), 0x00bd00);
+        assert_eq!(blend(0x00ff00, 0, 255, 2.3), 0x00ff00);
+        assert_eq!(blend(0x00ff00, 0x123456, 0, 2.3), 0x123456);
     }
 
     #[test]

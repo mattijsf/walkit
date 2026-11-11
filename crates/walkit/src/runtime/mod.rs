@@ -120,6 +120,8 @@ pub struct SkinRuntime {
     pub(crate) classic_sheets: Rc<crate::classic::Sheets>,
     /// Whether the skin is a classic one: its text is laid out as Windows lays it out.
     pub(crate) classic_skin: bool,
+    /// A classic playlist row's font height, where the font file says it for the size.
+    pub(crate) classic_row_height: Option<i32>,
     /// `gen.bmp`'s font, once read.
     pub(crate) classic_gen_font: Option<Rc<crate::classic::gen::GenFont>>,
     /// The skin's cursor files, decoded as they are first asked for.
@@ -382,6 +384,7 @@ impl SkinRuntime {
             classic_pledit: crate::classic::pledit::PleditStyle::default(),
             classic_sheets: Rc::default(),
             classic_skin: false,
+            classic_row_height: None,
             classic_gen_font: None,
             classic_cursors: HashMap::new(),
             classic_palette: crate::classic::viscolor::BASE,

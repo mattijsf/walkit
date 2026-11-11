@@ -199,11 +199,20 @@ impl SkinRuntime {
         ((h - 60) / self.classic_row()).max(0)
     }
 
-    /// A playlist row's height: the font's full height, Arial's 5/4 of the em
-    /// (15 at Winamp's 12, where 3 rows fill a playlist 116 tall), and what the host adds
-    /// (`Presentation::list_row_extra`).
+    /// A playlist row's height: the font's full height as Windows lays it out, where the font
+    /// file says it for the size, else Arial's 5/4 of the em (15 at Winamp's 12, where 3 rows
+    /// fill a playlist 116 tall), and what the host adds (`Presentation::list_row_extra`).
     pub(crate) fn classic_row(&self) -> i32 {
-        (self.classic_list_font * 5 + 2) / 4 + self.list_row_extra
+        self.classic_row_height
+            .unwrap_or((self.classic_list_font * 5 + 2) / 4)
+            + self.list_row_extra
+    }
+
+    /// Reads the playlist font's height at its size from its file, for [`Self::classic_row`].
+    pub(crate) fn measure_classic_row(&mut self) {
+        let face = self.classic_pledit.font.clone();
+        let font = Self::classic_pl_font(&face);
+        self.classic_row_height = self.gdi_measured_height(font.as_ref(), self.classic_list_font);
     }
 
     /// The playlist font's size as the host reads it, in points: 4/3 of the em in pixels.
@@ -217,6 +226,9 @@ impl SkinRuntime {
         let px = px.clamp(6, 40);
         if px != self.classic_list_font {
             self.classic_list_font = px;
+            if self.classic_skin {
+                self.measure_classic_row();
+            }
             self.repaint();
         }
     }

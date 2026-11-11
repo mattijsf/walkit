@@ -110,7 +110,8 @@ skin's text, unless the skin sets `antialias="0"` on it.
 - Letters advance by whole pixels: the width the font's `hdmx` or `LTSH` table gives for the
   size, else the hinted width. Pairs in the font's `kern` table move by whole pixels.
 - Letters are smoothed only at the sizes the font's `gasp` table asks for. Arial from 9 to 17
-  pixels, the classic playlist's font, is not smoothed.
+  pixels, the classic playlist's font, is not smoothed. A smoothed letter is sampled 4 by 4 per
+  pixel and blends with a gamma of 2.3: its `Glyph::gamma`, for `walkit::truetype::blend`.
 - A stroke thinner than a pixel that passes between two pixel centers still lights one pixel.
 
 `Style::Modern`, for smoothed text:
@@ -142,7 +143,8 @@ let (ascent, descent) = font.line(style, px);
 let (x, baseline) = (cmd.x.round() as i32, cmd.baseline.round() as i32);
 for (at, glyph) in font.run(&cmd.text, style, px, bold) {
     // glyph.coverage is glyph.w x glyph.h bytes, 255 the text's color;
-    // its corner is (x + at + glyph.left, baseline - glyph.top)
+    // its corner is (x + at + glyph.left, baseline - glyph.top);
+    // over an opaque pixel: blend(color, under, coverage, glyph.gamma)
 }
 ```
 
@@ -153,13 +155,17 @@ scale. The macOS example's `host.rs` and `render.rs` work this way.
 
 Compared with Winamp 5.666 in a virtual machine, with Arial and Tahoma themselves:
 
-- The rows of a classic playlist come out pixel for pixel, but for the foot of a V.
-- Smoothed text comes out as Winamp draws it but for some letters sitting one pixel off ("1",
-  "L", some digits), and bold strokes that are a little lighter than Winamp's.
+- The rows of a classic playlist come out pixel for pixel at the usual sizes, but for the foot
+  of a V. At sizes Arial smooths (18 and 24 pixels) and with Tahoma (10 to 24) the rows land
+  where Winamp puts them and the letters match but for a few edge pixels and the odd letter a
+  pixel off.
+- Smoothed modern text comes out as Winamp draws it but for some letters sitting one pixel off
+  ("1", "L", some digits), and bold strokes that are a little lighter than Winamp's.
 
-With the free fonts that stand in for Arial and Tahoma the letters differ, as the fonts do.
-Classic sizes a font smooths (Arial from 18 pixels) and classic Tahoma have not been compared
-yet.
+The engine sizes a classic playlist's rows by the font's own height for the size, from its
+`VDMX` table, as Windows does: exact with Arial and Tahoma themselves. The free fonts that
+stand in for them have no such table, so the rows keep Arial's 5/4 of the em, which is right
+up to 12 pixels; their letters differ from Arial's and Tahoma's, as the fonts do.
 
 ## Files
 

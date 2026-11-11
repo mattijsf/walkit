@@ -10,6 +10,29 @@ impl SkinRuntime {
     /// Ascent and descent in whole pixels as Windows lays the face out at `size`, read from
     /// its file; `None` when the file gives none (or there is no file).
     fn gdi_line(&mut self, font: Option<&FontDef>, size: i32, bold: bool) -> Option<(i32, i32)> {
+        let px = crate::gdi::em_size(size);
+        let classic = self.classic_skin;
+        self.gdi_metrics(font, bold).map(|m| {
+            classic
+                .then(|| m.measured(px))
+                .flatten()
+                .unwrap_or_else(|| m.at(px))
+        })
+    }
+
+    /// The height of the face's line at `px` pixels per em as Windows lays it out, where its
+    /// file says it for that size (see [`crate::gdi::GdiLineMetrics::measured`]).
+    pub(crate) fn gdi_measured_height(&mut self, font: Option<&FontDef>, px: i32) -> Option<i32> {
+        let (a, d) = self.gdi_metrics(font, false)?.measured(px as f32)?;
+        Some(a + d)
+    }
+
+    /// Windows' line of the face, read from its file once.
+    fn gdi_metrics(
+        &mut self,
+        font: Option<&FontDef>,
+        bold: bool,
+    ) -> Option<crate::gdi::GdiLineMetrics> {
         let face = crate::gdi::FontFace::of(font, bold);
         let key = match &face {
             crate::gdi::FontFace::StandIn { .. } => face.file()?,
@@ -28,7 +51,7 @@ impl SkinRuntime {
             self.gdi_lines.insert(key, m.clone());
             m
         };
-        m.map(|m| m.at(crate::gdi::em_size(size)))
+        m
     }
 
     /// How wide `text` draws in layout pixels: smoothed (`smooth`) by the host's measure for

@@ -9,6 +9,9 @@ use walkit::truetype::{em, Style};
 
 use crate::host::Assets;
 
+/// The canvas has no alpha: every pixel is opaque.
+const OPAQUE_CANVAS: bool = true;
+
 /// What shows outside the skin's windows.
 const BACKGROUND: u32 = 0x0020_2020;
 
@@ -110,6 +113,41 @@ impl Pen {
             ((s * a + d * (255 - a)) / 255) << shift
         };
         canvas.pixels[i] = mix(16) | mix(8) | mix(0);
+    }
+}
+
+impl Pen {
+    /// Lays a pixel of a letter in `color` over the canvas where the letter covers `cover` of
+    /// it, at the text's `alpha`, blended with the letter's `gamma` where the pixel under it is
+    /// opaque.
+    #[allow(clippy::too_many_arguments)]
+    fn blend_letter(
+        &self,
+        canvas: &mut Canvas,
+        x: i32,
+        y: i32,
+        color: u32,
+        cover: u8,
+        gamma: f32,
+        alpha: i32,
+    ) {
+        let i = (y * canvas.w + x) as usize;
+        let opaque = canvas
+            .pixels
+            .get(i)
+            .is_some_and(|p| (p >> 24) == 0xff || OPAQUE_CANVAS);
+        if gamma == 1.0 || !opaque {
+            let argb = (u32::from(cover) << 24) | (color & 0x00ff_ffff);
+            self.blend(canvas, x, y, argb, alpha);
+            return;
+        }
+        if !self.clip().contains(x, y) || self.mask.as_ref().is_some_and(|m| !m.get(x, y)) {
+            return;
+        }
+        let a = (u32::from(cover) * alpha.clamp(0, 255) as u32 / 255) as u8;
+        let under = canvas.pixels[i];
+        let mixed = walkit::truetype::blend(color & 0x00ff_ffff, under & 0x00ff_ffff, a, gamma);
+        canvas.pixels[i] = (under & 0xff00_0000) | mixed;
     }
 }
 
@@ -272,10 +310,10 @@ fn draw_text(canvas: &mut Canvas, assets: &mut Assets, pen: &mut Pen, text: &Tex
                 let (gx, gy) = (x0 + dx + at + glyph.left, y0 - glyph.top);
                 for row in 0..glyph.h {
                     for col in 0..glyph.w {
-                        let cover = u32::from(glyph.coverage[row * glyph.w + col]);
+                        let cover = glyph.coverage[row * glyph.w + col];
                         if cover > 0 {
-                            let argb = (cover << 24) | (color & 0x00ff_ffff);
-                            pen.blend(canvas, gx + col as i32, gy + row as i32, argb, text.alpha);
+                            let (x, y) = (gx + col as i32, gy + row as i32);
+                            pen.blend_letter(canvas, x, y, color, cover, glyph.gamma, text.alpha);
                         }
                     }
                 }

@@ -48,6 +48,11 @@ fn classic_clocked() -> (SkinRuntime, Rc<std::cell::Cell<i64>>) {
 }
 
 fn classic_with(player: FakePlayer, clock: Clock) -> SkinRuntime {
+    classic_hosted(Box::new(QuietHost), player, clock)
+}
+
+/// [`classic_with`] on a host of the test's own.
+fn classic_hosted(host: Box<dyn SkinHost>, player: FakePlayer, clock: Clock) -> SkinRuntime {
     let mut files = MemoryFiles::new();
     for s in SHEETS {
         files.insert(s, &b"x"[..]);
@@ -55,7 +60,7 @@ fn classic_with(player: FakePlayer, clock: Clock) -> SkinRuntime {
     files.insert("region.txt", REGION.as_bytes());
     let mut rt = SkinRuntime::new(
         Box::new(files),
-        Box::new(QuietHost),
+        host,
         Box::new(player),
         SkinSetup::default(),
         clock,
@@ -3693,4 +3698,39 @@ fn a_skin_without_genex_bmp_takes_the_base_skins_colors() {
     let _ = rt.classic_genex_colors();
     assert!(asked.borrow().iter().any(|f| f == "wasabi-base/genex.bmp"));
     assert!(!asked.borrow().iter().any(|f| f == "genex.bmp"));
+}
+
+/// A host whose stand-in for Arial says its line at 18 and 24 pixels in a `VDMX` table.
+struct VdmxHost;
+
+impl SkinHost for VdmxHost {
+    fn image_size(&mut self, _file: &str) -> Option<(i32, i32)> {
+        None
+    }
+
+    fn text_width(&mut self, text: &str, _font: Option<&FontDef>, size: i32, _bold: bool) -> i32 {
+        text.chars().count() as i32 * size * 6 / 10
+    }
+
+    fn font_file(&mut self, _file: &str) -> Option<Rc<[u8]>> {
+        let sizes: &[(u16, i16, i16)] = &[(18, 17, -4), (24, 21, -6)];
+        Some(Rc::from(crate::gdi::tests::font_with(Some((1, sizes)))))
+    }
+
+    fn log(&mut self, _message: &str) {}
+
+    fn invalidate(&mut self) {}
+}
+
+#[test]
+fn playlist_rows_are_as_tall_as_the_font_says_for_its_size() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut rt = classic_hosted(Box::new(VdmxHost), FakePlayer::new(clock.clone()), clock);
+    rt.set_classic_list_font_size(24);
+    assert_eq!(rt.classic_row(), 27, "21 up and 6 down");
+    rt.set_classic_list_font_size(18);
+    assert_eq!(rt.classic_row(), 21);
+    // a size the font leaves out keeps Arial's 5/4 of the em
+    rt.set_classic_list_font_size(12);
+    assert_eq!(rt.classic_row(), 15);
 }
