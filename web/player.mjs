@@ -9,7 +9,7 @@ import { Walkit } from "./walkit.mjs";
 import { unpack, siblingName } from "./corpus.mjs";
 import { unzipAsync } from "./zip.mjs";
 import { decodePicture } from "./pictures.mjs";
-import { Pictures, Renderer, emPixels, normalize, familyOf, inSkinFolder } from "./render.mjs";
+import { Pictures, Renderer, context2d, emPixels, normalize, familyOf, inSkinFolder } from "./render.mjs";
 import { FrameReader } from "./frame.mjs";
 import { SkinCursors } from "./cursor.mjs";
 
@@ -144,7 +144,7 @@ const state = {
 globalThis.walkitPlayer = state;
 
 const canvas = $("view");
-const ctx = canvas.getContext("2d");
+const ctx = context2d(canvas);
 const zoom = () => Number($("zoom").value);
 const scale = () => zoom() * (window.devicePixelRatio || 1);
 
