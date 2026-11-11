@@ -590,7 +590,7 @@ impl Path {
         let rows = runs(&across, sh);
         for (row, line) in rows.iter().enumerate() {
             for &(from, to) in line {
-                match centers(from, to, sw) {
+                match centers(from, to, sw, !smooth) {
                     Some(Centers::Covered(first, last)) => {
                         samples[row * sw + first..=row * sw + last].fill(true);
                     }
@@ -608,7 +608,7 @@ impl Path {
             let columns = runs(&down, sw);
             for (col, line) in columns.iter().enumerate() {
                 for &(from, to) in line {
-                    if let Some(Centers::Between(before)) = centers(from, to, sh) {
+                    if let Some(Centers::Between(before)) = centers(from, to, sh, false) {
                         if continues(&columns, col, from, to) {
                             // the lower one of the two
                             drops.push((col, before + 1, col, before, col, before + 1));
@@ -811,10 +811,16 @@ enum Centers {
     Between(usize),
 }
 
-fn centers(from: f32, to: f32, len: usize) -> Option<Centers> {
-    // centers at i + 0.5; a center on the outline counts as inside
+/// `open_end`: a center exactly on the run's end is outside it, as Windows fills unsmoothed
+/// letters (the foot of a V or v at 10 pixels ends on a center and lights one pixel, not two).
+fn centers(from: f32, to: f32, len: usize, open_end: bool) -> Option<Centers> {
+    // centers at i + 0.5; a center on the start of the run counts as inside
     let first = (from - 0.5 - EDGE).ceil().max(0.0) as usize;
-    let last = (to - 0.5 + EDGE).floor();
+    let last = if open_end {
+        (to - 0.5 - EDGE).ceil() - 1.0
+    } else {
+        (to - 0.5 + EDGE).floor()
+    };
     if last >= first as f32 {
         return (first < len).then(|| Centers::Covered(first, (last as usize).min(len - 1)));
     }
@@ -1080,6 +1086,24 @@ mod tests {
             .filter(|row| row.contains(&255))
             .count();
         assert_eq!(rows, 1);
+    }
+
+    #[test]
+    fn an_unsmoothed_run_ending_on_a_pixel_center_leaves_that_pixel_dark() {
+        // a bar from x 1.5 to 2.5: it holds the center of pixel 1 and ends on the center of
+        // pixel 2, which Windows leaves dark
+        let mut path = Path::new(10);
+        path.move_to(1.5, 0.0);
+        path.line_to(1.5, 3.0);
+        path.line_to(2.5, 3.0);
+        path.line_to(2.5, 0.0);
+        let glyph = path.fill(false);
+        let row = &glyph.coverage[glyph.w..2 * glyph.w];
+        let lit: Vec<i32> = (0..glyph.w)
+            .filter(|&x| row[x] == 255)
+            .map(|x| x as i32 + glyph.left)
+            .collect();
+        assert_eq!(lit, vec![1]);
     }
 
     #[test]

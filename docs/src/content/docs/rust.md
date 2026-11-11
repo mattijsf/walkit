@@ -155,8 +155,7 @@ scale. The macOS example's `host.rs` and `render.rs` work this way.
 
 Compared with Winamp 5.666 in a virtual machine, with Arial and Tahoma themselves:
 
-- The rows of a classic playlist come out pixel for pixel at the usual sizes, but for the foot
-  of a V. At sizes Arial smooths (18 and 24 pixels) and with Tahoma (10 to 24) the rows land
+- The rows of a classic playlist come out pixel for pixel at the usual sizes. At sizes Arial smooths (18 and 24 pixels) and with Tahoma (10 to 24) the rows land
   where Winamp puts them and the letters match but for a few edge pixels and the odd letter a
   pixel off.
 - Smoothed modern text comes out as Winamp draws it but for some letters sitting one pixel off
