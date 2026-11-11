@@ -5,7 +5,7 @@
 //! device pixels across and down, and pictures scale by nearest pixels.
 
 use walkit::draw::{DrawCmd, Gamma, Rect, Region, TextCmd};
-use walkit::truetype::pixels;
+use walkit::truetype::{em, Style};
 
 use crate::host::Assets;
 
@@ -237,11 +237,17 @@ fn stretch(
 /// Draws a run of text where the engine placed it: from `x` along the `baseline`, clipped to
 /// its box. The shadow goes first, under the letters.
 fn draw_text(canvas: &mut Canvas, assets: &mut Assets, pen: &mut Pen, text: &TextCmd) {
-    let Some(face) = assets.face(text.font.as_ref(), text.bold) else {
+    // smoothed text as Winamp draws a modern skin's, the rest as Windows draws it
+    let style = if text.smooth {
+        Style::Modern
+    } else {
+        Style::Classic
+    };
+    let Some(face) = assets.face(text.font.as_ref(), text.bold, style) else {
         return;
     };
     let s = pen.scale;
-    let px = pixels(text.size) * s as u32;
+    let px = em(style, text.size) * s as f32;
     // Windows places text on whole pixels
     let left = ((pen.origin.0 as f32 + text.x) * s as f32).round() as i32;
     let baseline = ((pen.origin.1 as f32 + text.baseline) * s as f32).round() as i32;
@@ -257,7 +263,9 @@ fn draw_text(canvas: &mut Canvas, assets: &mut Assets, pen: &mut Pen, text: &Tex
     runs.push((left, baseline, text.color.0));
     // a font without a bold cut is drawn twice, a pixel apart
     let strokes: &[i32] = if face.fake_bold { &[0, s] } else { &[0] };
-    let letters = face.font.run(&text.text, px);
+    let letters = face
+        .font
+        .run(&text.text, style, px, if face.fake_bold { s } else { 0 });
     for (x0, y0, color) in runs {
         for &dx in strokes {
             for (at, glyph) in &letters {

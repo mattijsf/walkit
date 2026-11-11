@@ -60,7 +60,7 @@ cd examples/android
 on the `walkit` crate, as the [Rust](/walkit/rust/) guide describes. A small Rust library in the
 example wraps the engine behind a C interface: it unzips the skin, decodes its pictures with
 `image`, measures and draws text with the engine's
-[`truetype`](/walkit/rust/#text) feature, as Windows draws it, and renders the draw list in software, window
+[`truetype`](/walkit/rust/#text) feature, as Winamp draws it, and renders the draw list in software, window
 shapes included. The Swift side has the same buttons as the Android app ("Winamp classic",
 "Winamp Modern", "walkit classic", "walkit modern", "Open skin", "Wasabi base"), downloads the
 skins, shows each frame and passes the mouse to the engine. It needs Xcode and Rust; the Xcode

@@ -502,7 +502,8 @@ mod tests {
                     .iter()
                     .filter(|c| match c {
                         DrawCmd::Text(t) => {
-                            assert!(walkit::truetype::pixels(t.size) < 18, "small text");
+                            let em = walkit::truetype::em(walkit::truetype::Style::Classic, t.size);
+                            assert!(em < 18.0, "small text");
                             colors.push(t.color.0 & 0x00ff_ffff);
                             false
                         }

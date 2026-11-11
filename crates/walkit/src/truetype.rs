@@ -1,23 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! TrueType text as Windows draws it for Winamp, for hosts that draw the letters themselves
-//! (behind the `truetype` feature; the engine itself never draws). The font's own hinting fits
-//! each letter to the pixel grid, letters advance by whole pixels, pairs the font's `kern`
-//! table names move by whole pixels, and the font's `gasp` table says at which sizes the
-//! letters are smoothed. Arial between 9 and 17 pixels, the playlist's font, is not smoothed
-//! at all.
+//! TrueType text as Winamp draws it, for hosts that draw the letters themselves (behind the
+//! `truetype` feature; the engine itself never draws). Winamp draws a skin's TrueType text in
+//! one of two ways, a [`Style`]:
+//!
+//! - [`Style::Classic`], a classic skin's text (the playlist), as Windows draws it: the font's
+//!   own hinting fits each letter to the pixel grid, letters advance by whole pixels, pairs
+//!   the font's `kern` table names move by whole pixels, and the font's `gasp` table says at
+//!   which sizes the letters are smoothed. Arial between 9 and 17 pixels is not smoothed.
+//! - [`Style::Modern`], a modern skin's text: always smoothed, each letter fitted to the
+//!   pixel grid by an autohinter rather than the font's own hinting, at three quarters of the
+//!   skin's font size without rounding (Arial at `fontsize="14"` is 10.5 pixels per em). Kerning
+//!   shrinks below 25 pixels per em, and bold is the regular letters drawn twice.
 //!
 //! A host parses each font once ([`Font::parse`]), answers the engine's text measures from
-//! [`Font::width`] and [`Font::line`] at [`pixels`] per em, and draws a
+//! [`Font::width`] and [`Font::line`] at [`em`] pixels per em, and draws a
 //! [`TextCmd`](crate::draw::TextCmd) from [`Font::run`]: the pen starts on a whole pixel, and
-//! a face the engine marks `fake_bold` is drawn twice, one pixel apart.
+//! a face the engine marks `fake_bold` is drawn twice, one pixel apart (`bold` = 1).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use skrifa::instance::{LocationRef, Size};
-use skrifa::outline::{DrawSettings, Engine, HintingInstance, HintingOptions, OutlinePen, Target};
+use skrifa::outline::{
+    DrawSettings, Engine, HintingInstance, HintingOptions, OutlinePen, SmoothMode, Target,
+};
 use skrifa::raw::tables::gasp::GaspRangeBehavior;
 use skrifa::raw::tables::kern::SubtableKind;
 use skrifa::raw::types::Tag;
@@ -30,8 +38,25 @@ use crate::gdi::em_size;
 /// points sit on a grid of 64ths of a pixel, so a center on the outline is met exactly.
 const EDGE: f32 = 1e-5;
 
-/// Smoothed letters are sampled this many times per pixel, across and down.
+/// Smoothed classic letters are sampled this many times per pixel, across and down.
 const SAMPLES: i32 = 4;
+
+/// Modern text's kerning is scaled down below this many pixels per em.
+const KERN_FULL_PPEM: f32 = 25.0;
+
+/// How far a modern line's ascent reaches above the top of a capital H, in pixels.
+const MODERN_HEADROOM: i32 = 3;
+
+/// Which of Winamp's two ways of drawing TrueType text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Style {
+    /// A classic skin's text, drawn by Windows: the font's own hinting, whole-pixel widths
+    /// from its tables, smoothed only where its `gasp` table asks.
+    Classic,
+    /// A modern skin's text: smoothed, fitted to the grid by an autohinter, at three quarters
+    /// of the font size without rounding.
+    Modern,
+}
 
 /// A drawn letter: where its bitmap sits from the pen on the baseline, its coverage with one
 /// byte per pixel, and how far the pen moves on.
@@ -50,25 +75,34 @@ pub struct Glyph {
     pub advance: i32,
 }
 
-/// The whole pixels per em Windows draws a skin's font size at.
-pub fn pixels(fontsize: i32) -> u32 {
-    em_size(fontsize).max(1.0) as u32
+/// The pixels per em Winamp draws a skin's `fontsize` at in `style`: three quarters of it,
+/// rounded to whole pixels for classic text as Windows sizes fonts, unrounded for modern text.
+/// A host drawing at a scale multiplies it by the scale.
+pub fn em(style: Style, fontsize: i32) -> f32 {
+    match style {
+        Style::Classic => em_size(fontsize).max(1.0),
+        Style::Modern => (fontsize as f32 * 0.75).max(1.0),
+    }
 }
 
-/// What a font does at one pixel size.
+/// What a font does at one size in one style.
 struct Sized {
-    /// The font's hinting at this size, or `None` where it asks for none or has none.
+    /// The hinting at this size, or `None` where the font asks for none or has none.
     hinter: Option<HintingInstance>,
     /// Whether letters are smoothed at this size.
     smooth: bool,
     glyphs: HashMap<char, Rc<Glyph>>,
 }
 
+/// A size in one style, as a key: the em's bits.
+type SizeKey = (Style, u32);
+
 /// A TrueType font and the letters drawn from it so far.
 pub struct Font {
     data: Rc<[u8]>,
-    sizes: RefCell<HashMap<u32, Sized>>,
-    kerns: RefCell<HashMap<(char, char, u32), i32>>,
+    sizes: RefCell<HashMap<SizeKey, Sized>>,
+    kerns: RefCell<HashMap<(char, char, SizeKey), i32>>,
+    lines: RefCell<HashMap<SizeKey, (f32, f32)>>,
 }
 
 impl Font {
@@ -80,68 +114,76 @@ impl Font {
             data,
             sizes: RefCell::default(),
             kerns: RefCell::default(),
+            lines: RefCell::default(),
         }))
     }
 
-    /// The letter `c` at `px` pixels per em, drawn once.
-    pub fn glyph(&self, c: char, px: u32) -> Rc<Glyph> {
+    /// The letter `c` at `em` pixels per em in `style`, drawn once.
+    pub fn glyph(&self, c: char, style: Style, em: f32) -> Rc<Glyph> {
+        let key = (style, em.to_bits());
         let mut sizes = self.sizes.borrow_mut();
         let font = self.font();
-        let sized = sizes.entry(px).or_insert_with(|| size(&font, px));
+        let sized = sizes.entry(key).or_insert_with(|| size(&font, style, em));
         if let Some(glyph) = sized.glyphs.get(&c) {
             return glyph.clone();
         }
-        let glyph = Rc::new(draw(&font, sized, c, px));
+        let glyph = Rc::new(match style {
+            Style::Classic => draw(&font, sized, c, em as u32),
+            Style::Modern => draw_modern(&font, sized, c, em),
+        });
         sized.glyphs.insert(c, glyph.clone());
         glyph
     }
 
-    /// How far `text` advances at `px` pixels per em, with kerning.
-    pub fn advance(&self, text: &str, px: u32) -> i32 {
-        let mut width = 0;
-        let mut last = None;
-        for c in text.chars() {
-            if let Some(prev) = last {
-                width += self.kerning(prev, c, px);
-            }
-            width += self.glyph(c, px).advance;
-            last = Some(c);
-        }
-        width
+    /// How far `text` advances at `em` pixels per em in `style`, with kerning.
+    pub fn advance(&self, text: &str, style: Style, em: f32) -> i32 {
+        self.run(text, style, em, 0)
+            .last()
+            .map_or(0, |(at, glyph)| at + glyph.advance)
     }
 
-    /// How wide `text` draws at `px` pixels per em: its advance, and one pixel more when a
-    /// face without a bold cut is drawn twice (`fake_bold`).
-    pub fn width(&self, text: &str, px: u32, fake_bold: bool) -> i32 {
-        self.advance(text, px) + i32::from(fake_bold && !text.is_empty())
+    /// How wide `text` draws at `em` pixels per em in `style`. A face without a bold cut is
+    /// drawn twice, `bold` pixels apart (0 when it is not bold; 1, or the scale a host draws
+    /// at): a classic line is that much wider for it, a modern line that much wider for each
+    /// letter.
+    pub fn width(&self, text: &str, style: Style, em: f32, bold: i32) -> i32 {
+        let run = self.run(text, style, em, bold);
+        let Some((at, glyph)) = run.last() else {
+            return 0;
+        };
+        // the second stroke reaches past the last letter
+        at + glyph.advance + bold
     }
 
-    /// The letters of `text` at `px` pixels per em, each with how far the pen has moved from
-    /// the start of the line when it is drawn, kerning counted in.
-    pub fn run(&self, text: &str, px: u32) -> Vec<(i32, Rc<Glyph>)> {
+    /// The letters of `text` at `em` pixels per em in `style`, each with how far the pen has
+    /// moved from the start of the line when it is drawn, kerning counted in. A modern line
+    /// drawn bold, its two strokes `bold` pixels apart, moves that much more after each letter.
+    pub fn run(&self, text: &str, style: Style, em: f32, bold: i32) -> Vec<(i32, Rc<Glyph>)> {
+        let extra = if style == Style::Modern { bold } else { 0 };
         let mut x = 0;
         let mut last = None;
         text.chars()
             .map(|c| {
                 if let Some(prev) = last {
-                    x += self.kerning(prev, c, px);
+                    x += self.kerning(prev, c, style, em);
                 }
                 last = Some(c);
-                let glyph = self.glyph(c, px);
+                let glyph = self.glyph(c, style, em);
                 let at = x;
-                x += glyph.advance;
+                x += glyph.advance + extra;
                 (at, glyph)
             })
             .collect()
     }
 
-    /// How many pixels `right` moves toward `left` (negative) or away from it at `px` pixels
-    /// per em, from the font's `kern` table, in whole pixels.
-    pub fn kerning(&self, left: char, right: char, px: u32) -> i32 {
+    /// How many pixels `right` moves toward `left` (negative) or away from it at `em` pixels
+    /// per em in `style`, from the font's `kern` table, in whole pixels. Modern text scales
+    /// the pair down below 25 pixels per em first.
+    pub fn kerning(&self, left: char, right: char, style: Style, em: f32) -> i32 {
         *self
             .kerns
             .borrow_mut()
-            .entry((left, right, px))
+            .entry((left, right, (style, em.to_bits())))
             .or_insert_with(|| {
                 let font = self.font();
                 let map = font.charmap();
@@ -160,17 +202,68 @@ impl Font {
                         _ => None,
                     })
                     .sum();
-                let em = font.head().map_or(1000, |head| head.units_per_em());
-                (units as f32 * px as f32 / f32::from(em)).round() as i32
+                let upem = f32::from(font.head().map_or(1000, |head| head.units_per_em()));
+                let scaled = units as f32 * em / upem;
+                match style {
+                    Style::Classic => scaled.round() as i32,
+                    Style::Modern => {
+                        let ppem = (em + 0.5).floor();
+                        let k = if ppem < KERN_FULL_PPEM {
+                            scaled * ppem / KERN_FULL_PPEM
+                        } else {
+                            scaled
+                        };
+                        // to 64ths of a pixel, then to the nearest pixel, halves up
+                        (((k * 64.0).round() + 32.0) / 64.0).floor() as i32
+                    }
+                }
             })
     }
 
-    /// The font's ascent and descent at `px` pixels per em, both positive.
-    pub fn line(&self, px: u32) -> (f32, f32) {
-        let m = self
-            .font()
-            .metrics(Size::new(px as f32), LocationRef::default());
-        (m.ascent, -m.descent)
+    /// The line at `em` pixels per em in `style`, as ascent and descent, both positive. A
+    /// classic line is the font's own; the engine lays classic text out by Windows' line
+    /// itself. A modern line reaches three pixels above a capital H and down to one pixel
+    /// above the foot of a g, both as fitted to the grid: the engine centers modern text by it.
+    pub fn line(&self, style: Style, em: f32) -> (f32, f32) {
+        let key = (style, em.to_bits());
+        if let Some(line) = self.lines.borrow().get(&key) {
+            return *line;
+        }
+        let font = self.font();
+        let m = font.metrics(Size::new(em), LocationRef::default());
+        let line = match style {
+            Style::Classic => (m.ascent, -m.descent),
+            Style::Modern => {
+                let hinter = modern_hinter(&font, em);
+                let reach = |c: char| {
+                    let id = font.charmap().map(c)?;
+                    let outline = font.outline_glyphs().get(id)?;
+                    let mut ys = Extent::default();
+                    match &hinter {
+                        Some(h) => outline.draw(DrawSettings::hinted(h, false), &mut ys).ok()?,
+                        None => outline
+                            .draw(
+                                DrawSettings::unhinted(Size::new(em), LocationRef::default()),
+                                &mut ys,
+                            )
+                            .ok()?,
+                    };
+                    ys.found.then_some((ys.top, ys.bottom))
+                };
+                let cap = reach('H')
+                    .map_or(m.ascent.ceil() as i32 - MODERN_HEADROOM, |(top, _)| {
+                        top.ceil() as i32
+                    });
+                let foot = reach('g').map_or((-m.descent).ceil() as i32, |(_, bottom)| {
+                    (-bottom).ceil() as i32
+                });
+                let ascent = cap + MODERN_HEADROOM;
+                let height = ascent + foot - 1;
+                (ascent as f32, (height - ascent) as f32)
+            }
+        };
+        self.lines.borrow_mut().insert(key, line);
+        line
     }
 
     fn font(&self) -> FontRef<'_> {
@@ -179,9 +272,78 @@ impl Font {
     }
 }
 
+/// The top and bottom of an outline.
+#[derive(Default)]
+struct Extent {
+    found: bool,
+    top: f32,
+    bottom: f32,
+}
+
+impl Extent {
+    fn add(&mut self, y: f32) {
+        if self.found {
+            self.top = self.top.max(y);
+            self.bottom = self.bottom.min(y);
+        } else {
+            (self.found, self.top, self.bottom) = (true, y, y);
+        }
+    }
+}
+
+impl OutlinePen for Extent {
+    fn move_to(&mut self, _x: f32, y: f32) {
+        self.add(y);
+    }
+    fn line_to(&mut self, _x: f32, y: f32) {
+        self.add(y);
+    }
+    fn quad_to(&mut self, _cx: f32, cy: f32, _x: f32, y: f32) {
+        self.add(cy);
+        self.add(y);
+    }
+    fn curve_to(&mut self, _ax: f32, ay: f32, _bx: f32, by: f32, _x: f32, y: f32) {
+        self.add(ay);
+        self.add(by);
+        self.add(y);
+    }
+    fn close(&mut self) {}
+}
+
+/// The autohinter modern text is fitted with at `em`.
+fn modern_hinter(font: &FontRef, em: f32) -> Option<HintingInstance> {
+    let options = HintingOptions {
+        engine: Engine::Auto(None),
+        target: Target::Smooth {
+            mode: SmoothMode::Normal,
+            symmetric_rendering: true,
+            preserve_linear_metrics: false,
+        },
+    };
+    HintingInstance::new(
+        &font.outline_glyphs(),
+        Size::new(em),
+        LocationRef::default(),
+        options,
+    )
+    .ok()
+}
+
+/// What a font does at `em` in `style`.
+fn size(font: &FontRef, style: Style, em: f32) -> Sized {
+    match style {
+        Style::Classic => classic_size(font, em as u32),
+        Style::Modern => Sized {
+            hinter: modern_hinter(font, em),
+            smooth: true,
+            glyphs: HashMap::new(),
+        },
+    }
+}
+
 /// Reads from the font's `gasp` table what Windows does at `px`: fit to the grid, smooth,
 /// both or neither. A font without the table gets both.
-fn size(font: &FontRef, px: u32) -> Sized {
+fn classic_size(font: &FontRef, px: u32) -> Sized {
     let (mut fit, mut smooth) = (true, true);
     if let Ok(gasp) = font.gasp() {
         let range = gasp
@@ -253,6 +415,39 @@ fn draw(font: &FontRef, sized: &Sized, c: char, px: u32) -> Glyph {
     glyph
 }
 
+/// Draws `c` as modern text: its outline fitted by the autohinter, each pixel as dark as the
+/// share of it the outline covers, and the fitted advance in whole pixels.
+fn draw_modern(font: &FontRef, sized: &Sized, c: char, em: f32) -> Glyph {
+    let size = Size::new(em);
+    let id = font.charmap().map(c).unwrap_or(GlyphId::NOTDEF);
+    let linear = font
+        .glyph_metrics(size, LocationRef::default())
+        .advance_width(id)
+        .unwrap_or(0.0);
+    let mut advance = linear.round() as i32;
+    let mut path = Path::fine(em);
+    if let Some(outline) = font.outline_glyphs().get(id) {
+        let drawn = match &sized.hinter {
+            Some(hinter) => outline.draw(DrawSettings::hinted(hinter, false), &mut path),
+            None => outline.draw(
+                DrawSettings::unhinted(size, LocationRef::default()),
+                &mut path,
+            ),
+        };
+        match drawn {
+            Ok(metrics) => {
+                if let Some(width) = metrics.advance_width {
+                    advance = width.round() as i32;
+                }
+            }
+            Err(_) => path = Path::fine(em),
+        }
+    }
+    let mut glyph = path.fill_area();
+    glyph.advance = advance;
+    glyph
+}
+
 /// The width the font's tables give glyph `id` at `px` pixels per em, where they give one:
 /// the `hdmx` table's device width for that size, or, from the size the `LTSH` table says
 /// the glyph scales evenly, its scaled width rounded. `None` leaves the width to the
@@ -291,6 +486,14 @@ impl Path {
         Path {
             contours: Vec::new(),
             steps: (px / 3).clamp(6, 32),
+        }
+    }
+
+    /// A path with curves cut finely enough for smoothed letters, whose edges show.
+    fn fine(em: f32) -> Path {
+        Path {
+            contours: Vec::new(),
+            steps: ((em / 2.0) as u32).clamp(16, 48),
         }
     }
 
@@ -419,6 +622,128 @@ impl Path {
     }
 }
 
+impl Path {
+    /// Fills the outline with each pixel as dark as the share of its square the outline
+    /// covers, by the nonzero rule.
+    fn fill_area(&self) -> Glyph {
+        let empty = Glyph {
+            left: 0,
+            top: 0,
+            w: 0,
+            h: 0,
+            coverage: Vec::new(),
+            advance: 0,
+        };
+        let mut points = self.contours.iter().flatten();
+        let Some(&(x0, y0)) = points.next() else {
+            return empty;
+        };
+        let (mut lo_x, mut hi_x, mut lo_y, mut hi_y) = (x0, x0, y0, y0);
+        for &(x, y) in points {
+            (lo_x, hi_x, lo_y, hi_y) = (lo_x.min(x), hi_x.max(x), lo_y.min(y), hi_y.max(y));
+        }
+        let left = lo_x.floor() as i32;
+        let top = hi_y.ceil() as i32;
+        let (w, h) = (
+            (hi_x.ceil() as i32 - left).max(0) as usize + 1,
+            (top - lo_y.floor() as i32).max(0) as usize,
+        );
+        if h == 0 || w > 4096 || h > 4096 {
+            return empty;
+        }
+        // signed area left in each cell by the edges crossing it, summed along each row
+        let mut cells = vec![0.0f32; w * h + 1];
+        for contour in &self.contours {
+            for (i, &from) in contour.iter().enumerate() {
+                let to = contour[(i + 1) % contour.len()];
+                let a = (from.0 - left as f32, top as f32 - from.1);
+                let b = (to.0 - left as f32, top as f32 - to.1);
+                accumulate(&mut cells, w, h, a, b);
+            }
+        }
+        let mut coverage = vec![0u8; w * h];
+        for y in 0..h {
+            let mut sum = 0.0;
+            for x in 0..w {
+                sum += cells[y * w + x];
+                coverage[y * w + x] = (sum.abs().min(1.0) * 255.0).round() as u8;
+            }
+        }
+        Glyph {
+            left,
+            top,
+            w,
+            h,
+            coverage,
+            advance: 0,
+        }
+    }
+}
+
+/// Adds the edge from `a` to `b` (pixels, y down) to the row-wise sums of covered area.
+fn accumulate(cells: &mut [f32], w: usize, h: usize, a: (f32, f32), b: (f32, f32)) {
+    if (a.1 - b.1).abs() <= f32::EPSILON {
+        return;
+    }
+    let (dir, p0, p1) = if a.1 < b.1 { (1.0, a, b) } else { (-1.0, b, a) };
+    let dxdy = (p1.0 - p0.0) / (p1.1 - p0.1);
+    let mut x = p0.0;
+    if p0.1 < 0.0 {
+        x -= p0.1 * dxdy;
+    }
+    let first = p0.1.max(0.0) as usize;
+    let last = (p1.1.ceil() as usize).min(h);
+    for y in first..last {
+        let row = y * w;
+        let dy = ((y + 1) as f32).min(p1.1) - (y as f32).max(p0.1);
+        let next = x + dxdy * dy;
+        let d = dy * dir;
+        let (x0, x1) = if x < next { (x, next) } else { (next, x) };
+        let cell = |i: i32| -> Option<usize> {
+            if i < 0 {
+                Some(row)
+            } else if (i as usize) < w {
+                Some(row + i as usize)
+            } else {
+                None
+            }
+        };
+        let mut put = |i: i32, v: f32| {
+            if let Some(i) = cell(i) {
+                cells[i] += v;
+            }
+        };
+        let x0f = x0.floor();
+        let (x0i, x1i) = (x0f as i32, x1.ceil() as i32);
+        if x1i <= x0i + 1 {
+            // within one cell: the part right of the edge's middle goes on to the next cell
+            let mid = f32::midpoint(x, next) - x0f;
+            put(x0i, d - d * mid);
+            put(x0i + 1, d * mid);
+        } else {
+            let s = (x1 - x0).recip();
+            let f0 = x0 - x0f;
+            let a0 = 0.5 * s * (1.0 - f0) * (1.0 - f0);
+            let f1 = x1 - x1.ceil() + 1.0;
+            let am = 0.5 * s * f1 * f1;
+            put(x0i, d * a0);
+            if x1i == x0i + 2 {
+                put(x0i + 1, d * (1.0 - a0 - am));
+            } else {
+                let a1 = s * (1.5 - f0);
+                put(x0i + 1, d * (a1 - a0));
+                for i in x0i + 2..x1i - 1 {
+                    put(i, d * s);
+                }
+                let a2 = a1 + (x1i - x0i - 3) as f32 * s;
+                put(x1i - 1, d * (1.0 - a2 - am));
+            }
+            put(x1i, d * am);
+        }
+        x = next;
+    }
+}
+
 /// The runs inside the outline along each of `lines` scan lines through the sample centers,
 /// by the nonzero rule, as `(from, to)` along the line.
 fn runs(edges: &[[f32; 4]], lines: usize) -> Vec<Vec<(f32, f32)>> {
@@ -533,7 +858,7 @@ mod tests {
     fn small_text_is_not_smoothed() {
         let font = font();
         for c in "Winamp 0123".chars() {
-            let glyph = font.glyph(c, 10);
+            let glyph = font.glyph(c, Style::Classic, 10.0);
             assert!(
                 glyph
                     .coverage
@@ -546,17 +871,17 @@ mod tests {
 
     #[test]
     fn large_text_is_smoothed() {
-        let glyph = font().glyph('o', 24);
+        let glyph = font().glyph('o', Style::Classic, 24.0);
         assert!(glyph.coverage.iter().any(|&cover| cover > 0 && cover < 255));
     }
 
     #[test]
     fn letters_have_ink_and_spaces_have_none() {
         let font = font();
-        let letter = font.glyph('W', 10);
+        let letter = font.glyph('W', Style::Classic, 10.0);
         assert!(letter.coverage.contains(&255));
         assert!(letter.advance > 0);
-        let space = font.glyph(' ', 10);
+        let space = font.glyph(' ', Style::Classic, 10.0);
         assert!(space.coverage.iter().all(|&cover| cover == 0));
         assert!(space.advance > 0);
     }
@@ -564,41 +889,119 @@ mod tests {
     #[test]
     fn a_line_is_as_wide_as_its_letters_and_kerning() {
         let font = font();
-        let letters: i32 = "AV".chars().map(|c| font.glyph(c, 13).advance).sum();
-        assert_eq!(font.advance("AV", 13), letters + font.kerning('A', 'V', 13));
-        assert_eq!(font.advance("", 13), 0);
+        let letters: i32 = "AV"
+            .chars()
+            .map(|c| font.glyph(c, Style::Classic, 13.0).advance)
+            .sum();
+        assert_eq!(
+            font.advance("AV", Style::Classic, 13.0),
+            letters + font.kerning('A', 'V', Style::Classic, 13.0)
+        );
+        assert_eq!(font.advance("", Style::Classic, 13.0), 0);
     }
 
     #[test]
     fn a_run_places_each_letter_where_the_pen_stands() {
         let font = font();
-        let run = font.run("AVA", 13);
+        let run = font.run("AVA", Style::Classic, 13.0, 0);
         assert_eq!(run.len(), 3);
         assert_eq!(run[0].0, 0);
         assert_eq!(
             run[1].0,
-            run[0].1.advance + font.kerning('A', 'V', 13),
+            run[0].1.advance + font.kerning('A', 'V', Style::Classic, 13.0),
             "the second letter starts after the first and their kerning"
         );
         let end = run[2].0 + run[2].1.advance;
-        assert_eq!(end, font.advance("AVA", 13));
+        assert_eq!(end, font.advance("AVA", Style::Classic, 13.0));
     }
 
     #[test]
     fn a_face_drawn_twice_for_bold_is_a_pixel_wider() {
         let font = font();
         assert_eq!(
-            font.width("Song", 10, true),
-            font.width("Song", 10, false) + 1
+            font.width("Song", Style::Classic, 10.0, 1),
+            font.width("Song", Style::Classic, 10.0, 0) + 1
         );
-        assert_eq!(font.width("", 10, true), 0);
+        assert_eq!(font.width("", Style::Classic, 10.0, 1), 0);
     }
 
     #[test]
-    fn a_skin_size_draws_at_three_quarters_in_whole_pixels() {
-        assert_eq!(pixels(14), 11);
-        assert_eq!(pixels(13), 10);
-        assert_eq!(pixels(0), 1);
+    fn a_skin_size_draws_at_three_quarters_rounded_for_classic_text_only() {
+        assert_eq!(em(Style::Classic, 14), 11.0);
+        assert_eq!(em(Style::Classic, 13), 10.0);
+        assert_eq!(em(Style::Classic, 0), 1.0);
+        assert_eq!(em(Style::Modern, 14), 10.5);
+        assert_eq!(em(Style::Modern, 16), 12.0);
+    }
+
+    #[test]
+    fn modern_text_is_smoothed_at_every_size() {
+        let font = font();
+        for em in [7.5, 10.5, 12.0, 18.0] {
+            let glyph = font.glyph('o', Style::Modern, em);
+            assert!(
+                glyph.coverage.iter().any(|&cover| cover > 0 && cover < 255),
+                "an o at {em} pixels has grey pixels"
+            );
+        }
+    }
+
+    #[test]
+    fn a_modern_stem_is_as_dark_as_the_share_of_the_pixel_it_covers() {
+        // a bar 0.75 of a pixel wide from a pixel's left edge, and one across two pixels
+        let mut path = Path::fine(12.0);
+        path.move_to(1.0, 0.0);
+        path.line_to(1.0, 3.0);
+        path.line_to(1.75, 3.0);
+        path.line_to(1.75, 0.0);
+        path.move_to(3.5, 0.0);
+        path.line_to(3.5, 3.0);
+        path.line_to(4.5, 3.0);
+        path.line_to(4.5, 0.0);
+        let glyph = path.fill_area();
+        let row: Vec<u8> = glyph.coverage[glyph.w..2 * glyph.w].to_vec();
+        let at = |x: i32| row[(x - glyph.left) as usize];
+        assert_eq!(at(1), 191);
+        assert_eq!((at(3), at(4)), (128, 128));
+        assert_eq!(at(2), 0);
+    }
+
+    #[test]
+    fn modern_kerning_shrinks_below_25_pixels_per_em() {
+        let font = font();
+        // A and V kern by about 1.8 pixels at 24 pixels per em; at 10.5 the pair is scaled by
+        // 11/25 and rounds away
+        assert_eq!(font.kerning('A', 'V', Style::Modern, 24.0), -2);
+        assert_eq!(font.kerning('A', 'V', Style::Classic, 10.0), -1);
+        assert_eq!(font.kerning('A', 'V', Style::Modern, 10.5), 0);
+        assert_eq!(font.kerning('T', 'o', Style::Modern, 10.5), -1);
+    }
+
+    #[test]
+    fn modern_bold_moves_a_pixel_further_after_each_letter() {
+        let font = font();
+        let plain = font.run("Song", Style::Modern, 10.5, 0);
+        let bold = font.run("Song", Style::Modern, 10.5, 1);
+        for (i, ((a, _), (b, _))) in plain.iter().zip(&bold).enumerate() {
+            assert_eq!(*b, a + i as i32);
+        }
+        assert_eq!(
+            font.width("Song", Style::Modern, 10.5, 1),
+            font.width("Song", Style::Modern, 10.5, 0) + 4
+        );
+    }
+
+    #[test]
+    fn a_modern_line_reaches_three_pixels_above_a_capital() {
+        let font = font();
+        let (ascent, descent) = font.line(Style::Modern, 10.5);
+        let cap = font.glyph('H', Style::Modern, 10.5);
+        assert_eq!(
+            ascent as i32,
+            cap.top + 3,
+            "the H's bitmap top is its fitted height"
+        );
+        assert!((1.0..4.0).contains(&descent), "{descent}");
     }
 
     #[test]
@@ -606,14 +1009,20 @@ mod tests {
         // Liberation Sans carries device widths for 10 pixels: the line is their sum
         let font = font();
         let line = "1. Artist - Title";
-        let widths: i32 = line.chars().map(|c| font.glyph(c, 10).advance).sum();
+        let widths: i32 = line
+            .chars()
+            .map(|c| font.glyph(c, Style::Classic, 10.0).advance)
+            .sum();
         let kerns: i32 = line
             .chars()
             .zip(line.chars().skip(1))
-            .map(|(a, b)| font.kerning(a, b, 10))
+            .map(|(a, b)| font.kerning(a, b, Style::Classic, 10.0))
             .sum();
-        assert_eq!(font.advance(line, 10), widths + kerns);
-        assert!(font.glyph('m', 10).advance > font.glyph('i', 10).advance);
+        assert_eq!(font.advance(line, Style::Classic, 10.0), widths + kerns);
+        assert!(
+            font.glyph('m', Style::Classic, 10.0).advance
+                > font.glyph('i', Style::Classic, 10.0).advance
+        );
     }
 
     #[test]

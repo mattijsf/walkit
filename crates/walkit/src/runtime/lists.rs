@@ -76,6 +76,7 @@ fn text_cmd(
         shadow: None,
         shadow_dx: 1,
         shadow_dy: 1,
+        smooth: false,
         x: 0.0,
         baseline: 0.0,
     }))

@@ -17,7 +17,7 @@ add wasm32-unknown-unknown`). `wasm-opt` (from binaryen) is optional.
 
 | Path | What it is |
 | --- | --- |
-| `crates/walkit` | The engine. Modern skins in `runtime`, `gui` and `maki`; classic skins in `classic`; the draw list in `draw`, `plan` and `packed`; behind the `truetype` feature, TrueType letters drawn as Windows draws them, for hosts that draw into pixels. |
+| `crates/walkit` | The engine. Modern skins in `runtime`, `gui` and `maki`; classic skins in `classic`; the draw list in `draw`, `plan` and `packed`; behind the `truetype` feature, TrueType letters drawn as Winamp draws them, for hosts that draw into pixels. |
 | `crates/walkit-trace` | Runs a scenario on a stepped clock and writes its trace. |
 | `crates/walkit-web` | The engine as a wasm module with `wk_*` exports and `host_*` imports. |
 | `crates/walkit-android` | The engine as `libwalkit.so`, the native methods of `nl.mattix.walkit.Native`. |

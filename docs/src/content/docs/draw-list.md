@@ -9,7 +9,7 @@ commands in the window's layout pixels, drawn in order.
 | --- | --- |
 | `Image` | A bitmap, or the named part of it, stretched to `dst` at an opacity, with the color theme's tint when the skin has one. Nearest pixels, or filtered when `smooth` is set. |
 | `Fill` | A box filled with a color at an opacity. |
-| `Text` | A run of text in a font, size, color and alignment, clipped to its box. The engine places it: `x` and `baseline` say where it starts. |
+| `Text` | A run of text in a font, size, color and alignment, clipped to its box. The engine places it: `x` and `baseline` say where it starts. `smooth` says to draw it smoothed, as Winamp draws a modern skin's text (see [Text](/walkit/rust/#text)). |
 | `BitmapText` | Text in a skin's bitmap font, spelled out as glyphs. |
 | `Clip`, `Unclip` | Clip the commands in between to a rect. |
 | `WindowStart`, `WindowEnd` | A shaped window: the commands in between show only inside its region. |

@@ -577,6 +577,7 @@ mod tests {
                 shadow: Some(Rgb(0)),
                 shadow_dx: 1,
                 shadow_dy: 1,
+                smooth: false,
                 x: 2.5,
                 baseline: 10.25,
             })),

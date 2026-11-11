@@ -63,6 +63,32 @@ pub trait SkinHost {
         self.text_width(text, font, size, bold) as f32
     }
 
+    /// How wide `text` draws smoothed, in layout pixels, for a host that draws a modern
+    /// skin's smoothed text ([`TextCmd::smooth`](crate::draw::TextCmd::smooth)) as Winamp does,
+    /// with [`truetype`](crate::truetype)'s [`Style::Modern`](crate::truetype::Style). `None`,
+    /// the default, measures it with [`SkinHost::text_advance`] like any other text.
+    fn smooth_text_advance(
+        &mut self,
+        _text: &str,
+        _font: Option<&FontDef>,
+        _size: i32,
+        _bold: bool,
+    ) -> Option<f32> {
+        None
+    }
+
+    /// Ascent and descent in layout pixels of smoothed text, for a host that draws it as
+    /// Winamp does: Winamp centers a modern skin's smoothed text by a line of its own, not by
+    /// Windows' line. `None`, the default, lays it out by Windows' line like any other text.
+    fn smooth_line_metrics(
+        &mut self,
+        _font: Option<&FontDef>,
+        _size: i32,
+        _bold: bool,
+    ) -> Option<(f32, f32)> {
+        None
+    }
+
     /// Ascent and descent in layout pixels as this host's renderer lays the font out, for a
     /// font whose file gives Windows' line no figures; `None` leaves it to a share of the em.
     fn line_metrics(

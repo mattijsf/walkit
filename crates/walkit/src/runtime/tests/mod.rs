@@ -11,6 +11,7 @@ mod settings;
 mod skin_name;
 mod sliders;
 mod stack;
+mod text;
 mod vis;
 
 use std::cell::RefCell;

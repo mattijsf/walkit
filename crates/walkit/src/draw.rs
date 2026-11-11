@@ -316,6 +316,12 @@ pub struct TextCmd {
     pub shadow_dx: i32,
     /// Where the shadow sits from the text, down.
     pub shadow_dy: i32,
+    /// Drawn smoothed, as Winamp draws a modern skin's TrueType text unless the skin sets
+    /// `antialias="0"`; unsmoothed, as Windows draws it, otherwise and in a classic skin. The
+    /// engine measured and placed it the same way (see
+    /// [`SkinHost::smooth_text_advance`](crate::host::SkinHost::smooth_text_advance)). Not
+    /// carried in the packed draw list.
+    pub smooth: bool,
     /// Where the text starts across, in layout pixels: aligned in `rect` by its measured width,
     /// less `scroll`. The engine fills it in when the frame is drawn.
     pub x: f32,

@@ -31,16 +31,34 @@ impl SkinRuntime {
         m.map(|m| m.at(crate::gdi::em_size(size)))
     }
 
+    /// How wide `text` draws in layout pixels: smoothed (`smooth`) by the host's measure for
+    /// smoothed text where it has one, else by its measure for any text.
+    pub(crate) fn text_advance_of(
+        &mut self,
+        text: &str,
+        font: Option<&FontDef>,
+        size: i32,
+        bold: bool,
+        smooth: bool,
+    ) -> f32 {
+        if smooth {
+            if let Some(w) = self.host.smooth_text_advance(text, font, size, bold) {
+                return w;
+            }
+        }
+        self.host.text_advance(text, font, size, bold)
+    }
+
     /// Places `cmd` in its rectangle, as every renderer then draws it: across by the width the
-    /// host measures, less the ticker's scroll; up and down by the font's line, Windows' where
-    /// the file gives it, else the host's. Centered and right-aligned text starts on a whole
+    /// host measures, less the ticker's scroll; up and down by the font's line: for smoothed
+    /// text the line the host lays it out by, if it gives one, else Windows' where the file
+    /// gives it, else the host's. Centered and right-aligned text starts on a whole
     /// pixel, as Windows places it: its width rounded, half the room left over dropping the odd
     /// pixel, so the letters stay sharp instead of falling between two pixels.
     pub(crate) fn place_text(&mut self, cmd: &mut crate::draw::TextCmd) {
         let r = cmd.rect;
         let width = self
-            .host
-            .text_advance(&cmd.text, cmd.font.as_ref(), cmd.size, cmd.bold)
+            .text_advance_of(&cmd.text, cmd.font.as_ref(), cmd.size, cmd.bold, cmd.smooth)
             .round() as i32;
         let x = match cmd.align {
             crate::draw::Align::Left => r.left,
@@ -48,9 +66,17 @@ impl SkinRuntime {
             crate::draw::Align::Right => r.right() - width,
         };
         cmd.x = (x - cmd.scroll) as f32;
-        let (asc, desc) = self
-            .gdi_line(cmd.font.as_ref(), cmd.size, cmd.bold)
-            .map(|(a, d)| (a as f32, d as f32))
+        let modern = if cmd.smooth {
+            self.host
+                .smooth_line_metrics(cmd.font.as_ref(), cmd.size, cmd.bold)
+        } else {
+            None
+        };
+        let (asc, desc) = modern
+            .or_else(|| {
+                self.gdi_line(cmd.font.as_ref(), cmd.size, cmd.bold)
+                    .map(|(a, d)| (a as f32, d as f32))
+            })
             .or_else(|| {
                 self.host
                     .line_metrics(cmd.font.as_ref(), cmd.size, cmd.bold)
@@ -59,11 +85,10 @@ impl SkinRuntime {
                 let em = crate::gdi::em_size(cmd.size);
                 (em * DEFAULT_ASCENT, em * DEFAULT_DESCENT)
             });
+        let centered = r.top as f32 + ((r.height as f32 - (asc + desc)) / 2.0).trunc() + asc;
         cmd.baseline = match cmd.valign {
             crate::draw::VAlign::Top => r.top as f32 + asc,
-            crate::draw::VAlign::Center => {
-                r.top as f32 + ((r.height as f32 - (asc + desc)) / 2.0).trunc() + asc
-            }
+            crate::draw::VAlign::Center => centered,
             crate::draw::VAlign::Bottom => r.bottom() as f32 - desc,
         };
     }

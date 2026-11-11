@@ -60,6 +60,8 @@ pub struct TextData {
     pub force_lower: bool,
     /// `forcefixed`: a time's pieces are as wide as their characters times the width of "0".
     pub force_fixed: bool,
+    /// `antialias`: Winamp smooths a modern skin's TrueType text unless it is `0`.
+    pub antialias: bool,
     /// `leftpadding`.
     pub left_padding: Option<i32>,
     /// `rightpadding`.
@@ -132,6 +134,7 @@ impl Default for TextData {
             offset_y: 0,
             force_lower: false,
             force_fixed: false,
+            antialias: true,
             left_padding: None,
             right_padding: 0,
             shadow_id: None,
@@ -261,7 +264,10 @@ impl TextData {
             // a songticker has no valign: it draws at the top of its box (winamp1)
             "valign" => {
                 if !self.song_ticker {
-                    self.valign = if value.eq_ignore_ascii_case("center") {
+                    // Winamp centers a text it is asked to put at the bottom (probed)
+                    self.valign = if value.eq_ignore_ascii_case("center")
+                        || value.eq_ignore_ascii_case("bottom")
+                    {
                         VAlign::Center
                     } else {
                         VAlign::Top
@@ -295,9 +301,9 @@ impl TextData {
             "offsetx" => self.offset_x = to_int_lenient(value).unwrap_or(0),
             "offsety" => self.offset_y = to_int_lenient(value).unwrap_or(0),
             "forcelocase" | "forcelowercase" => self.force_lower = to_bool(value),
-            "antialias" | "italic" | "underline" | "altfont" | "forcefixed" => {
-                self.force_fixed = to_bool(value);
-            }
+            "forcefixed" => self.force_fixed = to_bool(value),
+            "antialias" => self.antialias = to_bool(value),
+            "italic" | "underline" | "altfont" => {}
             "wrap" | "nograb" | "fontbgcolor" | "ghost" | "timeroffset" | "dblclickaction"
             | "image" => {}
             _ => return false,
@@ -485,18 +491,28 @@ impl SkinRuntime {
         }
         let ttf = self.text_ttf(id);
         let t = self.text(id);
-        let (size, bold) = (t.effective_size(), t.bold);
-        self.host.text_width(text, ttf.as_ref(), size, bold)
+        let (size, bold, smooth) = (t.effective_size(), t.bold, t.antialias);
+        self.text_advance_of(text, ttf.as_ref(), size, bold, smooth)
+            .ceil() as i32
     }
 
     /// A time's pieces between its colons, their widths and the colon slot.
     fn time_pieces(&mut self, id: ObjId, text: &str) -> (Vec<i32>, i32) {
         let ttf = self.text_ttf(id);
-        let (size, bold, fixed, colon) = {
+        let (size, bold, fixed, colon, smooth) = {
             let t = self.text(id);
-            (t.effective_size(), t.bold, t.force_fixed, t.colon_width())
+            (
+                t.effective_size(),
+                t.bold,
+                t.force_fixed,
+                t.colon_width(),
+                t.antialias,
+            )
         };
-        let mut w = |s: &str| self.host.text_width(s, ttf.as_ref(), size, bold);
+        let mut w = |s: &str| {
+            self.text_advance_of(s, ttf.as_ref(), size, bold, smooth)
+                .ceil() as i32
+        };
         let zero = w("0");
         let widths = text
             .split(':')
@@ -883,6 +899,7 @@ impl SkinRuntime {
             )
         };
         let is_time = t.is_time();
+        let smooth = t.antialias && !self.classic_skin;
         let make = |t: &TextData, text: String, rect: Rect, align: Align, scroll: i32| -> DrawCmd {
             DrawCmd::Text(Box::new(TextCmd {
                 text,
@@ -898,6 +915,7 @@ impl SkinRuntime {
                 shadow: sh,
                 shadow_dx: t.shadow_x,
                 shadow_dy: t.shadow_y,
+                smooth,
                 x: 0.0,
                 baseline: 0.0,
             }))

@@ -113,6 +113,7 @@ impl SkinRuntime {
         }
         // a classic skin's windows are generated around its bitmaps
         if crate::classic::is_classic(&*self.files) {
+            self.classic_skin = true;
             let inner =
                 std::mem::replace(&mut self.files, Box::new(crate::files::MemoryFiles::new()));
             self.files = Box::new(crate::classic::ClassicFiles::new(inner));

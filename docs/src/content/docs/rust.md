@@ -100,8 +100,11 @@ engine's own letters instead, with the `truetype` feature (it adds the `skrifa` 
 walkit = { git = "https://github.com/mattijsf/walkit", features = ["truetype"] }
 ```
 
-[`walkit::truetype`](/walkit/api/walkit/truetype/index.html) draws TrueType text as Windows
-draws it for Winamp, so a playlist row has the letters and the widths it has there:
+[`walkit::truetype`](/walkit/api/walkit/truetype/index.html) draws TrueType text as Winamp
+draws it, in one of two styles. Each `DrawCmd::Text` says which: `smooth` is set for a modern
+skin's text, unless the skin sets `antialias="0"` on it.
+
+`Style::Classic`, for a classic skin's text and unsmoothed text, as Windows draws it:
 
 - The font's own hinting fits each letter to the pixel grid.
 - Letters advance by whole pixels: the width the font's `hdmx` or `LTSH` table gives for the
@@ -110,33 +113,53 @@ draws it for Winamp, so a playlist row has the letters and the widths it has the
   pixels, the classic playlist's font, is not smoothed.
 - A stroke thinner than a pixel that passes between two pixel centers still lights one pixel.
 
+`Style::Modern`, for smoothed text:
+
+- Always smoothed, each pixel as dark as the share of it a letter covers.
+- An autohinter, not the font's own hinting, fits each letter to the grid.
+- The size is three quarters of the skin's `fontsize`, not rounded: `fontsize="14"` is 10.5
+  pixels per em. Letters advance by whole pixels.
+- Kerning pairs are scaled down below 25 pixels per em, then rounded.
+- Bold is the regular letters drawn twice, one pixel apart, each letter one pixel wider, even
+  where the font has a bold cut.
+- The line the engine centers the text on reaches three pixels above a capital H and down to
+  a pixel above the foot of a g.
+
 ```rust
-use walkit::truetype::{pixels, Font};
+use walkit::truetype::{em, Font, Style};
 
 let font = Font::parse(bytes).expect("a TrueType file"); // once per font file
-let px = pixels(size);                                    // a skin's font size in whole pixels
+let style = if cmd.smooth { Style::Modern } else { Style::Classic };
+let px = em(style, size);                                 // pixels per em for a skin's font size
+let bold = if fake_bold { 1 } else { 0 };                 // how far apart the two strokes are
 
-// SkinHost::text_width and text_advance; `fake_bold` is FontFace's
-let width = font.width(text, px, fake_bold);
-// SkinHost::line_metrics
-let (ascent, descent) = font.line(px);
+// SkinHost::text_advance and line_metrics in Style::Classic,
+// smooth_text_advance and smooth_line_metrics in Style::Modern
+let width = font.width(text, style, px, bold);
+let (ascent, descent) = font.line(style, px);
 
 // DrawCmd::Text: start on a whole pixel, then one bitmap per letter
 let (x, baseline) = (cmd.x.round() as i32, cmd.baseline.round() as i32);
-for (at, glyph) in font.run(&cmd.text, px) {
+for (at, glyph) in font.run(&cmd.text, style, px, bold) {
     // glyph.coverage is glyph.w x glyph.h bytes, 255 the text's color;
     // its corner is (x + at + glyph.left, baseline - glyph.top)
 }
 ```
 
-A face the engine marks `fake_bold` has no bold cut: draw the run twice, one pixel apart. At
-a scale above one, ask for `pixels(size) * scale` and multiply the pen's place by the scale.
-The macOS example's `render.rs` draws text this way.
+A face the engine marks `fake_bold` has no bold cut: draw the run twice, one pixel apart. In
+`Style::Modern` draw a bold run from the regular face that way too. At a scale above one, ask
+for `em(style, size) * scale`, pass the scale as `bold`, and multiply the pen's place by the
+scale. The macOS example's `host.rs` and `render.rs` work this way.
 
-With Arial itself, the rows of a classic playlist come out as Winamp 5.666 draws them, pixel
-for pixel but for the foot of a V. With the free fonts that stand in for Arial and Tahoma the
-letters differ, as the fonts do. Sizes a font smooths (Arial from 18 pixels), Tahoma and the
-text of modern skins have not been compared with Winamp yet.
+Compared with Winamp 5.666 in a virtual machine, with Arial and Tahoma themselves:
+
+- The rows of a classic playlist come out pixel for pixel, but for the foot of a V.
+- Smoothed text comes out as Winamp draws it but for some letters sitting one pixel off ("1",
+  "L", some digits), and bold strokes that are a little lighter than Winamp's.
+
+With the free fonts that stand in for Arial and Tahoma the letters differ, as the fonts do.
+Classic sizes a font smooths (Arial from 18 pixels) and classic Tahoma have not been compared
+yet.
 
 ## Files
 

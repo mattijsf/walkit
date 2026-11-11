@@ -37,6 +37,7 @@ fn text(s: &str, r: Rect, scroll: i32) -> DrawCmd {
         shadow: None,
         shadow_dx: 1,
         shadow_dy: 1,
+        smooth: false,
         x: (r.left - scroll) as f32,
         baseline: r.top as f32 + 8.0,
     }))

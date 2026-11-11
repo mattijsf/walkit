@@ -14,7 +14,7 @@ use walkit::draw::FontDef;
 use walkit::files::SkinFiles;
 use walkit::gdi::FontFace;
 use walkit::host::SkinHost;
-use walkit::truetype::{pixels, Font};
+use walkit::truetype::{em, Font, Style};
 
 /// The font for text that names none, and the one a missing font falls back to: the stand-in
 /// for Arial, read from the skin's files, else a font of the system.
@@ -75,9 +75,17 @@ impl Assets {
         decoded
     }
 
-    /// The font `font` draws in, `bold` or not, as the engine names its face; `None` only
-    /// when not even the default font loads.
-    pub fn face(&mut self, font: Option<&FontDef>, bold: bool) -> Option<TextFace> {
+    /// The font `font` draws in, `bold` or not, in `style`, as the engine names its face;
+    /// `None` only when not even the default font loads.
+    pub fn face(&mut self, font: Option<&FontDef>, bold: bool, style: Style) -> Option<TextFace> {
+        // smoothed bold is the regular letters drawn twice, even where a bold cut exists
+        if style == Style::Modern && bold {
+            let face = self.face(font, false, style)?;
+            return Some(TextFace {
+                font: face.font,
+                fake_bold: true,
+            });
+        }
         let face = FontFace::of(font, bold);
         let (found, fake_bold) = match &face {
             // a Windows font the skin names without a file: the free font standing in for it
@@ -167,14 +175,36 @@ pub struct Host {
 }
 
 impl Host {
-    /// How wide `text` draws in layout pixels: Winamp draws a font at three quarters of the
-    /// skin's size ([`pixels`]).
-    fn measure(&mut self, text: &str, font: Option<&FontDef>, size: i32, bold: bool) -> f32 {
-        let face = self.assets.borrow_mut().face(font, bold);
+    /// How wide `text` draws in layout pixels in `style`: Winamp draws a font at three
+    /// quarters of the skin's size ([`em`]).
+    fn measure(
+        &mut self,
+        text: &str,
+        font: Option<&FontDef>,
+        size: i32,
+        bold: bool,
+        style: Style,
+    ) -> f32 {
+        let face = self.assets.borrow_mut().face(font, bold, style);
         match face {
-            Some(face) => face.font.width(text, pixels(size), face.fake_bold) as f32,
+            Some(face) => {
+                let bold = i32::from(face.fake_bold);
+                face.font.width(text, style, em(style, size), bold) as f32
+            }
             None => text.chars().count() as f32 * size as f32 * 0.6,
         }
+    }
+
+    /// The font's line in `style`.
+    fn line(
+        &mut self,
+        font: Option<&FontDef>,
+        size: i32,
+        bold: bool,
+        style: Style,
+    ) -> Option<(f32, f32)> {
+        let face = self.assets.borrow_mut().face(font, bold, style)?;
+        Some(face.font.line(style, em(style, size)))
     }
 }
 
@@ -200,11 +230,21 @@ impl SkinHost for Host {
     }
 
     fn text_width(&mut self, text: &str, font: Option<&FontDef>, size: i32, bold: bool) -> i32 {
-        self.measure(text, font, size, bold).ceil() as i32
+        self.measure(text, font, size, bold, Style::Classic).ceil() as i32
     }
 
     fn text_advance(&mut self, text: &str, font: Option<&FontDef>, size: i32, bold: bool) -> f32 {
-        self.measure(text, font, size, bold)
+        self.measure(text, font, size, bold, Style::Classic)
+    }
+
+    fn smooth_text_advance(
+        &mut self,
+        text: &str,
+        font: Option<&FontDef>,
+        size: i32,
+        bold: bool,
+    ) -> Option<f32> {
+        Some(self.measure(text, font, size, bold, Style::Modern))
     }
 
     fn line_metrics(
@@ -213,8 +253,16 @@ impl SkinHost for Host {
         size: i32,
         bold: bool,
     ) -> Option<(f32, f32)> {
-        let face = self.assets.borrow_mut().face(font, bold)?;
-        Some(face.font.line(pixels(size)))
+        self.line(font, size, bold, Style::Classic)
+    }
+
+    fn smooth_line_metrics(
+        &mut self,
+        font: Option<&FontDef>,
+        size: i32,
+        bold: bool,
+    ) -> Option<(f32, f32)> {
+        self.line(font, size, bold, Style::Modern)
     }
 
     fn font_file(&mut self, file: &str) -> Option<Rc<[u8]>> {
