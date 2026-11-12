@@ -32,8 +32,8 @@ engine of the [Andamp](https://andamp.nl) music player.
 
 ## Status
 
-Early. No crate or AAR is released yet; build from the
-[repository](https://github.com/mattijsf/walkit).
+Early. The engine crate is on [crates.io](https://crates.io/crates/walkit); the AAR is not
+released yet, so build it from the [repository](https://github.com/mattijsf/walkit).
 
 ## License
 

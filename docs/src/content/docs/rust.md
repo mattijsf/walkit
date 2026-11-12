@@ -3,12 +3,11 @@ title: Rust
 ---
 
 The engine is the `walkit` crate. It has no dependencies unless the host asks for the
-[`truetype`](#text) feature. Until it is released, add it from the
-repository:
+[`truetype`](#text) feature. It is on [crates.io](https://crates.io/crates/walkit):
 
 ```toml
 [dependencies]
-walkit = { git = "https://github.com/mattijsf/walkit" }
+walkit = "0.10"
 ```
 
 ## A host
@@ -97,7 +96,7 @@ engine's own letters instead, with the `truetype` feature (it adds the `skrifa` 
 
 ```toml
 [dependencies]
-walkit = { git = "https://github.com/mattijsf/walkit", features = ["truetype"] }
+walkit = { version = "0.10", features = ["truetype"] }
 ```
 
 [`walkit::truetype`](/walkit/api/walkit/truetype/index.html) draws TrueType text as Winamp

@@ -16,7 +16,7 @@ analyzer and the oscilloscope as Winamp 5.666 or Winamp 2.91 draws them.
 
 ## Status
 
-Early. No AAR is released yet; the crate is prepared for crates.io.
+Early. The engine crate is on [crates.io](https://crates.io/crates/walkit); no AAR is released yet.
 
 A scripted run writes a trace of everything the engine does. Traces of a change are compared
 line by line with those of the last release (see [ENGINEERING.md](ENGINEERING.md)).
