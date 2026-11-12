@@ -74,6 +74,12 @@ const KNOWN_CLASSES: [(&str, &str); 18] = [
     ("images", "GuiObject"),
 ];
 
+/// Whether an object made from `tag` with no definition stands in for something the skin lacks:
+/// a namespaced tag, or one no known class has. A known class the engine does not draw is not.
+pub(crate) fn is_undefined_tag(tag: &str) -> bool {
+    tag.contains(':') || !KNOWN_CLASSES.iter().any(|(t, _)| *t == tag)
+}
+
 /// `<sendparams>`, `<hideobject>` and `<showobject>` met while a group fills, with how many
 /// children the group had then.
 type Meta = Vec<(Rc<XmlNode>, usize)>;
@@ -762,7 +768,7 @@ impl SkinRuntime {
                     .find(|(t, _)| *t == name)
                     .map(|(_, c)| *c)
                     .unwrap_or("GuiObject");
-                if name.contains(':') || !KNOWN_CLASSES.iter().any(|(t, _)| *t == name) {
+                if is_undefined_tag(name) {
                     self.host
                         .log(&format!("<{name}> unknown, placed as {class_name}"));
                 }

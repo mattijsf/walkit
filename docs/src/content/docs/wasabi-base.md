@@ -20,8 +20,15 @@ Often not.
   skins in the [examples](/walkit/examples/).
 - **Some modern skins** borrow parts from it, such as a list's scrollbar or a window's frame.
   Without the wasabi base, those parts are simply missing: the rest of the skin still shows.
+  A skin built on Winamp's standard frame (`<Wasabi:StandardFrame:Status>`), such as Winamp
+  3's default skin, shows no more than a black window.
 
-When a skin looks incomplete, try it again with the wasabi base.
+When a skin looks incomplete, try it again with the wasabi base. A Rust host can ask instead:
+after loading, [`SkinRuntime::unknown_objects`](/walkit/api/walkit/runtime/struct.SkinRuntime.html#method.unknown_objects)
+lists the tags in the windows on screen that nothing defines, with the window each is in. An
+empty list means the drawn windows miss nothing for want of a definition. Tags in closed
+windows, other layouts and hidden groups, such as a preferences dialog, are left out: they
+don't change the picture.
 
 ## Get the folder
 
