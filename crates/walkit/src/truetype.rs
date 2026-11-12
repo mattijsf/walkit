@@ -6,8 +6,9 @@
 //!
 //! - [`Style::Classic`], a classic skin's text (the playlist), as Windows draws it: the font's
 //!   own hinting fits each letter to the pixel grid, letters advance by whole pixels, pairs
-//!   the font's `kern` table names move by whole pixels, and the font's `gasp` table says at
-//!   which sizes the letters are smoothed. Arial between 9 and 17 pixels is not smoothed.
+//!   the font's `kern` table names move by whole pixels where the font kerns Latin text, and
+//!   the font's `gasp` table says at which sizes the letters are smoothed. Arial between 9
+//!   and 17 pixels is not smoothed.
 //! - [`Style::Modern`], a modern skin's text: always smoothed, each letter fitted to the
 //!   pixel grid by an autohinter rather than the font's own hinting, at three quarters of the
 //!   skin's font size without rounding (Arial at `fontsize="14"` is 10.5 pixels per em). Kerning
@@ -123,18 +124,21 @@ pub struct Font {
     sizes: RefCell<HashMap<SizeKey, Sized>>,
     kerns: RefCell<HashMap<(char, char, SizeKey), i32>>,
     lines: RefCell<HashMap<SizeKey, (f32, f32)>>,
+    /// Whether classic text kerns at all: see [`latin_kerning`].
+    classic_kerning: bool,
 }
 
 impl Font {
     /// The font in `data`, or `None` when it is not a TrueType or OpenType file. Of a
     /// collection (`.ttc`) it is the first font.
     pub fn parse(data: Rc<[u8]>) -> Option<Rc<Font>> {
-        FontRef::from_index(&data, 0).ok()?;
+        let classic_kerning = latin_kerning(&FontRef::from_index(&data, 0).ok()?);
         Some(Rc::new(Font {
             data,
             sizes: RefCell::default(),
             kerns: RefCell::default(),
             lines: RefCell::default(),
+            classic_kerning,
         }))
     }
 
@@ -198,8 +202,12 @@ impl Font {
 
     /// How many pixels `right` moves toward `left` (negative) or away from it at `em` pixels
     /// per em in `style`, from the font's `kern` table, in whole pixels. Modern text scales
-    /// the pair down below 25 pixels per em first.
+    /// the pair down below 25 pixels per em first. Classic text of a font whose layout table
+    /// leaves kerning out of Latin script is not kerned (Tahoma).
     pub fn kerning(&self, left: char, right: char, style: Style, em: f32) -> i32 {
+        if style == Style::Classic && !self.classic_kerning {
+            return 0;
+        }
         *self
             .kerns
             .borrow_mut()
@@ -290,6 +298,42 @@ impl Font {
         // checked in `parse`
         FontRef::from_index(&self.data, 0).expect("a font that parsed before")
     }
+}
+
+/// Whether Windows kerns the font's Latin text, as a classic skin's text is drawn (probed in
+/// the VM): when the font's `GPOS` table lists the `kern` feature for Latin script, or for
+/// its default script where it has no Latin one. Arial lists it and is kerned; Tahoma lists
+/// only mark positioning and is not, though both have a `kern` table. A font without the
+/// table, or whose table names no such script, kerns by its `kern` table.
+fn latin_kerning(font: &FontRef) -> bool {
+    let kern = Tag::new(b"kern");
+    let Ok(gpos) = font.gpos() else {
+        return true;
+    };
+    let (Ok(scripts), Ok(features)) = (gpos.script_list(), gpos.feature_list()) else {
+        return true;
+    };
+    let records = scripts.script_records();
+    let record = [Tag::new(b"latn"), Tag::new(b"DFLT")]
+        .iter()
+        .find_map(|tag| records.iter().find(|r| r.script_tag() == *tag));
+    let Some(record) = record else {
+        return true;
+    };
+    let Some(Ok(lang)) = record
+        .script(scripts.offset_data())
+        .ok()
+        .and_then(|script| script.default_lang_sys())
+    else {
+        return true;
+    };
+    let tags = features.feature_records();
+    lang.feature_indices()
+        .iter()
+        .map(|i| i.get())
+        .chain(std::iter::once(lang.required_feature_index()))
+        .filter_map(|i| tags.get(usize::from(i)))
+        .any(|f| f.feature_tag() == kern)
 }
 
 /// The top and bottom of an outline.
@@ -590,7 +634,7 @@ impl Path {
         let rows = runs(&across, sh);
         for (row, line) in rows.iter().enumerate() {
             for &(from, to) in line {
-                match centers(from, to, sw, !smooth) {
+                match centers(from, to, sw, !smooth && ends(&rows, row, from, to)) {
                     Some(Centers::Covered(first, last)) => {
                         samples[row * sw + first..=row * sw + last].fill(true);
                     }
@@ -811,8 +855,9 @@ enum Centers {
     Between(usize),
 }
 
-/// `open_end`: a center exactly on the run's end is outside it, as Windows fills unsmoothed
-/// letters (the foot of a V or v at 10 pixels ends on a center and lights one pixel, not two).
+/// `open_end`: a center exactly on the run's end is outside it, as Windows fills an
+/// unsmoothed stroke's last row (the foot of a V or v at 10 pixels ends on a center and lights
+/// one pixel, not two). Elsewhere a center on the end is inside (the arm of a K, a $).
 fn centers(from: f32, to: f32, len: usize, open_end: bool) -> Option<Centers> {
     // centers at i + 0.5; a center on the start of the run counts as inside
     let first = (from - 0.5 - EDGE).ceil().max(0.0) as usize;
@@ -828,6 +873,13 @@ fn centers(from: f32, to: f32, len: usize, open_end: bool) -> Option<Centers> {
         return None;
     }
     Some(Centers::Between(first - 1))
+}
+
+/// Whether the stroke a run lies on ends with it: the next line down holds nothing within a
+/// pixel of it, as at the foot of a V.
+fn ends(runs: &[Vec<(f32, f32)>], line: usize, from: f32, to: f32) -> bool {
+    runs.get(line + 1)
+        .is_none_or(|next| !next.iter().any(|&(a, b)| b >= from - 1.0 && a <= to + 1.0))
 }
 
 /// Whether a run between two centers lights a pixel: the stroke it cuts through goes on
@@ -1089,21 +1141,56 @@ mod tests {
     }
 
     #[test]
-    fn an_unsmoothed_run_ending_on_a_pixel_center_leaves_that_pixel_dark() {
-        // a bar from x 1.5 to 2.5: it holds the center of pixel 1 and ends on the center of
-        // pixel 2, which Windows leaves dark
+    fn an_unsmoothed_run_ending_on_a_pixel_center_lights_it_unless_the_stroke_ends_there() {
+        // a bar from x 1.5 to 2.5, three pixels tall: each row ends on the center of pixel
+        // 2. Windows lights that pixel where the stroke goes on below (the arm of a K, the
+        // middle of a $) and leaves it dark in the stroke's last row (the foot of a V)
         let mut path = Path::new(10);
         path.move_to(1.5, 0.0);
         path.line_to(1.5, 3.0);
         path.line_to(2.5, 3.0);
         path.line_to(2.5, 0.0);
         let glyph = path.fill(false);
-        let row = &glyph.coverage[glyph.w..2 * glyph.w];
-        let lit: Vec<i32> = (0..glyph.w)
-            .filter(|&x| row[x] == 255)
-            .map(|x| x as i32 + glyph.left)
-            .collect();
-        assert_eq!(lit, vec![1]);
+        let lit = |y: i32| -> Vec<i32> {
+            let row = (glyph.top - 1 - y) as usize;
+            let row = &glyph.coverage[row * glyph.w..(row + 1) * glyph.w];
+            (0..glyph.w)
+                .filter(|&x| row[x] == 255)
+                .map(|x| x as i32 + glyph.left)
+                .collect()
+        };
+        assert_eq!(lit(2), vec![1, 2], "the top row, with the stroke below it");
+        assert_eq!(lit(1), vec![1, 2], "the middle row");
+        assert_eq!(lit(0), vec![1], "the last row");
+    }
+
+    #[test]
+    fn classic_text_kerns_only_where_the_layout_table_kerns_latin() {
+        let bytes: &[u8] = include_bytes!("../../../examples/skins/fonts/LiberationSans.ttf");
+        let font = Font::parse(Rc::from(bytes)).expect("the stand-in font parses");
+        assert_eq!(font.kerning('A', 'V', Style::Classic, 10.0), -1);
+        // the same font with its layout table's kern features renamed, as Tahoma's Latin
+        // script lists only mark positioning; its kern table stays
+        let mut renamed = bytes.to_vec();
+        let gpos = FontRef::new(bytes)
+            .expect("a font")
+            .gpos()
+            .expect("a layout table");
+        let features = gpos.feature_list().expect("features");
+        let list = features.offset_data().as_bytes().as_ptr() as usize - bytes.as_ptr() as usize;
+        for (i, record) in features.feature_records().iter().enumerate() {
+            if record.feature_tag() == Tag::new(b"kern") {
+                let at = list + 2 + 6 * i;
+                renamed[at..at + 4].copy_from_slice(b"xern");
+            }
+        }
+        let font = Font::parse(Rc::from(renamed)).expect("the renamed font parses");
+        assert_eq!(font.kerning('A', 'V', Style::Classic, 10.0), 0);
+        assert_eq!(
+            font.kerning('A', 'V', Style::Modern, 24.0),
+            -2,
+            "modern text still kerns"
+        );
     }
 
     #[test]

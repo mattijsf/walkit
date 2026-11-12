@@ -108,11 +108,14 @@ skin's text, unless the skin sets `antialias="0"` on it.
 
 - The font's own hinting fits each letter to the pixel grid.
 - Letters advance by whole pixels: the width the font's `hdmx` or `LTSH` table gives for the
-  size, else the hinted width. Pairs in the font's `kern` table move by whole pixels.
+  size, else the hinted width. Pairs in the font's `kern` table move by whole pixels, unless
+  the font's `GPOS` table leaves kerning out of Latin script: Tahoma is not kerned, Arial is.
 - Letters are smoothed only at the sizes the font's `gasp` table asks for. Arial from 9 to 17
   pixels, the classic playlist's font, is not smoothed. A smoothed letter is sampled 4 by 4 per
   pixel and blends with a gamma of 2.3: its `Glyph::gamma`, for `walkit::truetype::blend`.
 - A stroke thinner than a pixel that passes between two pixel centers still lights one pixel.
+- A pixel center exactly on the outline is inside, except at the right end of a stroke's last
+  row: the foot of a V at 10 pixels lights one pixel, the arm of a K keeps its own.
 
 `Style::Modern`, for smoothed text:
 
