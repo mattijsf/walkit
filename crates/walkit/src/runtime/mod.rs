@@ -41,8 +41,8 @@ use crate::draw::{BitmapDef, BitmapFontDef, DrawCmd, FontDef, Gamma, Rect, Regio
 use crate::files::SkinFiles;
 use crate::gui::{Container, ContainerId, Kind, Obj, ObjId};
 use crate::host::{
-    Clock, EngineStats, ObjectInfo, Presentation, SavedSettings, SkinHost, SkinSetup, WindowId,
-    WindowInfo,
+    Clock, EngineStats, ObjectInfo, Presentation, SavedSettings, SkinHost, SkinSetup,
+    UnknownObject, WindowId, WindowInfo,
 };
 use crate::maki::{Handle, Script, SystemObject, Value};
 use crate::player::{Player, Status};

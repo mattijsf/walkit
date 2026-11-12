@@ -235,6 +235,23 @@ pub struct ObjectInfo {
     pub class_name: String,
 }
 
+/// An object of a shown window that stands in for a tag the skin uses but nothing defines: an
+/// XML tag that is no class the engine knows and that no `xuitag` of the skin or its wasabi base
+/// names. It draws nothing, so the part of the window the skin meant it to draw is missing. A
+/// modern skin built on Winamp's own wasabi parts (`<Wasabi:StandardFrame:Status>` and the like)
+/// shows them when the host loads the wasabi base.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnknownObject {
+    /// Its tag, lowercased as the engine reads it (`wasabi:standardframe:status`).
+    pub tag: String,
+    /// Its `id` in the skin's XML; empty when it has none.
+    pub id: String,
+    /// The window it is in.
+    pub window: WindowId,
+    /// The id of that window's container in the skin's XML.
+    pub container: String,
+}
+
 /// What the engine has done so far, for a host's timing log or a probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EngineStats {

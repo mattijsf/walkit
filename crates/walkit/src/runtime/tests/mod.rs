@@ -12,6 +12,7 @@ mod skin_name;
 mod sliders;
 mod stack;
 mod text;
+mod unknown_objects;
 mod vis;
 
 use std::cell::RefCell;

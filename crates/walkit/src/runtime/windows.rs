@@ -5,8 +5,8 @@
 use crate::classic::ClassicWindow;
 
 use super::{
-    ContainerId, Handle, ObjId, ObjectInfo, Presentation, Rect, SkinRuntime, Value, WindowId,
-    WindowInfo,
+    ContainerId, Handle, Kind, ObjId, ObjectInfo, Presentation, Rect, SkinRuntime, UnknownObject,
+    Value, WindowId, WindowInfo,
 };
 
 impl SkinRuntime {
@@ -120,6 +120,48 @@ impl SkinRuntime {
             visible: self.objects[o].base.visible,
             class_name: self.objects[o].class_name().to_string(),
         })
+    }
+
+    /// The objects in the windows on screen that stand in for tags nothing defines, the main
+    /// window first and each window's in the order its objects draw; see [`UnknownObject`].
+    ///
+    /// Only what [`SkinRuntime::draw_windows`] would draw counts: the current layout of each
+    /// open container, and in it the objects that show with every group around them. Unknown
+    /// tags in closed containers, other layouts or hidden groups (a preferences dialog, a shade
+    /// that is not shown) leave the picture as it is and are not listed. An empty list means
+    /// no part of the drawn windows is missing for want of a definition.
+    pub fn unknown_objects(&mut self) -> Vec<UnknownObject> {
+        let mut out = Vec::new();
+        for l in self.windows() {
+            if !self.objects[l].base.visible {
+                continue;
+            }
+            let window = self.window_id_of(l);
+            let container = self.objects[l]
+                .layout()
+                .and_then(|d| d.container)
+                .map(|c| self.containers[c].id.clone())
+                .unwrap_or_default();
+            let mut stack: Vec<ObjId> = self.objects[l].children().iter().rev().copied().collect();
+            while let Some(o) = stack.pop() {
+                let obj = &self.objects[o];
+                if !obj.base.visible {
+                    continue;
+                }
+                if matches!(obj.kind, Kind::Unknown { .. })
+                    && super::build::is_undefined_tag(&obj.base.tag)
+                {
+                    out.push(UnknownObject {
+                        tag: obj.base.tag.clone(),
+                        id: obj.base.id.clone(),
+                        window,
+                        container: container.clone(),
+                    });
+                }
+                stack.extend(obj.children().iter().rev());
+            }
+        }
+        out
     }
 
     /// The window container `container` shows now, or `None` when the skin has no such container.
