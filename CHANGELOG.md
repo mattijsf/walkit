@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/mattijsf/walkit/compare/v0.10.2...v0.10.3) (2026-11-12)
+
+
+### Features
+
+* SkinRuntime::unknown_objects lists the undefined tags in the windows on screen ([#19](https://github.com/mattijsf/walkit/issues/19)) ([7b502b6](https://github.com/mattijsf/walkit/commit/7b502b6cb5b9488f8a3941034c3f6d3a0293dd39))
+
 ## [0.10.2](https://github.com/mattijsf/walkit/compare/v0.10.1...v0.10.2) (2026-11-12)
 
 
