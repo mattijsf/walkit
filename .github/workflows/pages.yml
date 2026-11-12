@@ -36,9 +36,18 @@ jobs:
         run: |
           npm ci
           npm run build
+      # as docs.rs builds it: nightly with `--cfg docsrs`, so what a feature adds shows its badge.
+      # A broken nightly falls back to stable, without the badges, and the site still deploys.
       - name: Build the API reference
         run: |
-          cargo doc -p walkit --no-deps --features truetype
+          if rustup toolchain install nightly --profile minimal &&
+             RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc -p walkit --no-deps --all-features; then
+            echo "API reference built on nightly, as docs.rs builds it"
+          else
+            echo "::warning::nightly could not build the API reference; built on stable, without feature badges"
+            rm -rf target/doc
+            cargo doc -p walkit --no-deps --all-features
+          fi
           cp -r target/doc docs/dist/api
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
