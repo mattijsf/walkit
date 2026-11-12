@@ -61,6 +61,20 @@ system fonts. Without Liberation Sans, text set in Arial lands on different base
 [web/README.md](web/README.md) runs the same scenarios through the wasm module in node and in a
 browser, and [android/README.md](android/README.md) runs them through the AAR on a device.
 
+## Publishing the crate
+
+The `walkit` crate on crates.io carries the release's version: the workspace `version` in
+`Cargo.toml` matches the release tag. The crate holds only the engine's sources, its README and
+the license (`include` in `crates/walkit/Cargo.toml`). The tests' fonts stay in the repository.
+At the release's commit:
+
+```bash
+cargo publish --dry-run -p walkit
+cargo publish -p walkit
+```
+
+A published version cannot be replaced, only yanked. The other crates are `publish = false`.
+
 ## Rules
 
 - Every source file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`.
