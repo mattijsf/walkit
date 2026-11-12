@@ -1,4 +1,9 @@
 # Git hooks. One-time setup after clone: `lefthook install` (brew install lefthook)
+commit-msg:
+  commands:
+    conventional:
+      run: bash tools/check-commit-message.sh {1}
+
 pre-push:
   commands:
     gate:

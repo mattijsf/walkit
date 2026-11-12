@@ -61,12 +61,29 @@ system fonts. Without Liberation Sans, text set in Arial lands on different base
 [web/README.md](web/README.md) runs the same scenarios through the wasm module in node and in a
 browser, and [android/README.md](android/README.md) runs them through the AAR on a device.
 
-## Publishing the crate
+## Releases
 
-The `walkit` crate on crates.io carries the release's version: the workspace `version` in
-`Cargo.toml` matches the release tag. The crate holds only the engine's sources, its README and
-the license (`include` in `crates/walkit/Cargo.toml`). The tests' fonts stay in the repository.
-At the release's commit:
+[release-please](https://github.com/googleapis/release-please) makes the releases
+(`.github/workflows/release.yml`). On every push to `main` it opens or updates a release pull
+request from the Conventional Commits since the last tag: before 1.0 a `fix` or `feat` raises the
+patch version and a breaking change (`feat!:`) the minor one. The pull request sets the next
+version everywhere it is written (the `extra-files` in `release-please-config.json`): the
+workspace `version` in `Cargo.toml`, both `Cargo.lock`s, the AAR's version and its
+`nl.mattix.walkit:walkit` coordinates, and the macOS example's `MARKETING_VERSION`. It also
+writes `CHANGELOG.md`. Merging it tags `vX.Y.Z` and makes the GitHub release. Before merging, run
+the trace comparison above.
+
+The lines release-please bumps by text carry an `x-release-please-version` marker (in
+`android/README.md`, a start/end block). `xcodegen generate` drops the two in `project.pbxproj`:
+put them back. `tools/check-release-versions.sh`, part of the gate, fails when a marker is
+missing or a version differs from `.release-please-manifest.json`.
+
+### Publishing the crate
+
+The `walkit` crate on crates.io carries the release's version. It holds only the engine's
+sources, its README and the license (`include` in `crates/walkit/Cargo.toml`). The tests' fonts
+stay in the repository. When the repository has a `CARGO_REGISTRY_TOKEN` secret, the release
+workflow publishes the crate from the new tag. Without it, publish by hand at the tag:
 
 ```bash
 cargo publish --dry-run -p walkit
@@ -88,4 +105,5 @@ A published version cannot be replaced, only yanked. The other crates are `publi
   on for the workspace (`[workspace.lints]` in `Cargo.toml`).
 - Run `tools/gate.sh` before every push. The lefthook pre-push hook runs it, and CI
   (`.github/workflows/ci.yml`) runs it only when started by hand.
-- Commit subjects follow Conventional Commits.
+- Commit subjects follow Conventional Commits; the lefthook commit-msg hook and the Commits
+  workflow check them (`tools/check-commit-message.sh`).

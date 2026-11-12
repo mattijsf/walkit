@@ -21,3 +21,5 @@ fi
 if [ -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ] && [ -x "$HOME/.cargo/bin/cargo-ndk" ]; then
   (cd android && PATH="$HOME/.cargo/bin:$PATH" ./gradlew -q gate)
 fi
+# the versions release-please bumps agree with its manifest and keep their markers
+tools/check-release-versions.sh
