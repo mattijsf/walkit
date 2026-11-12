@@ -49,8 +49,8 @@ impl SkinHost for SmoothHost {
     fn invalidate(&mut self) {}
 }
 
-/// The texts drawn by a skin of right-aligned texts in boxes 100 wide and 23 high at y 0.
-fn texts(attributes: &[&str]) -> Vec<TextCmd> {
+/// A skin of right-aligned texts `t0`, `t1`... in boxes 100 wide and 23 high at y 0, loaded.
+fn skin(attributes: &[&str]) -> SkinRuntime {
     let objects: String = attributes
         .iter()
         .enumerate()
@@ -76,7 +76,13 @@ fn texts(attributes: &[&str]) -> Vec<TextCmd> {
     );
     rt.load();
     rt.tick();
-    rt.draw_windows()
+    rt
+}
+
+/// The texts drawn by [`skin`].
+fn texts(attributes: &[&str]) -> Vec<TextCmd> {
+    skin(attributes)
+        .draw_windows()
         .into_iter()
         .flat_map(|(_, cmds)| cmds)
         .filter_map(|c| match c {
@@ -121,4 +127,22 @@ fn antialias_and_the_other_style_attributes_leave_forcefixed_alone() {
     let mut t = TextData::default();
     t.set_param("forcefixed", "1");
     assert!(t.force_fixed);
+}
+
+#[test]
+fn text_is_measured_as_it_is_drawn() {
+    let mut rt = skin(&[""]);
+    let id = rt
+        .objects
+        .iter()
+        .position(|o| o.base.id == "t0")
+        .expect("the text");
+    assert_eq!(
+        rt.text_width_of(id, "Song"),
+        50,
+        "a modern skin's text is smoothed"
+    );
+    // a classic skin's text is drawn unsmoothed, so it is measured unsmoothed too
+    rt.classic_skin = true;
+    assert_eq!(rt.text_width_of(id, "Tune"), 30);
 }

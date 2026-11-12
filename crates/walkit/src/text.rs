@@ -456,6 +456,12 @@ impl SkinRuntime {
         )
     }
 
+    /// Whether `t` is drawn smoothed, and so measured by the host's smoothed measures: a modern
+    /// skin's text unless it sets `antialias="0"`. A classic skin's text never is.
+    fn smoothed(&self, t: &TextData) -> bool {
+        t.antialias && !self.classic_skin
+    }
+
     /// The width of `text` in the text's font, kept for the last few strings.
     pub(crate) fn text_width_of(&mut self, id: ObjId, text: &str) -> i32 {
         if let Some((_, w)) = self.text(id).widths.iter().find(|(s, _)| s == text) {
@@ -491,7 +497,7 @@ impl SkinRuntime {
         }
         let ttf = self.text_ttf(id);
         let t = self.text(id);
-        let (size, bold, smooth) = (t.effective_size(), t.bold, t.antialias);
+        let (size, bold, smooth) = (t.effective_size(), t.bold, self.smoothed(t));
         self.text_advance_of(text, ttf.as_ref(), size, bold, smooth)
             .ceil() as i32
     }
@@ -506,7 +512,7 @@ impl SkinRuntime {
                 t.bold,
                 t.force_fixed,
                 t.colon_width(),
-                t.antialias,
+                self.smoothed(t),
             )
         };
         let mut w = |s: &str| {
@@ -899,7 +905,7 @@ impl SkinRuntime {
             )
         };
         let is_time = t.is_time();
-        let smooth = t.antialias && !self.classic_skin;
+        let smooth = self.smoothed(t);
         let make = |t: &TextData, text: String, rect: Rect, align: Align, scroll: i32| -> DrawCmd {
             DrawCmd::Text(Box::new(TextCmd {
                 text,
