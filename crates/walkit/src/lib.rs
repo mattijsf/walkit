@@ -5,6 +5,28 @@
 //! windows out and hands the host a draw list for each frame. The host owns the screen, the
 //! images, the fonts, the touch input and the player; the engine never draws, reads a file or
 //! plays a sound.
+//!
+//! ```sh
+//! cargo add walkit
+//! ```
+//!
+//! # Where to start
+//!
+//! - [`SkinRuntime`] runs one skin: load it, tick it each frame, take its draw list.
+//! - [`host::SkinHost`] is what the host implements for pictures, text measuring and logging.
+//! - [`player::Player`] is the transport the skin's buttons and sliders drive;
+//!   [`player::FakePlayer`] plays nothing and is enough for a first look.
+//! - [`files::MemoryFiles`] holds the entries of a skin archive, and [`files::LayeredFiles`]
+//!   puts the skin over a base (Winamp's wasabi folder or a classic base skin).
+//! - [`draw::DrawCmd`] is one command of the draw list: images, fills, text, clips, shapes.
+//!
+//! The [guide](https://mattijsf.github.io/walkit/) explains how it works, and its
+//! [Rust page](https://mattijsf.github.io/walkit/rust/) builds a first host step by step.
+//!
+//! # Features
+//!
+//! - `truetype`: TrueType text drawn as Windows draws it, for hosts that draw their own
+//!   letters into a buffer of pixels (adds the `skrifa` crate). It adds the `truetype` module.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

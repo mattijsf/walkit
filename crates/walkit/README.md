@@ -18,8 +18,10 @@ analyzer and the oscilloscope as Winamp 5.666 or Winamp 2.91 draws them.
 
 ## Documentation
 
-The guide and the API reference are at <https://mattijsf.github.io/walkit/>. The source, the
-Android library, the web build and an example app for each host are at
+- The guide: <https://mattijsf.github.io/walkit/>
+- The API reference of each release: <https://docs.rs/walkit>
+
+The source, the Android library, the web build and an example app for each host are at
 <https://github.com/mattijsf/walkit>.
 
 ## License
