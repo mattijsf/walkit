@@ -29,6 +29,7 @@
 //!   letters into a buffer of pixels (adds the `skrifa` crate). It adds the `truetype` module.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
 pub mod classic;

@@ -26,6 +26,8 @@ skrifa = { version = "0.40", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
+# marks what a feature adds with "Available on crate feature … only"
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

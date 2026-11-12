@@ -11,6 +11,10 @@ rust-version = "1.85"
 
 # the lints every crate takes (`[lints] workspace = true`): clippy's pedantic set, less the ones
 # that fight an engine written in i32 layout pixels and bytes
+# docs.rs builds the engine's docs with `--cfg docsrs`, which turns on the feature badges
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(docsrs)"] }
+
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 cast_possible_truncation = "allow"

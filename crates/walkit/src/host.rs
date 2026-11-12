@@ -65,7 +65,7 @@ pub trait SkinHost {
 
     /// How wide `text` draws smoothed, in layout pixels, for a host that draws a modern
     /// skin's smoothed text ([`TextCmd::smooth`](crate::draw::TextCmd::smooth)) as Winamp does,
-    /// with [`truetype`](crate::truetype)'s [`Style::Modern`](crate::truetype::Style). `None`,
+    /// with the `truetype` feature's `truetype::Style::Modern`. `None`,
     /// the default, measures it with [`SkinHost::text_advance`] like any other text.
     fn smooth_text_advance(
         &mut self,
