@@ -6,12 +6,16 @@ API in package `nl.mattix.walkit`.
 
 ## Building
 
+<!-- x-release-please-start-version -->
+
 ```bash
 cd android
 ./gradlew assembleRelease          # the AAR, native library included: walkit/build/outputs/aar/
 ./gradlew publishToMavenLocal      # the same into ~/.m2, as nl.mattix.walkit:walkit:0.10.0
 ./gradlew gate                     # formatting (ktlint through spotless) and the JVM unit tests
 ```
+
+<!-- x-release-please-end -->
 
 `assembleRelease` runs `cargo ndk` itself (the `cargoBuild` task), so the whole build is one
 Gradle call. On a fresh Mac it needs:
@@ -33,9 +37,13 @@ consumer's shrinker needs no extra rules.
 
 ## Test fixtures
 
+<!-- x-release-please-start-version -->
+
 `testImplementation(testFixtures("nl.mattix.walkit:walkit:0.10.0"))` adds the engine built for
 the publishing machine (the `cargoBuildHost` task, a plain `cargo build`), so a consumer's JVM
 unit tests can run skins.
+
+<!-- x-release-please-end -->
 
 `SkinRuntime` loads `libwalkit.so` on Android and falls back to that build on a JVM
 (`HostLibrary`).

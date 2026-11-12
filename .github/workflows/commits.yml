@@ -1,0 +1,38 @@
+name: Commits
+
+# release-please reads the Conventional Commits on main. A pull request that is squashed lands as
+# one commit titled by the pull request, with the " (#123)" GitHub adds, so the title is checked as
+# that subject, again when it is edited; the commits on the branch are checked too, for a merge or
+# a rebase.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+concurrency:
+  group: commits-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Check the pull request's title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: bash tools/check-commit-message.sh --subject "$TITLE (#$NUMBER)"
+      - name: Check every commit
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git log --format=%s "$BASE..$HEAD" | while IFS= read -r subject; do
+            bash tools/check-commit-message.sh --subject "$subject"
+          done

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "43e26afefd941ded69966146c3d1ad2083bb01f8",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "walkit",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value==='walkit' || @.name.value==='walkit-android' || @.name.value==='walkit-trace' || @.name.value==='walkit-web')].version"
+        },
+        {
+          "type": "toml",
+          "path": "examples/macos/rust/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value==='walkit')].version"
+        },
+        {
+          "type": "generic",
+          "path": "examples/macos/project.yml"
+        },
+        {
+          "type": "generic",
+          "path": "examples/macos/WalkitExample.xcodeproj/project.pbxproj"
+        },
+        {
+          "type": "generic",
+          "path": "android/walkit/build.gradle.kts"
+        },
+        {
+          "type": "generic",
+          "path": "android/README.md"
+        },
+        {
+          "type": "generic",
+          "path": "examples/android/app/build.gradle.kts"
+        }
+      ]
+    }
+  }
+}
