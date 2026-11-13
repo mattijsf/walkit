@@ -528,14 +528,14 @@ dependencies = [
 
 [[package]]
 name = "walkit"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "skrifa",
 ]
 
 [[package]]
 name = "walkit-android"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "jni",
  "skrifa",
@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "walkit-trace"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "crc32fast",
  "image",
@@ -555,7 +555,7 @@ dependencies = [
 
 [[package]]
 name = "walkit-web"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "talc",
  "walkit",

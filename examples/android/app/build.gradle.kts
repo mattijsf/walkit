@@ -30,5 +30,5 @@ android {
 
 dependencies {
     // built from ../../android through the includeBuild in settings.gradle.kts
-    implementation("nl.mattix.walkit:walkit:0.10.3") // x-release-please-version
+    implementation("nl.mattix.walkit:walkit:0.10.4") // x-release-please-version
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.4](https://github.com/mattijsf/walkit/compare/v0.10.3...v0.10.4) (2026-11-13)
+
+
+### Features
+
+* walkit::info reads what a skin says about itself ([#21](https://github.com/mattijsf/walkit/issues/21)) ([414fc2a](https://github.com/mattijsf/walkit/commit/414fc2a2a1905c73376ffd3b4f8f9f2b4c12a65b))
+
 ## [0.10.3](https://github.com/mattijsf/walkit/compare/v0.10.2...v0.10.3) (2026-11-12)
 
 
