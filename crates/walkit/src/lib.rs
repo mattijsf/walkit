@@ -19,6 +19,8 @@
 //! - [`files::MemoryFiles`] holds the entries of a skin archive, and [`files::LayeredFiles`]
 //!   puts the skin over a base (Winamp's wasabi folder or a classic base skin).
 //! - [`draw::DrawCmd`] is one command of the draw list: images, fills, text, clips, shapes.
+//! - [`info`] reads what a skin says about itself (author, version, containers, readme) for a
+//!   host that shows a skin's details without loading it.
 //!
 //! The [guide](https://mattijsf.github.io/walkit/) explains how it works, and its
 //! [Rust page](https://mattijsf.github.io/walkit/rust/) builds a first host step by step.
@@ -40,6 +42,7 @@ pub mod gdi;
 pub mod generated;
 pub mod gui;
 pub mod host;
+pub mod info;
 pub mod listing;
 pub mod maki;
 pub mod packed;
