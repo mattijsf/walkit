@@ -2805,6 +2805,76 @@ fn a_drag_ends_where_the_finger_lifts_even_with_no_move_there() {
 }
 
 #[test]
+fn a_playing_analyzer_drawn_in_parts_is_the_window_drawn_whole() {
+    // while a song plays the analyzer changes every frame, and the window's drawing is patched
+    // in place; with debug assertions on, the engine compares it with the window drawn whole
+    let now = Rc::new(std::cell::Cell::new(0));
+    let read = now.clone();
+    let clock: Clock = Rc::new(move || read.get());
+    let mut player = FakePlayer::new(clock.clone());
+    player.play();
+    let mut rt = classic_with(player, clock);
+    apart(&mut rt);
+    rt.tick();
+    rt.draw_windows_owned();
+    for frame in 1..=40 {
+        now.set(frame * 25);
+        rt.tick();
+        rt.draw_windows_owned();
+    }
+}
+
+#[test]
+fn a_picture_of_the_player_as_it_is_now_may_differ_between_two_paintings() {
+    // the oscilloscope paints the waveform the player has at that instant, and a real player's
+    // moves on between the window drawn in parts and the same window drawn whole to compare
+    let now = Rc::new(std::cell::Cell::new(0));
+    let read = now.clone();
+    let clock: Clock = Rc::new(move || read.get());
+    // the player's clock moves every time it is read
+    let heard = Rc::new(std::cell::Cell::new(0));
+    let hears: Clock = Rc::new(move || {
+        heard.set(heard.get() + 7);
+        heard.get()
+    });
+    let mut player = FakePlayer::new(hears);
+    player.play();
+    let mut rt = classic_with(player, clock);
+    rt.set_classic_vis_mode(crate::classic::vis::VisMode::Scope);
+    apart(&mut rt);
+    rt.tick();
+    rt.draw_windows_owned();
+    for frame in 1..=40 {
+        now.set(frame * 25);
+        rt.tick();
+        rt.draw_windows_owned();
+    }
+}
+
+#[test]
+fn a_drawing_pass_paints_one_moment_whatever_the_clock_does_meanwhile() {
+    // a real clock moves on while the windows are drawn: what is drawn in parts and the same
+    // window drawn whole to compare show the same moment
+    let now = Rc::new(std::cell::Cell::new(0));
+    let read = now.clone();
+    let clock: Clock = Rc::new(move || {
+        read.set(read.get() + 9);
+        read.get()
+    });
+    // the player's time stands still here
+    let mut player = FakePlayer::new(Rc::new(|| 0));
+    player.play();
+    let mut rt = classic_with(player, clock);
+    apart(&mut rt);
+    rt.tick();
+    rt.draw_windows_owned();
+    for _ in 0..200 {
+        rt.tick();
+        rt.draw_windows_owned();
+    }
+}
+
+#[test]
 fn a_drag_of_docked_windows_only_places_them_again() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));

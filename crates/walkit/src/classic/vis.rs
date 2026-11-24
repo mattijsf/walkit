@@ -195,6 +195,9 @@ pub struct ClassicVis {
     peak: [i32; BANDS],
     /// How fast each peak falls.
     peak_speed: [f32; BANDS],
+    /// Each band's peak as the last stepped frame painted it, before it fell on: what a
+    /// picture painted again before the next frame is due shows.
+    painted: [i32; BANDS],
     /// When the last frame was stepped; -1 before the first.
     last_frame_at: i64,
 }
@@ -205,6 +208,7 @@ impl Default for ClassicVis {
             sa: [0; BANDS],
             peak: [0; BANDS],
             peak_speed: [PEAK_SPEED; BANDS],
+            painted: [0; BANDS],
             last_frame_at: -1,
         }
     }
@@ -230,7 +234,8 @@ impl ClassicVis {
         frames
     }
 
-    /// Steps band `col`'s level and peak `frames` times toward `v` (0..15).
+    /// Steps band `col`'s level and peak `frames` times toward `v` (0..15), and notes the peak
+    /// this frame paints. With no frame due nothing moves, and the peak painted stays.
     fn fall(&mut self, col: usize, v: i32, frames: i64) {
         for _ in 0..frames {
             if v * 16 < self.sa[col] {
@@ -245,6 +250,9 @@ impl ClassicVis {
                 self.peak[col] = v * 256;
                 self.peak_speed[col] = PEAK_SPEED;
             }
+        }
+        if frames > 0 {
+            self.painted[col] = self.peak[col];
         }
     }
 
@@ -302,7 +310,7 @@ impl ClassicVis {
                     };
                     px[(4 - i) as usize * SHADE_WIDTH + col] = color.clamp(0, 23) as u8;
                 }
-                let p = (self.peak[band] * 5 / 15) >> 8;
+                let p = (self.painted[band] * 5 / 15) >> 8;
                 if style.peaks && (0..5).contains(&p) {
                     px[(4 - p) as usize * SHADE_WIDTH + col] = 23;
                 }
@@ -350,7 +358,7 @@ impl ClassicVis {
                         px[y as usize * WIDTH + x] = color.clamp(0, 23) as u8;
                     }
                 }
-                let p = self.peak[col] >> 8;
+                let p = self.painted[col] >> 8;
                 if style.peaks && (0..16).contains(&p) {
                     let y = HEIGHT as i32 - 1 + BASE_BELOW - p;
                     if (0..HEIGHT as i32).contains(&y) {
@@ -430,5 +438,32 @@ mod tests {
         }
         let px = v.frame(v.last_frame_at + 25, &[0.0; 75], &VisStyle::default());
         assert!(px.contains(&23), "a peak mark on its way down");
+    }
+
+    #[test]
+    fn a_moment_painted_twice_is_the_same_picture() {
+        // a host may paint a window again before the next frame is due: the peaks stay where
+        // the first picture has them
+        let style = VisStyle::default();
+        let mut levels = [0.0f32; 75];
+        levels[..8].copy_from_slice(&[0.6; 8]);
+        let mut v = ClassicVis::default();
+        let mut shade = ClassicVis::default();
+        v.frame(0, &levels, &style);
+        shade.frame_shade(0, &levels, &style);
+        let mut fell = false;
+        for frame in 1..=40 {
+            let now = frame * 25;
+            let first = v.frame(now, &[0.0; 75], &style);
+            assert_eq!(first, v.frame(now, &[0.0; 75], &style), "frame {frame}");
+            let strip = shade.frame_shade(now, &[0.0; 75], &style);
+            assert_eq!(
+                strip,
+                shade.frame_shade(now, &[0.0; 75], &style),
+                "the shade bar's, frame {frame}"
+            );
+            fell |= first.contains(&23);
+        }
+        assert!(fell, "a peak was on its way down");
     }
 }

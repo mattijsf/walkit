@@ -302,6 +302,8 @@ pub struct SkinRuntime {
     moved_objects: Vec<ObjId>,
     /// The second a classic playlist's time showed when it last drew, and whether it counted down.
     clock_second: (i32, bool),
+    /// The clock's reading when the drawing pass under way began; `None` between passes.
+    painting_at: Option<i64>,
     /// Each window's last drawing, at its scale: a clock-only draw keeps it, or draws again
     /// only the objects that moved in it.
     window_drawings: HashMap<ObjId, WindowDrawing>,
@@ -500,6 +502,7 @@ impl SkinRuntime {
             moved_windows: HashSet::new(),
             moved_objects: Vec::new(),
             clock_second: (-1, false),
+            painting_at: None,
             window_drawings: HashMap::new(),
             drawn_spans: Vec::new(),
             needs_layout: true,
@@ -560,9 +563,10 @@ impl SkinRuntime {
         self.repaint();
     }
 
-    /// The clock's reading now, in ms.
+    /// The clock's reading now, in ms. While the windows are drawn it is the moment that
+    /// drawing began: a real clock moves on meanwhile, and one pass shows one moment.
     pub fn now(&self) -> i64 {
-        (self.clock)()
+        self.painting_at.unwrap_or_else(|| (self.clock)())
     }
 
     /// The screen a skin may place windows on before the host sets a view size, in layout pixels.

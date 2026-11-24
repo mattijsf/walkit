@@ -350,8 +350,17 @@ impl SkinRuntime {
 
     /// Every window's drawing at its scale, bottom to top, with the object that drew each
     /// command. After a tick in which only objects that move by themselves changed, the other
-    /// windows keep their last drawing, and those objects alone draw again in theirs.
+    /// windows keep their last drawing, and those objects alone draw again in theirs. The
+    /// whole pass paints the moment it began ([`SkinRuntime::now`]).
     fn drawings(&mut self) -> Vec<(ObjId, WindowDrawing)> {
+        self.painting_at = Some(self.now());
+        let drawn = self.drawings_of_the_moment();
+        self.painting_at = None;
+        drawn
+    }
+
+    /// What `drawings` gives, at the moment the pass paints.
+    fn drawings_of_the_moment(&mut self) -> Vec<(ObjId, WindowDrawing)> {
         let moved_only = self.moved_dirty && !self.dirty;
         self.moved_dirty = false;
         let moved = std::mem::take(&mut self.moved_windows);
@@ -421,10 +430,13 @@ impl SkinRuntime {
         {
             let mut full = self.draw_layout_owned(l);
             full.cmds = self.scaled(l, full.cmds);
-            assert_eq!(
-                d.cmds, full.cmds,
-                "window {l} drawn in parts differs from drawn whole"
-            );
+            if !same_drawing(&d.cmds, &full.cmds) {
+                // the two lists, for whoever reads the failure
+                assert_eq!(
+                    d.cmds, full.cmds,
+                    "window {l} drawn in parts differs from drawn whole"
+                );
+            }
             assert_eq!(
                 d.owners, full.owners,
                 "window {l}'s owners drawn in parts differ"
@@ -500,4 +512,33 @@ impl SkinRuntime {
     pub fn take_tick_changed(&mut self) -> Vec<ObjId> {
         std::mem::take(&mut self.tick_changed)
     }
+}
+
+/// Whether two drawings of a window are the same, taking a picture that is made anew at every
+/// painting (a visualizer's, which reads the player as it is at that instant) by its place and
+/// size alone: its pixels may differ between two paintings of one moment.
+#[cfg(debug_assertions)]
+fn same_drawing(a: &[DrawCmd], b: &[DrawCmd]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|pair| match pair {
+            (
+                DrawCmd::Pixels {
+                    rect: ra,
+                    w: wa,
+                    h: ha,
+                    alpha: aa,
+                    stable: false,
+                    ..
+                },
+                DrawCmd::Pixels {
+                    rect: rb,
+                    w: wb,
+                    h: hb,
+                    alpha: ab,
+                    stable: false,
+                    ..
+                },
+            ) => (ra, wa, ha, aa) == (rb, wb, hb, ab),
+            (a, b) => a == b,
+        })
 }
