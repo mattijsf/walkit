@@ -1388,6 +1388,18 @@ pub fn rt_follow_playlist_song<'l>(
         .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// The part of the skin that has the keyboard: 1 the playlist, 0 none.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_focused_part<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
+    env.with_env(|env| {
+        with_rt(env, h, |r| match r.rt.focused_part() {
+            Some(walkit::host::FocusedPart::Playlist) => 1,
+            None => 0,
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// Gives window `id` the focus, as a press on it does.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_focus_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, id: jint) {

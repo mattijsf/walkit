@@ -587,7 +587,12 @@ impl SkinRuntime {
         if self.needs_layout {
             self.do_layout();
         }
-        let target = self.touch_target(sx, sy)?;
+        let Some(target) = self.touch_target(sx, sy) else {
+            self.focused_part = None;
+            return None;
+        };
+        // the touched part takes the keys, as Winamp's playlist window takes them on a press
+        self.focused_part = self.part_of(target);
         // the touched window takes the focus, as a press of either mouse button gives it
         if let Some(l) = self.layout_object(target) {
             self.take_focus(l);

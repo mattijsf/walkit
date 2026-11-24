@@ -3010,6 +3010,30 @@ fn the_host_brings_a_playlist_row_into_view() {
 }
 
 #[test]
+fn a_classic_playlist_window_has_the_keys_as_a_part() {
+    use crate::host::FocusedPart;
+    let mut rt = classic();
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let list = rt.window_of("pledit").expect("the playlist's window");
+    let main = rt.main_window().expect("the main window");
+    assert_eq!(rt.focused_part(), None);
+    rt.focus_window(list);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    rt.focus_window(main);
+    assert_eq!(rt.focused_part(), None);
+    // a press anywhere in the playlist's window, and one in the main window
+    let at = rt.window_rect(list);
+    rt.pointer_down(at.left + 100, at.top + 5, 1);
+    rt.pointer_up(at.left + 100, at.top + 5);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    let at = rt.window_rect(main);
+    rt.pointer_down(at.left + 60, at.top + 40, 2);
+    rt.pointer_up(at.left + 60, at.top + 40);
+    assert_eq!(rt.focused_part(), None);
+}
+
+#[test]
 fn the_host_gives_a_window_the_focus() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));

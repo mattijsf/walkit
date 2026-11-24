@@ -743,6 +743,17 @@ pub extern "C" fn wk_rt_pointer_shape_at(id: i32, x: i32, y: i32) -> i32 {
     .unwrap_or(0)
 }
 
+/// The part of the skin that has the keyboard: 1 the playlist, 0 none (the focused window has
+/// the keys itself), as Winamp sends keys to its embedded playlist window.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_focused_part(id: i32) -> i32 {
+    with_rt(id, |r| match r.engine.focused_part() {
+        Some(walkit::host::FocusedPart::Playlist) => 1,
+        None => 0,
+    })
+    .unwrap_or(0)
+}
+
 /// The classic skin cursor slot at `x`, `y` of the stack, or -1.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_cursor_at(id: i32, x: i32, y: i32) -> i32 {

@@ -274,6 +274,29 @@ fn a_modern_playlist_selects_rows_as_a_classic_one_does() {
 }
 
 #[test]
+fn a_press_on_a_playlist_inside_another_window_gives_it_the_keys() {
+    use crate::host::FocusedPart;
+    let (mut rt, _, _) = recording(true);
+    // the window holds five buttons over a playlist, as Bento's main window holds one
+    assert_eq!(rt.focused_part(), None, "the window has the keys at first");
+    rt.pointer_down(50, 40, 1);
+    rt.pointer_up(50, 40);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    // a press on a button of the same window takes them back
+    rt.pointer_down(100, 9, 2);
+    rt.pointer_up(100, 9);
+    assert_eq!(rt.focused_part(), None);
+    rt.pointer_down(50, 40, 3);
+    rt.pointer_up(50, 40);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    // the host giving the window the keys, by another way than a press, gives them to the
+    // window itself
+    let main = rt.main_window().expect("the main window");
+    rt.focus_window(main);
+    assert_eq!(rt.focused_part(), None);
+}
+
+#[test]
 fn the_host_sets_the_selection_without_hearing_it_back() {
     let (mut rt, actions, _) = recording(true);
     rt.set_playlist_selection(Some(1));

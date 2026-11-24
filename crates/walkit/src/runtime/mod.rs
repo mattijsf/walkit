@@ -245,6 +245,8 @@ pub struct SkinRuntime {
     /// The windows set out apart, when the host asks for that.
     pub(crate) free: free::FreeState,
     focused: Option<ObjId>,
+    /// The part of the focused window that has the keyboard, since a press on it.
+    pub(crate) focused_part: Option<crate::host::FocusedPart>,
     shown_before: HashSet<ContainerId>,
     pub(crate) scripts: Vec<Script>,
     pub(crate) systems: Vec<SystemObject>,
@@ -453,6 +455,7 @@ impl SkinRuntime {
             placed: HashMap::new(),
             free: free::FreeState::default(),
             focused: None,
+            focused_part: None,
             shown_before: HashSet::new(),
             scripts: Vec::new(),
             systems: Vec::new(),

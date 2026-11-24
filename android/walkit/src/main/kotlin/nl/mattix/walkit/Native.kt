@@ -401,6 +401,9 @@ internal object Native {
     )
 
     @JvmStatic
+    external fun rtFocusedPart(h: Long): Int
+
+    @JvmStatic
     external fun rtShowPlaylistRow(
         h: Long,
         row: Int,

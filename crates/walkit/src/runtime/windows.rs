@@ -635,7 +635,42 @@ impl SkinRuntime {
         };
         if self.windows().contains(&l) {
             self.take_focus(l);
+            // the window has the keys itself, unless it is the playlist's own
+            self.focused_part = self.window_part(l);
         }
+    }
+
+    /// The part of the skin that has the keyboard: one a press gave it to, or the window
+    /// that has the focus when that window is the part, as a classic playlist window is.
+    /// `None` when the focused window has the keys itself. A host sends the keys there, as
+    /// Winamp sends them to its embedded playlist window: the arrow keys move the playlist's
+    /// selection there, and turn the volume in the main window.
+    pub fn focused_part(&mut self) -> Option<crate::host::FocusedPart> {
+        if self.focused_part.is_some() {
+            return self.focused_part;
+        }
+        let windows = self.windows();
+        let l = self.focused.filter(|f| windows.contains(f))?;
+        self.window_part(l)
+    }
+
+    /// The part a press on `o` gives the keys to.
+    pub(crate) fn part_of(&self, o: ObjId) -> Option<crate::host::FocusedPart> {
+        if matches!(self.objects[o].kind, Kind::PlaylistView(_)) {
+            return Some(crate::host::FocusedPart::Playlist);
+        }
+        self.layout_object(o).and_then(|l| self.window_part(l))
+    }
+
+    /// The part window `l` is as a whole: the playlist's own window, classic or modern.
+    fn window_part(&self, l: ObjId) -> Option<crate::host::FocusedPart> {
+        let classic = self.is_classic_window(l, crate::classic::ClassicWindow::Playlist)
+            || self.is_classic_window(l, crate::classic::ClassicWindow::PlaylistShade);
+        let modern = self
+            .container("pledit")
+            .and_then(|c| self.containers[c].current)
+            == Some(l);
+        (classic || modern).then_some(crate::host::FocusedPart::Playlist)
     }
 
     /// Gives `l` the focus as a touch does: the window losing it and `l` show their alphas and
