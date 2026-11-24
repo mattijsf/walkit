@@ -70,7 +70,8 @@ Besides drawing, the runtime:
 - names a classic frame: `setWindowTitle`;
 - says where the page draws its visualizer: `visRect`, a classic skin's `avs` window framed by
   `gen.bmp`, or a modern skin's AVS holder;
-- says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`;
+- says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`, and
+  which part has the keys, the playlist after a press on it: `focusedPart`;
 - shows the page's playlist selection, scrolls a playlist, brings a row into view and follows
   the song that plays, as Winamp's playlist does, classic or modern: `setPlaylistSelection`,
   `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`, `followPlaylistSong`;

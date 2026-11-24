@@ -45,8 +45,9 @@ impl SkinRuntime {
         }
     }
 
-    /// Shows `rows` as the classic playlist's selection, as the host's playlist has it after its
-    /// select all or invert; rows past the list are left out, and the host is not told back.
+    /// Shows `rows` as the playlist's selection, as the host's playlist has it after its select
+    /// all or invert: a classic skin's playlist and a modern skin's, which in Winamp is the same
+    /// window. Rows past the list are left out, and the host is not told back.
     pub fn set_classic_playlist_selection(&mut self, rows: &[i32]) {
         let len = self.player.tracks().len() as i32;
         let mut rows: Vec<i32> = rows
@@ -63,6 +64,7 @@ impl SkinRuntime {
             self.classic_selected_more = more;
             self.repaint();
         }
+        self.pl_follow_shared_selection();
     }
 
     /// Whether the classic windows switch to their shade bars, from their shade buttons and a

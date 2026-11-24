@@ -304,6 +304,15 @@ export class Runtime {
     return this.w.x.wk_rt_pointer_shape_at(this.id, x, y);
   }
 
+  /**
+   * The part of the skin that has the keyboard: "playlist" since a press on the playlist (or
+   * while the playlist's own window has the focus), else null and the focused window has the
+   * keys itself. The page sends the keys there, as Winamp sends them to its playlist window.
+   */
+  focusedPart() {
+    return this.w.x.wk_rt_focused_part(this.id) === 1 ? "playlist" : null;
+  }
+
   /** The classic cursor slot at x, y of the stack, or -1. */
   cursorAt(x, y) {
     return this.w.x.wk_rt_cursor_at(this.id, x, y);

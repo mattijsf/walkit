@@ -235,6 +235,16 @@ pub struct ObjectInfo {
     pub class_name: String,
 }
 
+/// A part of a skin that takes the keyboard by itself, as one of Winamp's own windows embedded in
+/// a skin does: a press on it gives it the keys, and a press elsewhere takes them back. What
+/// the keys do then is the part's, not the window's around it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusedPart {
+    /// The playlist: a classic skin's playlist window, a modern skin's playlist window, or a
+    /// playlist a skin shows inside another window, as Bento's main window holds it.
+    Playlist,
+}
+
 /// What a press at a point of a modern skin would take hold of, for the cursor a host with a
 /// mouse shows there, as Winamp shows its sizing cursors. A classic skin brings cursors of
 /// its own: [`crate::SkinRuntime::classic_cursor_at`].

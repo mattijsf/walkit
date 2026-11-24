@@ -580,7 +580,6 @@ impl SkinRuntime {
         });
         out.push(DrawCmd::Clip(list));
         let scroll = self.pl(o).scroll_px;
-        let selected = self.pl(o).selected;
         let track_index = self.player.track_index();
         let rows_top = rect.top + PL_TOP;
         let digits = tracks.len().to_string().len();
@@ -592,14 +591,15 @@ impl SkinRuntime {
                 break;
             }
             let row = Rect::new(list.left, y, list.width, PL_ROW);
-            let (color, row_alpha) = if i as i32 == selected {
+            let selected = self.pl_row_selected(o, i as i32);
+            let (color, row_alpha) = if selected {
                 (sel_text, alpha)
             } else if i as i32 == track_index {
                 current.map_or((Rgb(0xFF_FFFF), alpha * 127 / 255), |c| (c, alpha))
             } else {
                 (text, alpha)
             };
-            if i as i32 == selected {
+            if selected {
                 out.push(DrawCmd::Fill {
                     rect: row,
                     color: sel_back,
@@ -761,12 +761,42 @@ impl SkinRuntime {
         let Some(index) = self.pl_row_at(o, py) else {
             return;
         };
-        if index == self.pl(o).selected {
+        if self.pointer.ctrl || self.pointer.shift {
+            // the selection grows or shrinks as a classic playlist's does: in Winamp a modern
+            // skin's playlist is the same window
+            self.classic_extend_selection(o, index);
+            self.pl_follow_shared_selection();
+        } else if index == self.pl(o).selected && self.classic_selected_more.is_empty() {
             self.player.play_track(index);
         } else {
             self.pl_select(o, index);
         }
         self.pl_selection_changed(o);
+    }
+
+    /// Whether row `i` of the modern playlist `o` shows as selected: its own selected row, and
+    /// with it the other rows of the selection the classic playlist and the modern one share.
+    pub(crate) fn pl_row_selected(&self, o: ObjId, i: i32) -> bool {
+        let selected = self.pl(o).selected;
+        i == selected
+            || (selected >= 0
+                && self.classic_selected_row == Some(selected)
+                && self.classic_selected_more.contains(&i))
+    }
+
+    /// The modern playlists show the first row of the shared selection as their own.
+    pub(crate) fn pl_follow_shared_selection(&mut self) {
+        let first = self.classic_selected_row.unwrap_or(-1);
+        let views: Vec<ObjId> = (0..self.objects.len())
+            .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
+            .collect();
+        for o in views {
+            if self.pl(o).selected != first {
+                self.pl_mut(o).selected = first;
+                self.pl_selection_changed(o);
+            }
+        }
+        self.repaint();
     }
 
     /// The second tap of a double tap: the row under it is selected and plays.
@@ -790,7 +820,12 @@ impl SkinRuntime {
     /// Selects entry `index` and tells the host, which keeps the selection its playlist menus act
     /// on, as a classic skin's playlist does (`PLAYLIST_SELECT` with the entry).
     fn pl_select(&mut self, o: ObjId, index: i32) {
-        if self.pl(o).selected == index {
+        // a plain press leaves one row selected, and the next press with Shift counts from it
+        self.classic_select_anchor = Some(index);
+        let more = !self.classic_selected_more.is_empty();
+        self.classic_selected_more.clear();
+        self.classic_selected_row = Some(index);
+        if self.pl(o).selected == index && !more {
             return;
         }
         self.pl_mut(o).selected = index;

@@ -942,7 +942,7 @@ impl SkinRuntime {
     /// selection or takes it out, Shift selects the rows from the last one picked to this one
     /// (Ctrl with it adds them to the selection). The host hears the whole selection
     /// (`PLAYLIST_SELECTION` with the rows, "1,4,5", or no param for none).
-    fn classic_extend_selection(&mut self, o: ObjId, row: i32) {
+    pub(crate) fn classic_extend_selection(&mut self, o: ObjId, row: i32) {
         let (ctrl, shift) = (self.pointer.ctrl, self.pointer.shift);
         let mut rows: Vec<i32> = self
             .classic_selected_row

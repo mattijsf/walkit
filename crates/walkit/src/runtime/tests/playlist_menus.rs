@@ -232,6 +232,71 @@ fn a_modern_playlist_brings_a_row_into_view_and_follows_the_song() {
 }
 
 #[test]
+fn a_modern_playlist_selects_rows_as_a_classic_one_does() {
+    let (mut rt, actions, _) = recording(true);
+    // the three songs from y 23, 15 high; which rows show as selected
+    let list = (0..rt.objects.len())
+        .find(|&o| matches!(rt.objects[o].kind, crate::gui::Kind::PlaylistView(_)))
+        .expect("the playlist");
+    let shown = |rt: &SkinRuntime| -> Vec<i32> {
+        (0..3).filter(|&i| rt.pl_row_selected(list, i)).collect()
+    };
+    let press = |rt: &mut SkinRuntime, row: i32, seq: i32, ctrl: bool, shift: bool| {
+        rt.set_pointer_modifiers(ctrl, shift);
+        rt.pointer_down(50, 30 + row * 15, seq);
+        rt.pointer_up(50, 30 + row * 15);
+        rt.set_pointer_modifiers(false, false);
+    };
+    press(&mut rt, 0, 1, false, false);
+    assert_eq!(shown(&rt), [0]);
+    // Ctrl adds a row, and takes it out again
+    press(&mut rt, 2, 2, true, false);
+    assert_eq!(shown(&rt), [0, 2]);
+    assert_eq!(
+        actions.borrow().last().map(String::as_str),
+        Some("PLAYLIST_SELECTION 0,2")
+    );
+    press(&mut rt, 0, 3, true, false);
+    assert_eq!(shown(&rt), [2]);
+    // Shift selects from the row picked last to this one
+    press(&mut rt, 1, 4, false, false);
+    press(&mut rt, 2, 5, false, true);
+    assert_eq!(shown(&rt), [1, 2]);
+    // a plain press leaves one row, and does not play the song while others were selected
+    press(&mut rt, 1, 6, false, false);
+    assert_eq!(shown(&rt), [1]);
+    assert_ne!(rt.player.status(), crate::player::Status::Playing);
+    // the host's select all shows in the modern list too
+    rt.set_classic_playlist_selection(&[0, 1, 2]);
+    assert_eq!(shown(&rt), [0, 1, 2]);
+    rt.set_playlist_selection(Some(2));
+    assert_eq!(shown(&rt), [2]);
+}
+
+#[test]
+fn a_press_on_a_playlist_inside_another_window_gives_it_the_keys() {
+    use crate::host::FocusedPart;
+    let (mut rt, _, _) = recording(true);
+    // the window holds five buttons over a playlist, as Bento's main window holds one
+    assert_eq!(rt.focused_part(), None, "the window has the keys at first");
+    rt.pointer_down(50, 40, 1);
+    rt.pointer_up(50, 40);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    // a press on a button of the same window takes them back
+    rt.pointer_down(100, 9, 2);
+    rt.pointer_up(100, 9);
+    assert_eq!(rt.focused_part(), None);
+    rt.pointer_down(50, 40, 3);
+    rt.pointer_up(50, 40);
+    assert_eq!(rt.focused_part(), Some(FocusedPart::Playlist));
+    // the host giving the window the keys, by another way than a press, gives them to the
+    // window itself
+    let main = rt.main_window().expect("the main window");
+    rt.focus_window(main);
+    assert_eq!(rt.focused_part(), None);
+}
+
+#[test]
 fn the_host_sets_the_selection_without_hearing_it_back() {
     let (mut rt, actions, _) = recording(true);
     rt.set_playlist_selection(Some(1));

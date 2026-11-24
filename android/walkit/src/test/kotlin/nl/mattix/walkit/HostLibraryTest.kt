@@ -64,6 +64,7 @@ class HostLibraryTest {
             rt.showClassicPlaylistRow(3)
             rt.showPlaylistRow(3)
             rt.followPlaylistSong(3)
+            assertEquals(false, rt.playlistHasKeys)
             assertEquals(0, rt.classicPlaylistScroll)
             val main = rt.mainWindow
             assertEquals(main, rt.focusedWindow)

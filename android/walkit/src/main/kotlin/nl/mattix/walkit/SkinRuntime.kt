@@ -697,6 +697,14 @@ public class SkinRuntime(
     public fun showPlaylistRow(row: Int): Unit = Native.rtShowPlaylistRow(h(), row)
 
     /**
+     * Whether the playlist has the keyboard: since a press on it, or while its own window has the
+     * focus. A host sends the keys there, as Winamp sends them to its playlist window: the arrow
+     * keys move the playlist's selection, where in the main window they turn the volume.
+     */
+    public val playlistHasKeys: Boolean
+        get() = Native.rtFocusedPart(h()) == 1
+
+    /**
      * Brings song [row] (from 0), the one that plays, into the middle of the playlist when it does
      * not show, as Winamp's playlist follows the song: a classic skin's, or a modern skin's.
      */
