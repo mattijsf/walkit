@@ -3,6 +3,7 @@
 //! A frame's divider dragged between its panes.
 
 use super::runtime;
+use crate::host::PointerShape;
 use crate::runtime::SkinRuntime;
 
 const PLAYER_XML: &str = r#"
@@ -60,6 +61,26 @@ fn a_divider_follows_the_pointer_between_the_frames_limits() {
 }
 
 #[test]
+fn a_divider_is_taken_from_beside_it_where_nothing_else_takes_the_press() {
+    let mut rt = loaded();
+    // 4 pixels right of the divider, in the pane's empty part: it is held where it was taken
+    rt.pointer_down(203, 50, 1);
+    rt.pointer_move(183, 50);
+    rt.pointer_up(183, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+    // on the pane's button, as near the divider: the button's press, and nothing moves
+    rt.pointer_down(181, 5, 2);
+    rt.pointer_move(150, 5);
+    rt.pointer_up(150, 5);
+    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+    // further off than a touch may land
+    rt.pointer_down(190, 50, 3);
+    rt.pointer_move(150, 50);
+    rt.pointer_up(150, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+}
+
+#[test]
 fn a_stacked_frames_divider_goes_up_and_down() {
     let mut rt = loaded();
     // 30 from the bottom of 100: the top pane is 70 high, the divider under it
@@ -87,4 +108,40 @@ fn a_press_beside_a_divider_or_on_a_fixed_frame_moves_no_pane() {
     rt.pointer_move(150, 270);
     rt.pointer_up(150, 270);
     assert_eq!(pane(&mut rt, "f.btn"), (100, 220));
+}
+
+#[test]
+fn the_pointer_over_a_divider_has_the_shape_of_its_drag() {
+    let mut rt = loaded();
+    // side by side: left and right, over the divider's 8 pixels and as far beside them as a
+    // touch may land, 6 pixels
+    assert_eq!(rt.pointer_shape_at(185, 50), PointerShape::Arrow);
+    assert_eq!(rt.pointer_shape_at(186, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(192, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(199, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(205, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(206, 50), PointerShape::Arrow);
+    // a button beside the divider is the button's
+    assert_eq!(rt.pointer_shape_at(201, 5), PointerShape::Arrow);
+    // a host with a mouse that allows no slop: the 8 pixels and nowhere else
+    rt.set_touch_slop(0);
+    assert_eq!(rt.pointer_shape_at(191, 50), PointerShape::Arrow);
+    assert_eq!(rt.pointer_shape_at(192, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(199, 50), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(200, 50), PointerShape::Arrow);
+    rt.set_touch_slop(6);
+    // one over the other: up and down
+    assert_eq!(rt.pointer_shape_at(20, 184), PointerShape::UpDown);
+    // a frame that is not resizable, and a place off the window
+    assert_eq!(rt.pointer_shape_at(100, 270), PointerShape::Arrow);
+    assert_eq!(rt.pointer_shape_at(900, 900), PointerShape::Arrow);
+    // while the divider is dragged the shape stays, wherever the pointer is
+    rt.pointer_down(195, 50, 1);
+    rt.pointer_move(120, 80);
+    assert_eq!(rt.pointer_shape_at(120, 80), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(900, 900), PointerShape::LeftRight);
+    rt.pointer_up(120, 80);
+    // let go, the divider is under the pointer still; beside it the arrow is back
+    assert_eq!(rt.pointer_shape_at(120, 80), PointerShape::LeftRight);
+    assert_eq!(rt.pointer_shape_at(60, 80), PointerShape::Arrow);
 }

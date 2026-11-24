@@ -207,6 +207,85 @@ impl SkinRuntime {
         self.hit_test(l, x, y)
     }
 
+    /// What a press at a point of the stack would take hold of in a modern skin: a frame's
+    /// divider or a window's resize grip, by the way it is dragged, else the arrow. While a
+    /// divider or a grip is dragged the answer is its shape wherever the pointer is. For the
+    /// cursor of a host with a mouse.
+    pub fn pointer_shape_at(&mut self, x: i32, y: i32) -> crate::host::PointerShape {
+        use crate::host::PointerShape;
+        if let Some(held) = self.captured {
+            if self.frame_dragging(held) {
+                return self.frame_pointer_shape(held);
+            }
+            if self.pointer.resizing.is_some() {
+                return self.grip_pointer_shape(held);
+            }
+        }
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let Some(l) = self.window_under(x, y) else {
+            return PointerShape::Arrow;
+        };
+        let (px, py) = self.layout_point(l, x, y);
+        match self.hit_test(l, px, py) {
+            Some(o) if self.frame_divider_at(o, px, py) => self.frame_pointer_shape(o),
+            Some(o) if self.is_grip(o) => self.grip_pointer_shape(o),
+            // beside a divider a press takes it unless something else is nearer to hand
+            _ if self.frame_divider_near(l, px, py).is_some() => match self.touch_target(x, y) {
+                Some(o) if self.frame_divider_in_reach(o, px, py) => self.frame_pointer_shape(o),
+                _ => PointerShape::Arrow,
+            },
+            _ => PointerShape::Arrow,
+        }
+    }
+
+    /// Whether a point of the window is on frame `o`'s divider or within the touch slop of it.
+    pub(crate) fn frame_divider_in_reach(&self, o: ObjId, px: i32, py: i32) -> bool {
+        let slop2 = (self.touch_slop as i64) * (self.touch_slop as i64);
+        self.frame_divider_distance2(o, px, py)
+            .is_some_and(|d| d <= slop2)
+    }
+
+    /// The frame of `window` whose divider is nearest a point, within the touch slop.
+    fn frame_divider_near(&mut self, window: ObjId, px: i32, py: i32) -> Option<ObjId> {
+        let mut best: Option<(ObjId, i64)> = None;
+        for o in self.all_objects.clone() {
+            if !matches!(self.objects[o].kind, Kind::Frame(_))
+                || !self.frame_divider_in_reach(o, px, py)
+                || self.layout_object(o) != Some(window)
+                || !self.touchable(o, true)
+            {
+                continue;
+            }
+            let d = self.frame_divider_distance2(o, px, py).unwrap_or(i64::MAX);
+            if best.is_none_or(|(_, bd)| d < bd) {
+                best = Some((o, d));
+            }
+        }
+        best.map(|(o, _)| o)
+    }
+
+    /// The cursor over a resize grip, by the edges its `resize` names.
+    fn grip_pointer_shape(&self, o: ObjId) -> crate::host::PointerShape {
+        use crate::host::PointerShape;
+        let edges = self.objects[o]
+            .base
+            .attr("resize")
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        let has = |edge: &str| edges.contains(edge);
+        let across = has("left") || has("right");
+        let down = has("top") || has("bottom");
+        match (across, down) {
+            (true, true) if has("left") == has("top") => PointerShape::Diagonal,
+            (true, true) => PointerShape::OtherDiagonal,
+            (true, false) => PointerShape::LeftRight,
+            (false, true) => PointerShape::UpDown,
+            (false, false) => PointerShape::Arrow,
+        }
+    }
+
     /// Whether a touch on `o` does something: a control, or an object a script listens to.
     fn reacts(&self, o: ObjId) -> bool {
         self.is_control(o) || self.scripts.iter().any(|s| s.listens_to(Handle::Gui(o)))
@@ -454,6 +533,10 @@ impl SkinRuntime {
         }
         if let Some(h) = hit.filter(|h| self.reacts(*h)) {
             return Some(h);
+        }
+        // a divider beside the touch, where nothing else takes it
+        if let Some(f) = self.frame_divider_near(window, x, y) {
+            return Some(f);
         }
         if let Some(o) = nearest(self, false, &|rt, o| {
             !rt.is_control(o)

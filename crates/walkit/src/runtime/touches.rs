@@ -98,7 +98,7 @@ impl SkinRuntime {
                 return;
             }
             Kind::ClassicWindow(_) => return self.classic_pointer_down(o, px, py),
-            Kind::Frame(_) if self.frame_divider_at(o, px, py) => {
+            Kind::Frame(_) if self.frame_divider_in_reach(o, px, py) => {
                 return self.frame_pointer_down(o, px, py)
             }
             Kind::Menu(_) => self.menu_show_pressed(o, true),

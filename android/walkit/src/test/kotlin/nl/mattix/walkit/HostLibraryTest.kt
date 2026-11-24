@@ -60,6 +60,7 @@ class HostLibraryTest {
             // no playlist window is open: the list is not scrolled, and stays so
             rt.scrollPlaylist(2)
             assertEquals(false, rt.scrollAt(10, 10, 2))
+            assertEquals(PointerShape.ARROW, rt.pointerShapeAt(10, 10))
             rt.showClassicPlaylistRow(3)
             assertEquals(0, rt.classicPlaylistScroll)
             val main = rt.mainWindow

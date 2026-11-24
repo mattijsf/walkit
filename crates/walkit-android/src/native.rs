@@ -1319,6 +1319,30 @@ pub fn rt_scroll_at<'l>(
         .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// What a press at (`x`, `y`) of the stack would take hold of in a modern skin, as the place
+/// of its `PointerShape` in Kotlin: 0 the arrow, 1 left and right, 2 up and down, 3 a window's
+/// bottom right or top left corner, 4 its other corners.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_pointer_shape_at<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    x: jint,
+    y: jint,
+) -> jint {
+    use walkit::host::PointerShape;
+    env.with_env(|env| {
+        with_rt(env, h, |r| match r.rt.pointer_shape_at(x, y) {
+            PointerShape::Arrow => 0,
+            PointerShape::LeftRight => 1,
+            PointerShape::UpDown => 2,
+            PointerShape::Diagonal => 3,
+            PointerShape::OtherDiagonal => 4,
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// The first song a classic playlist shows: how far it is scrolled.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_classic_playlist_scroll<'l>(

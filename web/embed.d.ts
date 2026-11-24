@@ -72,6 +72,8 @@ export interface Runtime {
   /** The seq of the last press when a drag from it moves its window and the page moves windows itself. */
   moveTarget(): number | null;
   cursorAt(x: number, y: number): number;
+  /** What a press there would take hold of in a modern skin: 0 the arrow, 1 dragged left and right, 2 up and down, 3 a window's bottom right or top left corner, 4 its other corners. */
+  pointerShapeAt(x: number, y: number): number;
   /** 0 arrow, 1 move, 2 sideways, 3 up and down, 4 close, 5 size. */
   cursorKind(slot: number): number;
   openWindow(container: string): boolean;

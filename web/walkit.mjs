@@ -295,6 +295,15 @@ export class Runtime {
     return s < 0 ? null : s;
   }
 
+  /**
+   * What a press at x, y of the stack would take hold of in a modern skin, for the page's
+   * cursor: 0 the arrow, 1 dragged left and right (a divider between panes, a window's side),
+   * 2 dragged up and down, 3 a window's bottom right or top left corner, 4 its other corners.
+   */
+  pointerShapeAt(x, y) {
+    return this.w.x.wk_rt_pointer_shape_at(this.id, x, y);
+  }
+
   /** The classic cursor slot at x, y of the stack, or -1. */
   cursorAt(x, y) {
     return this.w.x.wk_rt_cursor_at(this.id, x, y);

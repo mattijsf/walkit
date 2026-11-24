@@ -207,19 +207,28 @@ impl SkinRuntime {
         }
     }
 
-    /// Whether a point of the window is on the frame's divider, where a press drags it: the
-    /// frame is resizable and shows both panes.
+    /// Whether a point of the window is on the frame's divider, where a press drags it.
     pub(crate) fn frame_divider_at(&self, o: ObjId, px: i32, py: i32) -> bool {
+        self.frame_divider_distance2(o, px, py) == Some(0)
+    }
+
+    /// How far a point of the window is from the frame's divider, squared; `None` for a frame
+    /// with no divider to take: one that is not resizable or shows one pane only.
+    pub(crate) fn frame_divider_distance2(&self, o: ObjId, px: i32, py: i32) -> Option<i64> {
         let Kind::Frame(f) = &self.objects[o].kind else {
-            return false;
+            return None;
         };
-        if !f.resizable || !f.sizer_rect.contains(px, py) {
-            return false;
+        let r = f.sizer_rect;
+        if !f.resizable || r.width <= 0 || r.height <= 0 {
+            return None;
         }
-        match (f.first, f.second) {
-            (Some(a), Some(b)) => self.objects[a].base.visible && self.objects[b].base.visible,
-            _ => false,
+        let (a, b) = (f.first?, f.second?);
+        if !(self.objects[a].base.visible && self.objects[b].base.visible) {
+            return None;
         }
+        let dx = (r.left - px).max(0).max(px - (r.right() - 1)) as i64;
+        let dy = (r.top - py).max(0).max(py - (r.bottom() - 1)) as i64;
+        Some(dx * dx + dy * dy)
     }
 
     /// How far along the frame a point is, and the point the frame's position is measured to:
@@ -278,6 +287,15 @@ impl SkinRuntime {
     /// The divider is let go.
     pub(crate) fn frame_pointer_up(&mut self, o: ObjId) {
         self.frame_mut(o).grab = None;
+    }
+
+    /// The cursor over a frame's divider: by the way it is dragged.
+    pub(crate) fn frame_pointer_shape(&self, o: ObjId) -> crate::host::PointerShape {
+        if self.frame(o).vertical {
+            crate::host::PointerShape::LeftRight
+        } else {
+            crate::host::PointerShape::UpDown
+        }
     }
 
     /// Whether the frame's divider is being dragged.

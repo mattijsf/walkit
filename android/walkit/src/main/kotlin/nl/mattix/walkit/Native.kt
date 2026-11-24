@@ -384,6 +384,13 @@ internal object Native {
     ): Boolean
 
     @JvmStatic
+    external fun rtPointerShapeAt(
+        h: Long,
+        x: Int,
+        y: Int,
+    ): Int
+
+    @JvmStatic
     external fun rtClassicPlaylistScroll(h: Long): Int
 
     @JvmStatic

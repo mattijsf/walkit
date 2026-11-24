@@ -666,6 +666,17 @@ public class SkinRuntime(
         rows: Int,
     ): Boolean = Native.rtScrollAt(h(), x, y, rows)
 
+    /**
+     * What a press at ([x], [y]) of the stack would take hold of in a modern skin: a divider
+     * between panes or a window's resize grip, by the way it is dragged, else the arrow. While
+     * one of them is dragged the answer is its shape wherever the pointer is. For the pointer
+     * icon of a device with a mouse.
+     */
+    public fun pointerShapeAt(
+        x: Int,
+        y: Int,
+    ): PointerShape = PointerShape.entries.getOrElse(Native.rtPointerShapeAt(h(), x, y)) { PointerShape.ARROW }
+
     /** The first song a classic playlist shows: how far it is scrolled. */
     public val classicPlaylistScroll: Int
         get() = Native.rtClassicPlaylistScroll(h())

@@ -712,6 +712,22 @@ pub extern "C" fn wk_rt_move_target(id: i32) -> i32 {
     with_rt(id, |r| r.engine.move_target().unwrap_or(-1)).unwrap_or(-1)
 }
 
+/// What a press at `x`, `y` of the stack would take hold of in a modern skin, for the page's
+/// cursor: 0 nothing sized (the arrow), 1 a divider or an edge dragged left and right, 2 one
+/// dragged up and down, 3 a window's bottom right or top left corner, 4 its other corners.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_pointer_shape_at(id: i32, x: i32, y: i32) -> i32 {
+    use walkit::host::PointerShape;
+    with_rt(id, |r| match r.engine.pointer_shape_at(x, y) {
+        PointerShape::Arrow => 0,
+        PointerShape::LeftRight => 1,
+        PointerShape::UpDown => 2,
+        PointerShape::Diagonal => 3,
+        PointerShape::OtherDiagonal => 4,
+    })
+    .unwrap_or(0)
+}
+
 /// The classic skin cursor slot at `x`, `y` of the stack, or -1.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_cursor_at(id: i32, x: i32, y: i32) -> i32 {

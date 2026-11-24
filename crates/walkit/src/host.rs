@@ -235,6 +235,25 @@ pub struct ObjectInfo {
     pub class_name: String,
 }
 
+/// What a press at a point of a modern skin would take hold of, for the cursor a host with a
+/// mouse shows there, as Winamp shows its sizing cursors. A classic skin brings cursors of
+/// its own: [`crate::SkinRuntime::classic_cursor_at`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointerShape {
+    /// Nothing that is dragged to size: the plain arrow.
+    Arrow,
+    /// A divider between panes side by side, or a window's left or right edge: dragged left
+    /// and right.
+    LeftRight,
+    /// A divider between panes one over the other, or a window's top or bottom edge: dragged
+    /// up and down.
+    UpDown,
+    /// A window's bottom right or top left corner.
+    Diagonal,
+    /// A window's bottom left or top right corner.
+    OtherDiagonal,
+}
+
 /// An object of a shown window that stands in for a tag the skin uses but nothing defines: an
 /// XML tag that is no class the engine knows and that no `xuitag` of the skin or its wasabi base
 /// names. It draws nothing, so the part of the window the skin meant it to draw is missing. A
