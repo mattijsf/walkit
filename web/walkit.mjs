@@ -285,6 +285,16 @@ export class Runtime {
     this.w.x.wk_rt_pointer_move(this.id, x, y);
   }
 
+  /** A mouse moves to a point of the stack with no button held: what is under it hears it, and a button shows its hover picture. */
+  pointerHover(x, y) {
+    this.w.x.wk_rt_pointer_hover(this.id, x, y);
+  }
+
+  /** A mouse has left the skin's windows. */
+  pointerLeave() {
+    this.w.x.wk_rt_pointer_leave(this.id);
+  }
+
   pointerUp(x, y) {
     this.w.x.wk_rt_pointer_up(this.id, x, y);
   }
@@ -396,6 +406,11 @@ export class Runtime {
   /** Gives window `id` the focus, as a press on it does: for a page whose keyboard goes to a window by other ways than a click. */
   focusWindow(id) {
     this.w.x.wk_rt_focus_window(this.id, id);
+  }
+
+  /** Whether the page has the keyboard: while it has not, as when another window or tab has it, no skin window shows the focus. */
+  setAppActive(active) {
+    this.w.x.wk_rt_set_app_active(this.id, active ? 1 : 0);
   }
 
   /** The first song a classic playlist shows: how far it is scrolled. */

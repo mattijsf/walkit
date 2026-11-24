@@ -454,10 +454,21 @@ canvas.addEventListener("pointerdown", (e) => {
     }
   }, 600);
 });
-canvas.addEventListener("pointerleave", () => state.cursors?.hide(canvas));
+canvas.addEventListener("pointerleave", () => {
+  state.cursors?.hide(canvas);
+  if (state.rt && !state.down) {
+    state.rt.pointerLeave();
+    state.dirty = true;
+  }
+});
 
 canvas.addEventListener("pointermove", (e) => {
   if (state.rt && !state.down) state.cursors.show(canvas, ...skinPoint(e), zoom());
+  // a mouse with no button held: what is under it hears it, a button shows its hover picture
+  if (state.rt && !state.down && e.pointerType === "mouse") {
+    state.rt.pointerHover(...skinPoint(e));
+    state.dirty = true;
+  }
   if (!state.rt || !state.down) return;
   const [x, y] = skinPoint(e);
   state.rt.pointerMove(x, y);
@@ -471,6 +482,14 @@ const up = (e) => {
   state.rt.pointerUp(x, y);
   state.dirty = true;
 };
+// another window or tab with the keyboard: every skin window shows itself behind
+for (const [event, active] of [["blur", false], ["focus", true]]) {
+  window.addEventListener(event, () => {
+    if (!state.rt) return;
+    state.rt.setAppActive(active);
+    state.dirty = true;
+  });
+}
 canvas.addEventListener("pointerup", up);
 canvas.addEventListener("pointercancel", up);
 canvas.addEventListener("contextmenu", (e) => {

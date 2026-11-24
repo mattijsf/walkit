@@ -254,11 +254,11 @@ class Embed {
  */
 // the runtime's calls that change what the skin shows: each wakes the next `tick`
 const CHANGES = [
-  "setPlayerState", "setPlaylist", "setVis", "pointerDown", "pointerMove", "pointerUp", "doubleTap",
+  "setPlayerState", "setPlaylist", "setVis", "pointerDown", "pointerMove", "pointerHover", "pointerLeave", "pointerUp", "doubleTap",
   "rightClick", "openWindow", "closeWindow", "placeWindow", "resizeWindow", "setWindowLayout",
   "setWindowScale", "setWindowTitle", "setFree", "setView", "setTimeRemaining", "setEqAuto",
   "setPlaylistSelection", "scrollPlaylist", "scrollAt", "wheelPlaylist", "showPlaylistRow", "followPlaylistSong",
-  "focusWindow",
+  "focusWindow", "setAppActive",
   "setListFontSize", "setClassicStyle",
   "selectTheme", "player",
 ];

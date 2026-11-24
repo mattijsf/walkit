@@ -521,6 +521,8 @@ pub struct SliderData {
     pub thumb: Option<String>,
     /// `downthumb`.
     pub down_thumb: Option<String>,
+    /// `hoverthumb`: the thumb while a mouse is over the slider.
+    pub hover_thumb: Option<String>,
     /// `barleft`.
     pub bar_left: Option<String>,
     /// `barmiddle`.
@@ -556,6 +558,7 @@ impl Default for SliderData {
             param: None,
             thumb: None,
             down_thumb: None,
+            hover_thumb: None,
             bar_left: None,
             bar_middle: None,
             bar_right: None,

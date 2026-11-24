@@ -337,7 +337,7 @@ impl SkinRuntime {
                     "param" => s.param = Some(value.to_string()),
                     "thumb" => s.thumb = Some(value.to_string()),
                     "downthumb" => s.down_thumb = Some(value.to_string()),
-                    "hoverthumb" => {}
+                    "hoverthumb" => s.hover_thumb = Some(value.to_string()),
                     "barleft" => s.bar_left = Some(value.to_string()),
                     "barmiddle" => s.bar_middle = Some(value.to_string()),
                     "barright" => s.bar_right = Some(value.to_string()),

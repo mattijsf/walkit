@@ -70,6 +70,11 @@ class HostLibraryTest {
             assertEquals(main, rt.focusedWindow)
             main?.let { rt.focusWindow(it) }
             assertEquals(main, rt.focusedWindow)
+            rt.setAppActive(false)
+            assertEquals(main, rt.focusedWindow)
+            rt.setAppActive(true)
+            rt.pointerHover(10, 10)
+            rt.pointerLeave()
             rt.setClassicShades(false)
             rt.setPointerModifiers(ctrl = true, shift = false)
             rt.setClassicRowMarks(RowMarks(listOf(RowMark(listOf("#.#", ".#."), "A"), RowMark(text = "B")), listOf(0, null, 1)))
