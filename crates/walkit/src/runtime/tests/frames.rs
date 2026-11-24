@@ -37,47 +37,75 @@ fn pane(rt: &mut SkinRuntime, id: &str) -> (i32, i32) {
 }
 
 #[test]
-fn a_divider_follows_the_pointer_between_the_frames_limits() {
+fn a_divider_goes_where_the_pointer_is_between_the_frames_limits() {
     let mut rt = loaded();
     // 100 from the right of 300: the divider's 8 pixels end where the right pane starts
     assert_eq!(pane(&mut rt, "b.btn"), (200, 0));
-    // taken 5 pixels into the divider and dragged 40 to the left: the pane is 40 wider
+    // a press moves nothing; with the first move the right pane starts under the pointer
     rt.pointer_down(195, 50, 1);
+    assert_eq!(pane(&mut rt, "b.btn"), (200, 0));
     rt.pointer_move(155, 50);
-    assert_eq!(pane(&mut rt, "b.btn"), (160, 0));
-    // no wider than the frame less 60, no narrower than 40
+    assert_eq!(pane(&mut rt, "b.btn"), (155, 0));
+    // no wider than the frame less 60
     rt.pointer_move(10, 50);
     assert_eq!(pane(&mut rt, "b.btn"), (60, 0));
+    // under its 40 the pane counted from the right shuts to nothing, the divider at the
+    // frame's edge, and opens again from 40 on
+    rt.pointer_move(261, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (300, 0));
     rt.pointer_move(298, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (300, 0));
+    rt.pointer_move(260, 50);
     assert_eq!(pane(&mut rt, "b.btn"), (260, 0));
     rt.pointer_move(205, 50);
     rt.pointer_up(205, 50);
-    assert_eq!(pane(&mut rt, "b.btn"), (210, 0));
+    assert_eq!(pane(&mut rt, "b.btn"), (205, 0));
     // let go, it stays
     rt.pointer_move(100, 50);
-    assert_eq!(pane(&mut rt, "b.btn"), (210, 0));
+    assert_eq!(pane(&mut rt, "b.btn"), (205, 0));
     // the left pane never moved
     assert_eq!(pane(&mut rt, "a.btn"), (0, 0));
 }
 
 #[test]
+fn a_shut_pane_is_pulled_open_by_the_divider_at_the_frames_edge() {
+    let mut rt = loaded();
+    rt.pointer_down(195, 50, 1);
+    rt.pointer_move(299, 50);
+    rt.pointer_up(299, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (300, 0));
+    // the divider is the frame's last 8 pixels now
+    assert_eq!(rt.pointer_shape_at(295, 50), PointerShape::LeftRight);
+    rt.pointer_down(295, 50, 2);
+    rt.pointer_move(240, 50);
+    rt.pointer_up(240, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (240, 0));
+}
+
+#[test]
 fn a_divider_is_taken_from_beside_it_where_nothing_else_takes_the_press() {
     let mut rt = loaded();
-    // 4 pixels right of the divider, in the pane's empty part: it is held where it was taken
+    // 4 pixels right of the divider, in the pane's empty part
     rt.pointer_down(203, 50, 1);
     rt.pointer_move(183, 50);
     rt.pointer_up(183, 50);
-    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+    assert_eq!(pane(&mut rt, "b.btn"), (183, 0));
     // on the pane's button, as near the divider: the button's press, and nothing moves
-    rt.pointer_down(181, 5, 2);
+    rt.pointer_down(185, 5, 2);
     rt.pointer_move(150, 5);
     rt.pointer_up(150, 5);
-    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+    assert_eq!(pane(&mut rt, "b.btn"), (183, 0));
     // further off than a touch may land
-    rt.pointer_down(190, 50, 3);
+    rt.pointer_down(195, 50, 3);
     rt.pointer_move(150, 50);
     rt.pointer_up(150, 50);
-    assert_eq!(pane(&mut rt, "b.btn"), (180, 0));
+    assert_eq!(pane(&mut rt, "b.btn"), (183, 0));
+    // with no slop, as a host with a mouse sets it, beside the divider is beside it
+    rt.set_touch_slop(0);
+    rt.pointer_down(184, 50, 4);
+    rt.pointer_move(150, 50);
+    rt.pointer_up(150, 50);
+    assert_eq!(pane(&mut rt, "b.btn"), (183, 0));
 }
 
 #[test]
@@ -85,9 +113,10 @@ fn a_stacked_frames_divider_goes_up_and_down() {
     let mut rt = loaded();
     // 30 from the bottom of 100: the top pane is 70 high, the divider under it
     assert_eq!(pane(&mut rt, "d.btn"), (0, 188));
+    // the divider's top comes under the pointer
     rt.pointer_down(20, 184, 1);
     rt.pointer_move(20, 164);
-    assert_eq!(pane(&mut rt, "d.btn"), (0, 168));
+    assert_eq!(pane(&mut rt, "d.btn"), (0, 172));
     // the bottom pane is 20 high at least
     rt.pointer_move(20, 330);
     rt.pointer_up(20, 330);
@@ -141,7 +170,7 @@ fn the_pointer_over_a_divider_has_the_shape_of_its_drag() {
     assert_eq!(rt.pointer_shape_at(120, 80), PointerShape::LeftRight);
     assert_eq!(rt.pointer_shape_at(900, 900), PointerShape::LeftRight);
     rt.pointer_up(120, 80);
-    // let go, the divider is under the pointer still; beside it the arrow is back
-    assert_eq!(rt.pointer_shape_at(120, 80), PointerShape::LeftRight);
+    // let go, the divider lies just left of the pointer; further off the arrow is back
+    assert_eq!(rt.pointer_shape_at(116, 80), PointerShape::LeftRight);
     assert_eq!(rt.pointer_shape_at(60, 80), PointerShape::Arrow);
 }

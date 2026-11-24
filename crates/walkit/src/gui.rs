@@ -687,8 +687,7 @@ pub struct FrameData {
     pub resizable: bool,
     /// Where the divider was last laid out.
     pub sizer_rect: Rect,
-    /// While the divider is dragged: how far along the frame the press was from the point the
-    /// position is measured to.
+    /// While the divider is dragged: how far along the frame the pointer last was.
     pub grab: Option<i32>,
 }
 

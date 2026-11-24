@@ -108,7 +108,14 @@ impl SkinRuntime {
             p = p.min(if m < 0 { total + m } else { m });
         }
         let top = (total - sizer).max(0);
-        p = p.clamp(f.min_pos.min(top), top);
+        // a pane counted from the far side that is shut to nothing stays shut: the minimum
+        // is for one that shows
+        let least = if f.from_far && f.pos == 0 {
+            0
+        } else {
+            f.min_pos.min(top)
+        };
+        p = p.clamp(least, top);
         // vertical: the divider comes out of the pane the position is not measured from; horizontal:
         // the top pane always gets the position's share, the bottom one what is left after the
         // divider (Wasabi SDK FrameWnd::onResize)
@@ -231,47 +238,58 @@ impl SkinRuntime {
         Some(dx * dx + dy * dy)
     }
 
-    /// How far along the frame a point is, and the point the frame's position is measured to:
-    /// the divider's near edge, or its far edge when a side by side frame counts from the right.
-    fn frame_along(&self, o: ObjId, px: i32, py: i32) -> (i32, i32) {
+    /// How far along the frame a point of the window is: across a frame whose panes are side
+    /// by side, down one whose panes are one over the other.
+    fn frame_along(&self, o: ObjId, px: i32, py: i32) -> i32 {
         let rect = self.objects[o].base.rect;
-        let f = self.frame(o);
-        let (at, start) = if f.vertical {
-            (px - rect.left, f.sizer_rect.left - rect.left)
+        if self.frame(o).vertical {
+            px - rect.left
         } else {
-            (py - rect.top, f.sizer_rect.top - rect.top)
-        };
-        let edge = if f.vertical && f.from_far {
-            start + f.sizer_rect.width
-        } else {
-            start
-        };
-        (at, edge)
+            py - rect.top
+        }
     }
 
-    /// A press on the divider takes hold of it where it is.
+    /// A press on the divider takes hold of it. Nothing moves before the pointer does.
     pub(crate) fn frame_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
-        let (at, edge) = self.frame_along(o, px, py);
-        self.frame_mut(o).grab = Some(at - edge);
+        let at = self.frame_along(o, px, py);
+        self.frame_mut(o).grab = Some(at);
     }
 
-    /// The divider follows the pointer between the frame's minimum and maximum, and the
-    /// frame's scripts hear each new position.
+    /// The divider goes where the pointer is, as Winamp 5.666 moves it: the position is the
+    /// pointer's distance from the side the frame counts from, so the divider's edge on that
+    /// pane's side comes under the pointer. Under the minimum a pane stops at the minimum, but
+    /// one counted from the right shuts to nothing; the maximum holds unless the pane is shut.
+    /// The frame's scripts hear each new position.
     pub(crate) fn frame_pointer_move(&mut self, o: ObjId, px: i32, py: i32) {
-        let Some(grab) = self.frame(o).grab else {
+        let at = self.frame_along(o, px, py);
+        if self.frame(o).grab.is_none_or(|last| last == at) {
             return;
-        };
+        }
+        self.frame_mut(o).grab = Some(at);
         let rect = self.objects[o].base.rect;
-        let (at, _) = self.frame_along(o, px, py);
         let f = self.frame(o).clone();
         let total = if f.vertical { rect.width } else { rect.height };
-        let edge = at - grab;
-        let mut pos = if f.from_far { total - edge } else { edge };
-        if let Some(m) = f.max_pos {
-            pos = pos.min(if m < 0 { total + m } else { m });
+        let at = at.clamp(0, total);
+        let mut pos = if f.from_far { total - at } else { at };
+        let from = |limit: i32| if limit < 0 { total + limit } else { limit };
+        let shut = if pos < from(f.min_pos) {
+            // one over the other, the divider of a shut bottom pane would lie under the
+            // frame, out of reach: there the pane stops at its minimum
+            if f.from_far && f.vertical && f.second.is_some() {
+                pos = 0;
+                true
+            } else {
+                pos = from(f.min_pos);
+                false
+            }
+        } else {
+            false
+        };
+        if !shut {
+            if let Some(max) = f.max_pos.filter(|m| *m != 0) {
+                pos = pos.min(from(max));
+            }
         }
-        let top = (total - SIZER).max(0);
-        pos = pos.clamp(f.min_pos.min(top), top);
         if pos == f.pos {
             return;
         }
