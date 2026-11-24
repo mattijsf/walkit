@@ -609,6 +609,9 @@ impl SkinRuntime {
 
     pub(crate) fn has_focus(&mut self, l: Option<ObjId>) -> bool {
         let Some(l) = l else { return false };
+        if self.app_inactive {
+            return false;
+        }
         let windows = self.windows();
         let focused = self
             .focused
@@ -638,6 +641,38 @@ impl SkinRuntime {
             // the window has the keys itself, unless it is the playlist's own
             self.focused_part = self.window_part(l);
         }
+    }
+
+    /// Tells the engine whether the host's app has the keyboard. While another app has it no
+    /// window shows the focus, as every Winamp window shows itself behind then: each layout
+    /// paints with its `inactivealpha` and its inactive pictures, a classic window with its
+    /// title bar unlit. The window that had the focus has it again when the app is active
+    /// again; a press, or `focus_window`, makes the app active too. Scripts hear the change in
+    /// `System.isAppActive`. The engine starts active.
+    pub fn set_app_active(&mut self, active: bool) {
+        if self.app_inactive != active {
+            return;
+        }
+        self.app_inactive = !active;
+        self.refresh_focused_window();
+    }
+
+    /// Whether the host's app has the keyboard, as `set_app_active` said last.
+    pub fn app_active(&self) -> bool {
+        !self.app_inactive
+    }
+
+    /// The window with the focus shows it again, or no longer, after the app's state changed.
+    fn refresh_focused_window(&mut self) {
+        let windows = self.windows();
+        if let Some(l) = self
+            .focused
+            .filter(|f| windows.contains(f))
+            .or_else(|| self.main_layout())
+        {
+            self.refresh_alphas(l);
+        }
+        self.invalidate();
     }
 
     /// The part of the skin that has the keyboard: one a press gave it to, or the window
@@ -676,6 +711,8 @@ impl SkinRuntime {
     /// Gives `l` the focus as a touch does: the window losing it and `l` show their alphas and
     /// pictures for it on the next frame, with nothing moved or resized.
     pub(crate) fn take_focus(&mut self, l: ObjId) {
+        // a press or the host's focus reaches only the app the person works in
+        self.set_app_active(true);
         if Some(l) == self.focused {
             return;
         }

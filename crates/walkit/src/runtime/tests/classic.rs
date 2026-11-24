@@ -3062,6 +3062,43 @@ fn the_host_gives_a_window_the_focus() {
 }
 
 #[test]
+fn every_window_shows_itself_behind_while_another_app_has_the_keys() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    apart(&mut rt);
+    rt.tick();
+    let main = rt.main_window().expect("the main window");
+    let equalizer = rt.window_of("equalizer").expect("the equalizer");
+    let (main_at, equalizer_at) = (rt.window_rect(main), rt.window_rect(equalizer));
+    let drawn = |all: &[(Rect, Vec<DrawCmd>)], at: Rect| {
+        all.iter().find(|(r, _)| *r == at).map(|(_, d)| d.clone())
+    };
+    let lit = rt.draw_windows();
+    assert!(drawn(&lit, main_at).is_some() && drawn(&lit, equalizer_at).is_some());
+    assert!(rt.app_active());
+    rt.set_app_active(false);
+    assert!(!rt.app_active());
+    let behind = rt.draw_windows();
+    assert_ne!(
+        drawn(&behind, main_at),
+        drawn(&lit, main_at),
+        "the main window's title bar unlit"
+    );
+    // the equalizer was behind already
+    assert_eq!(drawn(&behind, equalizer_at), drawn(&lit, equalizer_at));
+    // the window that had the focus keeps it, and shows it again
+    assert_eq!(rt.focused_window(), Some(main));
+    rt.set_app_active(true);
+    assert_eq!(rt.draw_windows(), lit);
+    // a press brings the app back as well
+    rt.set_app_active(false);
+    let at = rt.window_rect(main);
+    rt.pointer_down(at.left + 60, at.top + 40, 1);
+    rt.pointer_up(at.left + 60, at.top + 40);
+    assert!(rt.app_active());
+}
+
+#[test]
 fn a_drag_of_docked_windows_only_places_them_again() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));
