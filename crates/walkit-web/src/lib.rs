@@ -664,6 +664,21 @@ pub extern "C" fn wk_rt_set_touch(id: i32, on: i32) -> i32 {
     .unwrap_or(0)
 }
 
+/// How many pixels either side of flat a dragged equalizer band or preamp still snaps to flat,
+/// where that is more than Winamp's reach; 0 keeps Winamp's.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_eq_snap_reach(id: i32, pixels: i32) -> i32 {
+    with_rt(id, |r| {
+        let p = r.engine.presentation();
+        r.engine.set_presentation(&walkit::host::Presentation {
+            eq_snap_reach: pixels,
+            ..p
+        });
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
 /// A right click, or a long press, at the last pointer position; `seq` names the touch.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_right_click(id: i32, seq: i32) -> i32 {

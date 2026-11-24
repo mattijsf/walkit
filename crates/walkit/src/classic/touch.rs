@@ -1290,8 +1290,17 @@ impl SkinRuntime {
                 // the band's step 0..=63 (0 at the top) from the finger less where
                 // it took the thumb, over 52 rows to 64 steps; a step either side of the middle
                 // snaps to it (unless Shift, which a touch never holds)
-                let step = ((py - press.grab - 39) * 64 / 52).clamp(0, 63);
-                let step = if (30..=32).contains(&step) { 31 } else { step };
+                let along = py - press.grab - 39;
+                let step = (along * 64 / 52).clamp(0, 63);
+                // Winamp's reach is rows 25 and 26 of the 52; a host may ask for more rows
+                // either side (`Presentation::eq_snap_reach`)
+                let reach = self.eq_snap_reach;
+                let near = reach > 1 && ((26 - reach)..=(25 + reach)).contains(&along);
+                let step = if near || (30..=32).contains(&step) {
+                    31
+                } else {
+                    step
+                };
                 let v = if step == 31 {
                     crate::runtime::EQ_FLAT
                 } else {

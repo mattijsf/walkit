@@ -320,6 +320,10 @@ pub struct Presentation {
     /// Pixels a classic playlist adds to each row's height, for rows a finger can pick more
     /// easily; 0 keeps the font's row (Winamp's 15).
     pub list_row_extra: i32,
+    /// How many pixels either side of flat a dragged equalizer band or preamp still snaps to
+    /// flat, where that is more than Winamp's reach; 0 keeps Winamp's, a step either side of
+    /// a classic slider's middle (a pixel) and 7.5 % of a modern slider's track.
+    pub eq_snap_reach: i32,
 }
 
 impl Default for Presentation {
@@ -335,6 +339,7 @@ impl Default for Presentation {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
+            eq_snap_reach: 0,
         }
     }
 }

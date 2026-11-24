@@ -432,6 +432,14 @@ export class Runtime {
     this.w.x.wk_rt_set_touch(this.id, on ? 1 : 0);
   }
 
+  /**
+   * How many pixels either side of flat a dragged equalizer band or preamp still snaps to flat,
+   * where that is more than Winamp's reach; 0 keeps Winamp's.
+   */
+  setEqSnapReach(pixels) {
+    this.w.x.wk_rt_set_eq_snap_reach(this.id, pixels);
+  }
+
   /** Scrolls a classic playlist for notches of the mouse wheel, down for more than 0, as far as the classic style's Winamp does. */
   wheelPlaylist(notches) {
     this.w.x.wk_rt_wheel_playlist(this.id, notches);

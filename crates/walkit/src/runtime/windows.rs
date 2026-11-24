@@ -349,6 +349,7 @@ impl SkinRuntime {
             touch: self.touch,
             skin_list_font: self.skin_list_font,
             list_row_extra: self.list_row_extra,
+            eq_snap_reach: self.eq_snap_reach,
         }
     }
 
@@ -361,6 +362,7 @@ impl SkinRuntime {
         self.set_stretch_last(p.stretch_last);
         self.touch_slop = p.touch_slop;
         self.touch = p.touch;
+        self.eq_snap_reach = p.eq_snap_reach.max(0);
         if p.list_row_extra.max(0) != self.list_row_extra {
             self.list_row_extra = p.list_row_extra.max(0);
             self.dirty = true;

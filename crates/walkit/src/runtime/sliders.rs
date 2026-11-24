@@ -128,7 +128,12 @@ impl SkinRuntime {
             (px - rect.left - s.grab) as f64 / travel as f64
         };
         let value = s.low + (frac.clamp(0.0, 1.0) * self.slider_range(o) as f64) as i32;
-        self.slider_hot_spot(o, value)
+        let travel = if s.vertical {
+            rect.height - th
+        } else {
+            rect.width - tw
+        };
+        self.slider_hot_spot(o, value, travel.max(1))
     }
 
     /// Whether `s` is an EQ band slider (not the preamp).
@@ -161,12 +166,13 @@ impl SkinRuntime {
     /// Where a dragged balance or EQ slider settles: Winamp's balance, band and preamp sliders
     /// snap to their middle when the finger brings them within a reach of it: 7.5 % of the
     /// track's pixels, cut to whole pixels, in steps of the range. A volume or seek slider has
-    /// no such spot.
-    fn slider_hot_spot(&self, o: ObjId, value: i32) -> i32 {
+    /// no such spot. A host may ask for a wider reach on the equalizer's sliders, in pixels of
+    /// the thumb's `travel` (`Presentation::eq_snap_reach`).
+    fn slider_hot_spot(&self, o: ObjId, value: i32, travel: i32) -> i32 {
         let s = self.slider(o);
-        let hot = match s.action.as_deref() {
-            Some("pan") => s.low + PAN_REACH,
-            Some("eq_band" | "eq_preamp") => 0,
+        let (hot, equalizer) = match s.action.as_deref() {
+            Some("pan") => (s.low + PAN_REACH, false),
+            Some("eq_band" | "eq_preamp") => (0, true),
             _ => return value,
         };
         let rect = self.objects[o].base.rect;
@@ -174,7 +180,10 @@ impl SkinRuntime {
         if track <= 0 {
             return value;
         }
-        let reach = (f64::from(track) * 0.075) as i32 * (s.high - s.low) / track;
+        let mut reach = (f64::from(track) * 0.075) as i32 * (s.high - s.low) / track;
+        if equalizer && self.eq_snap_reach > 0 {
+            reach = reach.max(self.eq_snap_reach * (s.high - s.low) / travel);
+        }
         if (value - hot).abs() < reach {
             hot
         } else {

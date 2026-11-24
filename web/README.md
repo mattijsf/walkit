@@ -97,7 +97,8 @@ The runtime also:
 - says which cursor belongs at a point of a modern skin, over a divider between panes or a
   window's resize grip: `pointerShapeAt`;
 - keeps a classic skin's time direction and equalizer auto in step with the host's settings:
-  `timeRemaining`, `eqAuto` and their setters.
+  `timeRemaining`, `eqAuto` and their setters;
+- widens the reach within which an equalizer slider snaps to flat: `setEqSnapReach`.
 
 ## The player page
 

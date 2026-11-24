@@ -190,6 +190,7 @@ internal object Native {
         touch: Boolean,
         skinListFont: Boolean,
         listRowExtra: Int,
+        eqSnapReach: Int,
     )
 
     @JvmStatic

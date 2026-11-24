@@ -166,6 +166,9 @@ pub struct SkinRuntime {
     pub(crate) action_from: Option<Rect>,
     /// Pixels the classic playlist adds to a row (`Presentation::list_row_extra`).
     pub(crate) list_row_extra: i32,
+    /// Pixels either side of flat an equalizer slider snaps within, when more than Winamp's
+    /// (`Presentation::eq_snap_reach`).
+    pub(crate) eq_snap_reach: i32,
     /// The classic playlist font's em in pixels (`set_classic_list_font_size`).
     pub(crate) classic_list_font: i32,
     /// The window holders that take a component as they show (`autoopen`) and showed at the
@@ -488,6 +491,7 @@ impl SkinRuntime {
             touch: false,
             skin_list_font: false,
             list_row_extra: 0,
+            eq_snap_reach: 0,
             classic_list_font: crate::classic::style::ClassicStyle::Winamp5666.list_font_size(),
             classic_style: crate::classic::style::ClassicStyle::Winamp5666,
             holders_shown: Vec::new(),

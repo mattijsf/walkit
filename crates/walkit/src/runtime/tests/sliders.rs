@@ -43,6 +43,62 @@ fn the_balance_snaps_to_its_middle_within_its_reach() {
 }
 
 #[test]
+fn a_host_widens_the_reach_an_eq_band_snaps_to_flat_within() {
+    let mut rt = loaded();
+    rt.set_presentation(&crate::host::Presentation {
+        eq_snap_reach: 8,
+        ..rt.presentation()
+    });
+    // dragged down a pixel at a time: flat for 15 pixels around the middle, where Winamp's
+    // reach gives 8
+    let flat_rows = |rt: &mut SkinRuntime, x: i32, seq: i32, preamp: bool| {
+        rt.pointer_down(x, 5, seq);
+        let mut flat = Vec::new();
+        for y in 20..=60 {
+            rt.pointer_move(x, y);
+            let value = if preamp {
+                rt.player.eq_preamp()
+            } else {
+                rt.player.eq_bands()[0]
+            };
+            if value == crate::runtime::EQ_FLAT {
+                flat.push(y);
+            }
+        }
+        rt.pointer_up(x, 60);
+        flat
+    };
+    let band = flat_rows(&mut rt, 106, 1, false);
+    assert_eq!(band, (30..=44).collect::<Vec<_>>());
+    assert_eq!(flat_rows(&mut rt, 166, 2, true), band, "the preamp too");
+    // a reach under Winamp's leaves Winamp's
+    rt.set_presentation(&crate::host::Presentation {
+        eq_snap_reach: 2,
+        ..rt.presentation()
+    });
+    rt.player.set_eq_band(0, 255);
+    assert_eq!(
+        flat_rows(&mut rt, 106, 3, false),
+        (34..=41).collect::<Vec<_>>()
+    );
+    // the balance keeps its reach whatever the equalizer's
+    rt.set_presentation(&crate::host::Presentation {
+        eq_snap_reach: 20,
+        ..rt.presentation()
+    });
+    rt.pointer_down(5, 6, 4);
+    let mut centred = 0;
+    for x in 20..=60 {
+        rt.pointer_move(x, 6);
+        if rt.player.pan() == 0 {
+            centred += 1;
+        }
+    }
+    rt.pointer_up(60, 6);
+    assert_eq!(centred, 7);
+}
+
+#[test]
 fn an_eq_band_snaps_to_flat_within_its_reach() {
     let mut rt = loaded();
     // dragged down a pixel at a time: flat for 8 pixels, as in the VM
