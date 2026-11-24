@@ -79,9 +79,26 @@ impl SkinRuntime {
         true
     }
 
+    /// The name a frame's position is kept under between runs, as Winamp keeps it by the
+    /// frame's id; `None` for a frame without an id, whose position is not kept.
+    fn frame_setting(&self, o: ObjId) -> Option<String> {
+        let id = &self.objects[o].base.id;
+        (!id.is_empty()).then(|| format!("framewnd/{},p", id.to_lowercase()))
+    }
+
     /// Lays a frame's panes out: the divider `pos` pixels from the `from` side, kept between the
     /// minimum and maximum, taking 8 px; one child hidden, the other takes the whole frame.
     pub(crate) fn frame_lay_out_children(&mut self, o: ObjId) {
+        // where a drag left the divider in an earlier run takes the skin's place for it
+        if !self.frame(o).restored {
+            self.frame_mut(o).restored = true;
+            let kept = self
+                .frame_setting(o)
+                .and_then(|key| self.private_ints.get(&key).copied());
+            if let Some(pos) = kept {
+                self.frame_mut(o).pos = pos.max(0);
+            }
+        }
         let rect = self.objects[o].base.rect;
         let alpha = self.objects[o].base.effective_alpha;
         let f = self.frame(o).clone();
@@ -302,9 +319,13 @@ impl SkinRuntime {
         );
     }
 
-    /// The divider is let go.
+    /// The divider is let go, and where it lies is kept for the next run.
     pub(crate) fn frame_pointer_up(&mut self, o: ObjId) {
         self.frame_mut(o).grab = None;
+        if let Some(key) = self.frame_setting(o) {
+            let pos = self.frame(o).pos;
+            self.store_private_int(&key, pos);
+        }
     }
 
     /// The cursor over a frame's divider: by the way it is dragged.

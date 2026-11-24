@@ -174,3 +174,52 @@ fn the_pointer_over_a_divider_has_the_shape_of_its_drag() {
     assert_eq!(rt.pointer_shape_at(116, 80), PointerShape::LeftRight);
     assert_eq!(rt.pointer_shape_at(60, 80), PointerShape::Arrow);
 }
+
+#[test]
+fn where_a_drag_left_a_divider_is_kept_for_the_next_run() {
+    let mut rt = loaded();
+    let version = rt.settings_version();
+    // a press and a release with no move between keep the place the skin gave
+    rt.pointer_down(195, 50, 1);
+    rt.pointer_up(195, 50);
+    assert_eq!(
+        rt.saved_settings().ints.get("framewnd/side,p"),
+        Some(&100),
+        "kept by the frame's id"
+    );
+    rt.pointer_down(195, 50, 2);
+    rt.pointer_move(140, 50);
+    assert_eq!(
+        rt.saved_settings().ints.get("framewnd/side,p"),
+        Some(&100),
+        "not while it is dragged"
+    );
+    rt.pointer_up(140, 50);
+    let saved = rt.saved_settings();
+    assert_eq!(saved.ints.get("framewnd/side,p"), Some(&160));
+    assert!(rt.settings_version() > version, "the host hears of it");
+    // the pane shut by a drag far right is kept shut
+    rt.pointer_down(136, 50, 3);
+    rt.pointer_move(299, 50);
+    rt.pointer_up(299, 50);
+    let shut = rt.saved_settings();
+    assert_eq!(shut.ints.get("framewnd/side,p"), Some(&0));
+
+    // the next run: the divider is where it was left, the other frames where the skin has them
+    let mut next = runtime(PLAYER_XML);
+    next.restore_settings(&saved);
+    next.load();
+    assert_eq!(pane(&mut next, "b.btn"), (140, 0));
+    assert_eq!(pane(&mut next, "d.btn"), (0, 188));
+    let mut next = runtime(PLAYER_XML);
+    next.restore_settings(&shut);
+    next.load();
+    assert_eq!(pane(&mut next, "b.btn"), (300, 0));
+    // a place past what the frame allows now is brought within it
+    let mut far = saved.clone();
+    far.ints.insert("framewnd/side,p".into(), 5000);
+    let mut next = runtime(PLAYER_XML);
+    next.restore_settings(&far);
+    next.load();
+    assert_eq!(pane(&mut next, "b.btn"), (60, 0));
+}

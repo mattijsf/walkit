@@ -689,6 +689,8 @@ pub struct FrameData {
     pub sizer_rect: Rect,
     /// While the divider is dragged: how far along the frame the pointer last was.
     pub grab: Option<i32>,
+    /// Whether the position a drag left in an earlier run was looked for: once a frame.
+    pub restored: bool,
 }
 
 impl Default for FrameData {
@@ -706,6 +708,7 @@ impl Default for FrameData {
             resizable: true,
             sizer_rect: Rect::EMPTY,
             grab: None,
+            restored: false,
         }
     }
 }
