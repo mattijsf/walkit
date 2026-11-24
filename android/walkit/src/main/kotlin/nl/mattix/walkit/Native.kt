@@ -401,6 +401,18 @@ internal object Native {
     )
 
     @JvmStatic
+    external fun rtShowPlaylistRow(
+        h: Long,
+        row: Int,
+    )
+
+    @JvmStatic
+    external fun rtFollowPlaylistSong(
+        h: Long,
+        row: Int,
+    )
+
+    @JvmStatic
     external fun rtFocusWindow(
         h: Long,
         id: Int,

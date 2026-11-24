@@ -109,8 +109,10 @@ export interface Runtime {
   scrollAt(x: number, y: number, rows: number): boolean;
   /** The first song a classic playlist shows: how far it is scrolled. */
   playlistScroll(): number;
-  /** Scrolls a classic playlist as little as brings song `row` (from 0) into view. */
+  /** Scrolls the playlist, classic or modern, as little as brings song `row` (from 0) into view. */
   showPlaylistRow(row: number): void;
+  /** Brings song `row` (from 0), the one that plays, into the middle of the playlist when it does not show, as Winamp's playlist follows the song. */
+  followPlaylistSong(row: number): void;
   /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
   setTouch(on: boolean): void;
   /** How many pixels either side of its middle a dragged equalizer band, preamp or balance slider still snaps to the middle, where that is more than Winamp's reach; 0 keeps Winamp's. */

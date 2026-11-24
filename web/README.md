@@ -91,8 +91,9 @@ The runtime also:
 - says where the page draws its visualizer: `visRect`, a classic skin's `avs` window framed by
   `gen.bmp`, or a modern skin's AVS holder;
 - says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`;
-- shows the page's playlist selection, scrolls a playlist and brings a classic playlist's row
-  into view: `setPlaylistSelection`, `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`;
+- shows the page's playlist selection, scrolls a playlist, brings a row into view and follows
+  the song that plays, as Winamp's playlist does, classic or modern: `setPlaylistSelection`,
+  `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`, `followPlaylistSong`;
 - scrolls the list under the mouse wheel, wherever the skin shows one: `scrollAt`;
 - says which cursor belongs at a point of a modern skin, over a divider between panes or a
   window's resize grip: `pointerShapeAt`;

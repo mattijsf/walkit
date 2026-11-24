@@ -823,6 +823,56 @@ impl SkinRuntime {
         moved
     }
 
+    /// Scrolls the playlists as little as brings song `row` into view, as Winamp's playlist does
+    /// for a selection the keys moved: to the top row when it lies above what shows, to the
+    /// bottom row when it lies below, and not at all when it shows already. Both a classic
+    /// skin's playlist and a modern skin's, which in Winamp is the same window. A row past
+    /// the list counts as the last song.
+    pub fn show_playlist_row(&mut self, row: i32) {
+        self.bring_row_into_view(row, false);
+    }
+
+    /// Scrolls the playlists so that song `row`, the one that plays now, shows in the middle
+    /// when it does not show already, as Winamp's playlist follows the song: the list's first
+    /// row is `row` less half the rows shown, kept within the songs. Nothing moves while the
+    /// song shows. Both a classic skin's playlist and a modern skin's.
+    pub fn follow_playlist_song(&mut self, row: i32) {
+        self.bring_row_into_view(row, true);
+    }
+
+    fn bring_row_into_view(&mut self, row: i32, centre: bool) {
+        let len = self.player.tracks().len() as i32;
+        if len == 0 {
+            return;
+        }
+        let row = row.clamp(0, len - 1);
+        if let Some(h) = self.object_info("classic.pl").map(|o| o.rect.height) {
+            let rows = self.classic_pl_rows(h).max(1);
+            let top = self.classic_pl_scroll(h);
+            if let Some(to) = row_into_view(row, top, rows, len, centre) {
+                self.scroll_classic_playlist(to - top);
+            }
+        }
+        let views: Vec<ObjId> = (0..self.objects.len())
+            .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
+            .collect();
+        let mut moved = false;
+        for o in views {
+            let rows = ((self.pl_list_rect(o).height - PL_TOP) / PL_ROW).max(1);
+            let top = self.pl(o).scroll_px / PL_ROW;
+            if let Some(to) = row_into_view(row, top, rows, len, centre) {
+                let px = (to * PL_ROW).clamp(0, self.pl_max_scroll(o));
+                if px != self.pl(o).scroll_px {
+                    self.pl_mut(o).scroll_px = px;
+                    moved = true;
+                }
+            }
+        }
+        if moved {
+            self.repaint();
+        }
+    }
+
     /// Scrolls the list under the point (`x`, `y`) of the stack by `rows`, down for more than
     /// 0: what a host does for its mouse wheel, wherever a skin shows its lists. The list is a
     /// modern skin's playlist, its list of color themes, or a classic playlist window, and
@@ -1131,4 +1181,18 @@ fn tinted(b: BitmapDef, group: Option<&std::rc::Rc<str>>) -> BitmapDef {
             ..b
         }
     }
+}
+
+/// Where a list showing `rows` rows from row `top`, of `len` songs, starts for row `row` to
+/// show: `None` when it shows already. As little as brings it into view, or with `centre`
+/// in the middle, as Winamp's playlist follows the song that plays.
+fn row_into_view(row: i32, top: i32, rows: i32, len: i32, centre: bool) -> Option<i32> {
+    if (top..top + rows).contains(&row) {
+        return None;
+    }
+    if !centre {
+        return Some(if row < top { row } else { row - rows + 1 });
+    }
+    let to = (row - rows / 2).min(len - rows);
+    Some(to.max(0))
 }

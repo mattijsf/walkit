@@ -171,6 +171,67 @@ fn the_host_scrolls_the_list_for_its_wheel() {
 }
 
 #[test]
+fn a_modern_playlist_brings_a_row_into_view_and_follows_the_song() {
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let mut files = MemoryFiles::new();
+    files.insert("skin.xml", SKIN_XML.as_bytes());
+    files.insert("player.xml", PLAYER_XML.as_bytes());
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..30)
+        .map(|i| Track {
+            title: format!("song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RecordingHost(actions.clone(), Rc::default())),
+        Box::new(player),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    rt.ensure_layout();
+    // the row under a press at the list's top: the first row shown. The list is 100 high,
+    // six rows of 15 under its 3 pixels at the top
+    let mut seq = 0;
+    let mut top_row = |rt: &mut SkinRuntime| -> i32 {
+        seq += 1;
+        rt.set_playlist_selection(None);
+        actions.borrow_mut().clear();
+        rt.pointer_down(50, 30, seq);
+        rt.pointer_up(50, 30);
+        let first = actions.borrow().first().cloned().unwrap_or_default();
+        first["PLAYLIST_SELECT ".len()..].parse().unwrap()
+    };
+    // a row that shows moves nothing; one below comes in as the bottom row, one above as
+    // the top row
+    rt.show_playlist_row(3);
+    assert_eq!(top_row(&mut rt), 0);
+    rt.show_playlist_row(10);
+    assert_eq!(top_row(&mut rt), 5);
+    rt.show_playlist_row(11);
+    assert_eq!(top_row(&mut rt), 6);
+    rt.show_playlist_row(2);
+    assert_eq!(top_row(&mut rt), 2);
+    // the song that plays comes into the middle when it does not show, and stays put when
+    // it does
+    rt.follow_playlist_song(20);
+    assert_eq!(top_row(&mut rt), 17);
+    rt.follow_playlist_song(22);
+    assert_eq!(top_row(&mut rt), 17, "shows already");
+    // near the ends it stops at the list's ends
+    rt.follow_playlist_song(29);
+    assert_eq!(top_row(&mut rt), 24);
+    rt.follow_playlist_song(1);
+    assert_eq!(top_row(&mut rt), 0);
+}
+
+#[test]
 fn the_host_sets_the_selection_without_hearing_it_back() {
     let (mut rt, actions, _) = recording(true);
     rt.set_playlist_selection(Some(1));

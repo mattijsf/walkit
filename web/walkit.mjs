@@ -394,9 +394,14 @@ export class Runtime {
     return Math.max(0, this.w.x.wk_rt_playlist_scroll(this.id));
   }
 
-  /** Scrolls a classic playlist as little as brings song `row` (from 0) into view. */
+  /** Scrolls the playlist, classic or modern, as little as brings song `row` (from 0) into view. */
   showPlaylistRow(row) {
     this.w.x.wk_rt_show_playlist_row(this.id, row);
+  }
+
+  /** Brings song `row` (from 0), the one that plays, into the middle of the playlist when it does not show, as Winamp's playlist follows the song. */
+  followPlaylistSong(row) {
+    this.w.x.wk_rt_follow_playlist_song(this.id, row);
   }
 
   /** Whether a classic skin's time displays count down. */

@@ -1369,6 +1369,25 @@ pub fn rt_show_classic_playlist_row<'l>(
         .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// Scrolls the playlist, classic or modern, as little as brings song `row` into view.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_show_playlist_row<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, row: jint) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.show_playlist_row(row)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Brings song `row`, the one that plays, into the middle of the playlist when it does not show.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_follow_playlist_song<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    row: jint,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.follow_playlist_song(row)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
 /// Gives window `id` the focus, as a press on it does.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_focus_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, id: jint) {

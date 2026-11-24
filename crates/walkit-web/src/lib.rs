@@ -1005,10 +1005,20 @@ pub extern "C" fn wk_rt_playlist_scroll(id: i32) -> i32 {
     with_rt(id, |r| r.engine.classic_playlist_scroll()).unwrap_or(-1)
 }
 
-/// Scrolls a classic playlist as little as brings song `row` into view.
+/// Scrolls the playlist as little as brings song `row` into view: a classic skin's, or a
+/// modern skin's.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_show_playlist_row(id: i32, row: i32) -> i32 {
-    with_rt(id, |r| r.engine.show_classic_playlist_row(row))
+    with_rt(id, |r| r.engine.show_playlist_row(row))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// Brings song `row`, the one that plays, into the middle of the playlist when it does not
+/// show, as Winamp's playlist follows the song: a classic skin's, or a modern skin's.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_follow_playlist_song(id: i32, row: i32) -> i32 {
+    with_rt(id, |r| r.engine.follow_playlist_song(row))
         .map(|()| 1)
         .unwrap_or(0)
 }

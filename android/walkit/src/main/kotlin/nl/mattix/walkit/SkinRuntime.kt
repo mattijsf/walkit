@@ -691,6 +691,18 @@ public class SkinRuntime(
     public fun showClassicPlaylistRow(row: Int): Unit = Native.rtShowClassicPlaylistRow(h(), row)
 
     /**
+     * Scrolls the playlist as little as brings song [row] (from 0) into view, as Winamp's playlist
+     * does for a selection the keys moved: a classic skin's, or a modern skin's.
+     */
+    public fun showPlaylistRow(row: Int): Unit = Native.rtShowPlaylistRow(h(), row)
+
+    /**
+     * Brings song [row] (from 0), the one that plays, into the middle of the playlist when it does
+     * not show, as Winamp's playlist follows the song: a classic skin's, or a modern skin's.
+     */
+    public fun followPlaylistSong(row: Int): Unit = Native.rtFollowPlaylistSong(h(), row)
+
+    /**
      * Lets a classic skin's windows switch to their shade bars, from their shade buttons and a
      * double tap on their title bars, or not; turning it off puts every shaded one back in its
      * normal layout. On unless the host says otherwise.

@@ -2980,6 +2980,24 @@ fn the_host_brings_a_playlist_row_into_view() {
     // the wheel is read back the same way
     rt.scroll_classic_playlist(5);
     assert_eq!(rt.classic_playlist_scroll(), 5);
+    // the call for both kinds of playlist does the same here
+    rt.show_playlist_row(1);
+    assert_eq!(rt.classic_playlist_scroll(), 1);
+    // the song that plays comes into the middle when it does not show
+    let rows = {
+        rt.show_playlist_row(1000);
+        let end = rt.classic_playlist_scroll();
+        40 - end
+    };
+    rt.show_playlist_row(0);
+    rt.follow_playlist_song(20);
+    assert_eq!(rt.classic_playlist_scroll(), 20 - rows / 2);
+    rt.follow_playlist_song(20 - rows / 2);
+    assert_eq!(rt.classic_playlist_scroll(), 20 - rows / 2, "shows already");
+    rt.follow_playlist_song(39);
+    assert_eq!(rt.classic_playlist_scroll(), 40 - rows);
+    rt.show_playlist_row(0);
+    rt.scroll_classic_playlist(5);
     // and by the point it is at: over the playlist's window, not over the main window
     let list = rt.window_of("pledit").expect("the playlist's window");
     let at = rt.window_rect(list);
