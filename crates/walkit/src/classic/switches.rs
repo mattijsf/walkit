@@ -120,4 +120,34 @@ impl SkinRuntime {
             self.repaint();
         }
     }
+
+    /// The first song the classic playlist shows: how far it is scrolled. 0 when the skin has
+    /// no classic playlist on screen.
+    pub fn classic_playlist_scroll(&mut self) -> i32 {
+        match self.object_info("classic.pl") {
+            Some(o) => self.classic_pl_scroll(o.rect.height),
+            None => 0,
+        }
+    }
+
+    /// Scrolls the classic playlist as little as brings song `row` into view: to the top row
+    /// when it lies above what shows, to the bottom row when it lies below, and not at all
+    /// when it shows already. A row past the list counts as the last song.
+    pub fn show_classic_playlist_row(&mut self, row: i32) {
+        let Some(h) = self.object_info("classic.pl").map(|o| o.rect.height) else {
+            return;
+        };
+        let len = self.player.tracks().len() as i32;
+        if len == 0 {
+            return;
+        }
+        let row = row.clamp(0, len - 1);
+        let rows = self.classic_pl_rows(h).max(1);
+        let top = self.classic_pl_scroll(h);
+        if row < top {
+            self.scroll_classic_playlist(row - top);
+        } else if row >= top + rows {
+            self.scroll_classic_playlist(row - (top + rows - 1));
+        }
+    }
 }

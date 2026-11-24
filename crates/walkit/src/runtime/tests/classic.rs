@@ -2875,6 +2875,82 @@ fn a_drawing_pass_paints_one_moment_whatever_the_clock_does_meanwhile() {
 }
 
 #[test]
+fn the_host_brings_a_playlist_row_into_view() {
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..40)
+        .map(|i| Track {
+            title: format!("song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = classic_with(player, clock);
+    assert_eq!(rt.classic_playlist_scroll(), 0, "no playlist on screen");
+    rt.show_classic_playlist_row(10);
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    assert_eq!(rt.classic_playlist_scroll(), 0);
+    // a row that shows moves nothing
+    rt.show_classic_playlist_row(0);
+    assert_eq!(rt.classic_playlist_scroll(), 0);
+    // a row below what shows comes in as the bottom row
+    rt.show_classic_playlist_row(10);
+    let top = rt.classic_playlist_scroll();
+    assert!(top > 0 && top <= 10, "the list scrolled to {top}");
+    rt.show_classic_playlist_row(10);
+    assert_eq!(rt.classic_playlist_scroll(), top, "in view already");
+    rt.show_classic_playlist_row(11);
+    assert_eq!(
+        rt.classic_playlist_scroll(),
+        top + 1,
+        "one row further down"
+    );
+    // a row above what shows comes in as the top row
+    rt.show_classic_playlist_row(top);
+    assert_eq!(rt.classic_playlist_scroll(), top);
+    rt.show_classic_playlist_row(4);
+    assert_eq!(rt.classic_playlist_scroll(), 4);
+    // a row past the list is the last song, one before it the first
+    rt.show_classic_playlist_row(1000);
+    let end = rt.classic_playlist_scroll();
+    rt.scroll_classic_playlist(1);
+    assert_eq!(rt.classic_playlist_scroll(), end, "the list's end");
+    rt.show_classic_playlist_row(-5);
+    assert_eq!(rt.classic_playlist_scroll(), 0);
+    // the wheel is read back the same way
+    rt.scroll_classic_playlist(5);
+    assert_eq!(rt.classic_playlist_scroll(), 5);
+}
+
+#[test]
+fn the_host_gives_a_window_the_focus() {
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    apart(&mut rt);
+    rt.tick();
+    let main = rt.main_window().expect("the main window");
+    let equalizer = rt.window_of("equalizer").expect("the equalizer");
+    assert_eq!(rt.focused_window(), Some(main));
+    let before = rt.draw_windows();
+    rt.focus_window(equalizer);
+    assert_eq!(rt.focused_window(), Some(equalizer));
+    let after = rt.draw_windows();
+    assert_eq!(before.len(), after.len());
+    for ((_, was), (_, is)) in before.iter().zip(&after) {
+        assert_ne!(
+            was, is,
+            "the title bar that lost the focus and the one that got it"
+        );
+    }
+    // back again, and the windows draw as they did
+    rt.focus_window(main);
+    assert_eq!(rt.draw_windows(), before);
+    // no such window: the focus stays
+    rt.focus_window(crate::host::WindowId(99));
+    assert_eq!(rt.focused_window(), Some(main));
+}
+
+#[test]
 fn a_drag_of_docked_windows_only_places_them_again() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));

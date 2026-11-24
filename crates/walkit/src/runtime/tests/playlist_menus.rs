@@ -105,6 +105,58 @@ fn the_list_tells_the_host_the_entry_it_selects_once() {
 }
 
 #[test]
+fn the_host_scrolls_the_list_for_its_wheel() {
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let mut files = MemoryFiles::new();
+    files.insert("skin.xml", SKIN_XML.as_bytes());
+    files.insert("player.xml", PLAYER_XML.as_bytes());
+    let clock: Clock = Rc::new(|| 0);
+    let mut player = FakePlayer::new(clock.clone());
+    player.playlist = (0..30)
+        .map(|i| Track {
+            title: format!("song {i}"),
+            length_ms: 60_000,
+        })
+        .collect();
+    let mut rt = SkinRuntime::new(
+        Box::new(files),
+        Box::new(RecordingHost(actions.clone(), Rc::default())),
+        Box::new(player),
+        SkinSetup {
+            host_actions: true,
+            ..SkinSetup::default()
+        },
+        clock,
+    );
+    rt.load();
+    rt.ensure_layout();
+    // the row under a press at the list's top says how far it scrolled: rows start 3 px into
+    // the list, 15 px each
+    let mut seq = 0;
+    let mut top_row = |rt: &mut SkinRuntime| {
+        seq += 1;
+        rt.set_playlist_selection(None);
+        actions.borrow_mut().clear();
+        rt.pointer_down(50, 30, seq);
+        rt.pointer_up(50, 30);
+        actions.borrow().first().cloned().unwrap_or_default()
+    };
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 0");
+    rt.scroll_playlist(4);
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 4");
+    rt.scroll_playlist(-1);
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 3");
+    // within its songs: up past the first, down past the last
+    rt.scroll_playlist(-100);
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 0");
+    rt.scroll_playlist(1000);
+    let end = top_row(&mut rt);
+    rt.scroll_playlist(1);
+    assert_eq!(top_row(&mut rt), end);
+    assert_ne!(end, "PLAYLIST_SELECT 0");
+}
+
+#[test]
 fn the_host_sets_the_selection_without_hearing_it_back() {
     let (mut rt, actions, _) = recording(true);
     rt.set_playlist_selection(Some(1));

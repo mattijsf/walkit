@@ -797,6 +797,27 @@ impl SkinRuntime {
         self.action(o, "PLAYLIST_SELECT", Some(&index.to_string()), None);
     }
 
+    /// Scrolls a modern skin's playlists by `rows`, down for more than 0, within their songs:
+    /// what a host does for its mouse wheel over one. A classic playlist has
+    /// [`SkinRuntime::scroll_classic_playlist`].
+    pub fn scroll_playlist(&mut self, rows: i32) {
+        let views: Vec<ObjId> = (0..self.objects.len())
+            .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
+            .collect();
+        let mut moved = false;
+        for o in views {
+            let max = self.pl_max_scroll(o);
+            let to = (self.pl(o).scroll_px + rows * PL_ROW).clamp(0, max);
+            if to != self.pl(o).scroll_px {
+                self.pl_mut(o).scroll_px = to;
+                moved = true;
+            }
+        }
+        if moved {
+            self.repaint();
+        }
+    }
+
     /// Shows entry `index` (or none) as the playlists' selection, as the host's playlist
     /// has it after it changed the selection or the list itself; the host is not told back.
     pub fn set_playlist_selection(&mut self, index: Option<i32>) {

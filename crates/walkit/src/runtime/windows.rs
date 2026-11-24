@@ -624,6 +624,18 @@ impl SkinRuntime {
             .map(|l| self.window_id_of(l))
     }
 
+    /// Gives window `id` the focus, as a press on it does: for a host whose windows take
+    /// the keyboard by other ways than a click. The window losing the focus and `id` show it on
+    /// the next frame. Nothing for an id that is no window on screen.
+    pub fn focus_window(&mut self, id: WindowId) {
+        let Some(&l) = self.layouts_by_id.get((id.0 as usize).wrapping_sub(1)) else {
+            return;
+        };
+        if self.windows().contains(&l) {
+            self.take_focus(l);
+        }
+    }
+
     /// Gives `l` the focus as a touch does: the window losing it and `l` show their alphas and
     /// pictures for it on the next frame, with nothing moved or resized.
     pub(crate) fn take_focus(&mut self, l: ObjId) {
