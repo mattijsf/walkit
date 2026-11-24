@@ -2127,7 +2127,7 @@ fn a_band_near_the_middle_snaps_to_it() {
 }
 
 #[test]
-fn a_host_widens_the_reach_a_band_snaps_to_the_middle_within() {
+fn a_host_widens_the_reach_a_band_and_the_balance_snap_to_the_middle_within() {
     let mut rt = classic();
     assert!(rt.open_window("equalizer"));
     rt.ensure_layout();
@@ -2139,7 +2139,7 @@ fn a_host_widens_the_reach_a_band_snaps_to_the_middle_within() {
     };
     // four rows either side of the middle in place of Winamp's one: rows 66 to 73
     rt.set_presentation(&crate::host::Presentation {
-        eq_snap_reach: 4,
+        snap_reach: 4,
         ..rt.presentation()
     });
     let snapped: Vec<i32> = (60..=80).filter(|y| snaps_at(&mut rt, *y, *y)).collect();
@@ -2149,10 +2149,34 @@ fn a_host_widens_the_reach_a_band_snaps_to_the_middle_within() {
     rt.pointer_down(28, 116 + 66, 100);
     rt.pointer_up(28, 116 + 66);
     assert_eq!(rt.player.eq_preamp(), 128);
+    // the balance: its thumb's places 9 to 15 of 25 are the middle, in place of 11 to 13
+    let centred = |rt: &mut SkinRuntime, seq: i32| -> Vec<i32> {
+        rt.pointer_down(196, 63, seq);
+        let places: Vec<i32> = (184..=208)
+            .filter(|x| {
+                rt.pointer_move(*x, 63);
+                rt.player.pan() == 0
+            })
+            .collect();
+        rt.pointer_move(215, 63);
+        rt.pointer_up(215, 63);
+        places
+    };
+    rt.set_presentation(&crate::host::Presentation {
+        snap_reach: 3,
+        ..rt.presentation()
+    });
+    let wide = centred(&mut rt, 300);
+    rt.set_presentation(&crate::host::Presentation {
+        snap_reach: 0,
+        ..rt.presentation()
+    });
+    let winamps = centred(&mut rt, 301);
+    assert_eq!((winamps.len(), wide.len()), (3, 7), "{winamps:?} {wide:?}");
     // a reach of one, or none, is Winamp's
     for reach in [1, 0] {
         rt.set_presentation(&crate::host::Presentation {
-            eq_snap_reach: reach,
+            snap_reach: reach,
             ..rt.presentation()
         });
         let snapped: Vec<i32> = (60..=80)

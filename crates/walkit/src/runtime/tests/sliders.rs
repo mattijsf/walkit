@@ -43,10 +43,10 @@ fn the_balance_snaps_to_its_middle_within_its_reach() {
 }
 
 #[test]
-fn a_host_widens_the_reach_an_eq_band_snaps_to_flat_within() {
+fn a_host_widens_the_reach_a_band_and_the_balance_snap_to_the_middle_within() {
     let mut rt = loaded();
     rt.set_presentation(&crate::host::Presentation {
-        eq_snap_reach: 8,
+        snap_reach: 8,
         ..rt.presentation()
     });
     // dragged down a pixel at a time: flat for 15 pixels around the middle, where Winamp's
@@ -73,7 +73,7 @@ fn a_host_widens_the_reach_an_eq_band_snaps_to_flat_within() {
     assert_eq!(flat_rows(&mut rt, 166, 2, true), band, "the preamp too");
     // a reach under Winamp's leaves Winamp's
     rt.set_presentation(&crate::host::Presentation {
-        eq_snap_reach: 2,
+        snap_reach: 2,
         ..rt.presentation()
     });
     rt.player.set_eq_band(0, 255);
@@ -81,9 +81,9 @@ fn a_host_widens_the_reach_an_eq_band_snaps_to_flat_within() {
         flat_rows(&mut rt, 106, 3, false),
         (34..=41).collect::<Vec<_>>()
     );
-    // the balance keeps its reach whatever the equalizer's
+    // the balance has the reach too: its 7 pixels in the middle become 15
     rt.set_presentation(&crate::host::Presentation {
-        eq_snap_reach: 20,
+        snap_reach: 8,
         ..rt.presentation()
     });
     rt.pointer_down(5, 6, 4);
@@ -95,7 +95,7 @@ fn a_host_widens_the_reach_an_eq_band_snaps_to_flat_within() {
         }
     }
     rt.pointer_up(60, 6);
-    assert_eq!(centred, 7);
+    assert_eq!(centred, 15);
 }
 
 #[test]

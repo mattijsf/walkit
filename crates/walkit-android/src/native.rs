@@ -641,7 +641,7 @@ pub fn rt_presentation<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong
                 p.touch as i32,
                 p.skin_list_font as i32,
                 p.list_row_extra,
-                p.eq_snap_reach,
+                p.snap_reach,
             ],
         )
     })
@@ -668,7 +668,7 @@ pub fn rt_set_presentation<'l>(
     touch: jboolean,
     skin_list_font: jboolean,
     list_row_extra: jint,
-    eq_snap_reach: jint,
+    snap_reach: jint,
 ) {
     env.with_env(|env| {
         let p = Presentation {
@@ -682,7 +682,7 @@ pub fn rt_set_presentation<'l>(
             touch,
             skin_list_font,
             list_row_extra,
-            eq_snap_reach,
+            snap_reach,
         };
         with_rt(env, h, |r| r.rt.set_presentation(&p))
     })

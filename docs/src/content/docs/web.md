@@ -78,7 +78,8 @@ Besides drawing, the runtime:
   window's resize grip: `pointerShapeAt`;
 - keeps a classic skin's time direction and equalizer auto in step with the host's settings:
   `timeRemaining`, `eqAuto` and their setters;
-- widens the reach within which an equalizer slider snaps to flat: `setEqSnapReach`.
+- widens the reach within which an equalizer or balance slider snaps to its middle:
+  `setSnapReach`.
 
 `embed.d.ts` types the whole surface.
 

@@ -216,7 +216,7 @@ public class SkinRuntime(
                 touch = p[10] != 0,
                 skinListFont = p[11] != 0,
                 listRowExtra = p[12],
-                eqSnapReach = p[13],
+                snapReach = p[13],
             )
         }
         set(value) =
@@ -235,7 +235,7 @@ public class SkinRuntime(
                 value.touch,
                 value.skinListFont,
                 value.listRowExtra,
-                value.eqSnapReach,
+                value.snapReach,
             )
 
     // ---- loading and themes --------------------------------------------------------------------

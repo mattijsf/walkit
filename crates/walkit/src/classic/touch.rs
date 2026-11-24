@@ -1226,9 +1226,12 @@ impl SkinRuntime {
                 self.classic_say_volume();
             }
             Control::Balance => {
-                // the thumb's place 0..=24; a step either side of the middle snaps to it
+                // the thumb's place 0..=24; a step either side of the middle snaps to it, or
+                // as many as the host asks for (`Presentation::snap_reach`)
                 let at = (px - press.grab - 177).clamp(0, 24);
-                let b = if self.classic_style.balance_snap().contains(&at) {
+                let reach = self.snap_reach;
+                let near = reach > 1 && ((12 - reach)..=(12 + reach)).contains(&at);
+                let b = if near || self.classic_style.balance_snap().contains(&at) {
                     0
                 } else {
                     (at - 12) * 127 / 12
@@ -1293,8 +1296,8 @@ impl SkinRuntime {
                 let along = py - press.grab - 39;
                 let step = (along * 64 / 52).clamp(0, 63);
                 // Winamp's reach is rows 25 and 26 of the 52; a host may ask for more rows
-                // either side (`Presentation::eq_snap_reach`)
-                let reach = self.eq_snap_reach;
+                // either side (`Presentation::snap_reach`)
+                let reach = self.snap_reach;
                 let near = reach > 1 && ((26 - reach)..=(25 + reach)).contains(&along);
                 let step = if near || (30..=32).contains(&step) {
                     31

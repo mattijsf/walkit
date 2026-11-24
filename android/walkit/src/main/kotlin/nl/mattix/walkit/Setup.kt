@@ -26,7 +26,7 @@ public data class SkinSetup(
  * - [touch]: whether a finger drives the skin rather than a mouse;
  * - [skinListFont]: whether a classic playlist spells its rows in the skin's text.bmp letters;
  * - [listRowExtra]: pixels a classic playlist adds to each row's height;
- * - [eqSnapReach]: pixels either side of flat a dragged equalizer slider still snaps to flat.
+ * - [snapReach]: pixels either side of its middle a dragged equalizer or balance slider still snaps to it.
  */
 public data class Presentation(
     val viewSize: Pair<Int, Int>? = null,
@@ -56,11 +56,11 @@ public data class Presentation(
     /** Pixels a classic playlist adds to each row's height, for rows a finger picks more easily; 0 keeps Winamp's. */
     val listRowExtra: Int = 0,
     /**
-     * How many pixels either side of flat a dragged equalizer band or preamp still snaps to flat,
-     * where that is more than Winamp's reach; 0 keeps Winamp's, a pixel on a classic slider and
-     * 7.5 % of a modern slider's track.
+     * How many pixels either side of its middle a dragged equalizer band, preamp or balance
+     * slider still snaps to the middle, where that is more than Winamp's reach; 0 keeps Winamp's,
+     * a pixel on a classic slider and 7.5 % of a modern slider's track.
      */
-    val eqSnapReach: Int = 0,
+    val snapReach: Int = 0,
 )
 
 /**

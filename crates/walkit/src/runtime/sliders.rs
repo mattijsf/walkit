@@ -166,13 +166,13 @@ impl SkinRuntime {
     /// Where a dragged balance or EQ slider settles: Winamp's balance, band and preamp sliders
     /// snap to their middle when the finger brings them within a reach of it: 7.5 % of the
     /// track's pixels, cut to whole pixels, in steps of the range. A volume or seek slider has
-    /// no such spot. A host may ask for a wider reach on the equalizer's sliders, in pixels of
-    /// the thumb's `travel` (`Presentation::eq_snap_reach`).
+    /// no such spot. A host may ask for a wider reach, in pixels of the thumb's `travel`
+    /// (`Presentation::snap_reach`).
     fn slider_hot_spot(&self, o: ObjId, value: i32, travel: i32) -> i32 {
         let s = self.slider(o);
-        let (hot, equalizer) = match s.action.as_deref() {
-            Some("pan") => (s.low + PAN_REACH, false),
-            Some("eq_band" | "eq_preamp") => (0, true),
+        let hot = match s.action.as_deref() {
+            Some("pan") => s.low + PAN_REACH,
+            Some("eq_band" | "eq_preamp") => 0,
             _ => return value,
         };
         let rect = self.objects[o].base.rect;
@@ -181,8 +181,8 @@ impl SkinRuntime {
             return value;
         }
         let mut reach = (f64::from(track) * 0.075) as i32 * (s.high - s.low) / track;
-        if equalizer && self.eq_snap_reach > 0 {
-            reach = reach.max(self.eq_snap_reach * (s.high - s.low) / travel);
+        if self.snap_reach > 0 {
+            reach = reach.max(self.snap_reach * (s.high - s.low) / travel);
         }
         if (value - hot).abs() < reach {
             hot
