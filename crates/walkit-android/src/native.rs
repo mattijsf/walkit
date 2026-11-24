@@ -1292,6 +1292,59 @@ pub fn rt_set_classic_playlist_selection<'l>(
     .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// Scrolls the playlist by `rows`, down for more than 0: a classic skin's, or a modern skin's.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_scroll_playlist<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, rows: jint) {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            r.rt.scroll_classic_playlist(rows);
+            r.rt.scroll_playlist(rows);
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// The first song a classic playlist shows: how far it is scrolled.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_classic_playlist_scroll<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+) -> jint {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.classic_playlist_scroll()))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Scrolls a classic playlist as little as brings song `row` into view.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_show_classic_playlist_row<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    row: jint,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.show_classic_playlist_row(row)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Gives window `id` the focus, as a press on it does.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_focus_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, id: jint) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.focus_window(WindowId(id as u32))))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// The window that has the focus, or -1.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_focused_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> jint {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            r.rt.focused_window().map_or(-1, |w| w.0 as jint)
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// Lets the classic windows switch to their shade bars, or not.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_set_classic_shades<'l>(

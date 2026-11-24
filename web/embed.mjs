@@ -257,7 +257,8 @@ const CHANGES = [
   "setPlayerState", "setPlaylist", "setVis", "pointerDown", "pointerMove", "pointerUp", "doubleTap",
   "rightClick", "openWindow", "closeWindow", "placeWindow", "resizeWindow", "setWindowLayout",
   "setWindowScale", "setWindowTitle", "setFree", "setView", "setTimeRemaining", "setEqAuto",
-  "setPlaylistSelection", "scrollPlaylist", "wheelPlaylist", "setListFontSize", "setClassicStyle",
+  "setPlaylistSelection", "scrollPlaylist", "wheelPlaylist", "showPlaylistRow", "focusWindow",
+  "setListFontSize", "setClassicStyle",
   "selectTheme", "player",
 ];
 

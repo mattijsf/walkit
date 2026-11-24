@@ -375,6 +375,21 @@ export class Runtime {
     return w < 0 ? null : w;
   }
 
+  /** Gives window `id` the focus, as a press on it does: for a page whose keyboard goes to a window by other ways than a click. */
+  focusWindow(id) {
+    this.w.x.wk_rt_focus_window(this.id, id);
+  }
+
+  /** The first song a classic playlist shows: how far it is scrolled. */
+  playlistScroll() {
+    return Math.max(0, this.w.x.wk_rt_playlist_scroll(this.id));
+  }
+
+  /** Scrolls a classic playlist as little as brings song `row` (from 0) into view. */
+  showPlaylistRow(row) {
+    this.w.x.wk_rt_show_playlist_row(this.id, row);
+  }
+
   /** Whether a classic skin's time displays count down. */
   timeRemaining() {
     return this.w.x.wk_rt_time_remaining(this.id) !== 0;

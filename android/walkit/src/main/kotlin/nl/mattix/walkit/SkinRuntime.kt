@@ -301,6 +301,17 @@ public class SkinRuntime(
     /** The window container [container] shows now (its current layout), or null when the skin has no such container. */
     public fun windowOf(container: String): WindowId? = Native.rtWindowOf(h(), container).takeIf { it >= 0 }?.let { WindowId(it) }
 
+    /** The window that has the focus: the one pressed last, else the main window. */
+    public val focusedWindow: WindowId?
+        get() = Native.rtFocusedWindow(h()).takeIf { it >= 0 }?.let { WindowId(it) }
+
+    /**
+     * Gives [id] the focus, as a press on it does: for a host whose windows take the keyboard by
+     * other ways than a touch. Its title bar and the one that lost the focus show it on the next
+     * frame. Nothing for an id that is no window on screen.
+     */
+    public fun focusWindow(id: WindowId): Unit = Native.rtFocusWindow(h(), id.raw)
+
     /** Where [id] sits in the stack, in layout pixels. */
     public fun windowRect(id: WindowId): Rect = Native.rtWindowRect(h(), id.raw).let { Rect(it[0], it[1], it[2], it[3]) }
 
@@ -637,6 +648,23 @@ public class SkinRuntime(
      */
     public fun setClassicPlaylistSelection(rows: Collection<Int>): Unit =
         Native.rtSetClassicPlaylistSelection(h(), rows.toIntArray())
+
+    /**
+     * Scrolls the playlist by [rows], down for more than 0, within its songs: a classic skin's, or
+     * a modern skin's. For a mouse wheel over the list.
+     */
+    public fun scrollPlaylist(rows: Int): Unit = Native.rtScrollPlaylist(h(), rows)
+
+    /** The first song a classic playlist shows: how far it is scrolled. */
+    public val classicPlaylistScroll: Int
+        get() = Native.rtClassicPlaylistScroll(h())
+
+    /**
+     * Scrolls a classic playlist as little as brings song [row] (from 0) into view: to the top row
+     * when it lies above what shows, to the bottom row when it lies below, and not at all when it
+     * shows already. For a selection moved by the arrow keys, and for following the song that plays.
+     */
+    public fun showClassicPlaylistRow(row: Int): Unit = Native.rtShowClassicPlaylistRow(h(), row)
 
     /**
      * Lets a classic skin's windows switch to their shade bars, from their shade buttons and a

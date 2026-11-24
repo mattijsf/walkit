@@ -370,6 +370,30 @@ internal object Native {
     )
 
     @JvmStatic
+    external fun rtScrollPlaylist(
+        h: Long,
+        rows: Int,
+    )
+
+    @JvmStatic
+    external fun rtClassicPlaylistScroll(h: Long): Int
+
+    @JvmStatic
+    external fun rtShowClassicPlaylistRow(
+        h: Long,
+        row: Int,
+    )
+
+    @JvmStatic
+    external fun rtFocusWindow(
+        h: Long,
+        id: Int,
+    )
+
+    @JvmStatic
+    external fun rtFocusedWindow(h: Long): Int
+
+    @JvmStatic
     external fun rtSetClassicShades(
         h: Long,
         on: Boolean,

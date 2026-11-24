@@ -57,6 +57,14 @@ class HostLibraryTest {
             rt.classicSwitches = set
             assertEquals(set, rt.classicSwitches)
             rt.setClassicPlaylistSelection(listOf(0, 3))
+            // no playlist window is open: the list is not scrolled, and stays so
+            rt.scrollPlaylist(2)
+            rt.showClassicPlaylistRow(3)
+            assertEquals(0, rt.classicPlaylistScroll)
+            val main = rt.mainWindow
+            assertEquals(main, rt.focusedWindow)
+            main?.let { rt.focusWindow(it) }
+            assertEquals(main, rt.focusedWindow)
             rt.setClassicShades(false)
             rt.setPointerModifiers(ctrl = true, shift = false)
             rt.setClassicRowMarks(RowMarks(listOf(RowMark(listOf("#.#", ".#."), "A"), RowMark(text = "B")), listOf(0, null, 1)))

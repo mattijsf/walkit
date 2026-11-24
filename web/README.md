@@ -90,9 +90,9 @@ The runtime also:
 - names a classic frame: `setWindowTitle`;
 - says where the page draws its visualizer: `visRect`, a classic skin's `avs` window framed by
   `gen.bmp`, or a modern skin's AVS holder;
-- says which window has the focus: `focusedWindow`;
-- shows the page's playlist selection and scrolls a classic playlist: `setPlaylistSelection`,
-  `scrollPlaylist`;
+- says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`;
+- shows the page's playlist selection, scrolls a playlist and brings a classic playlist's row
+  into view: `setPlaylistSelection`, `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`;
 - keeps a classic skin's time direction and equalizer auto in step with the host's settings:
   `timeRemaining`, `eqAuto` and their setters.
 

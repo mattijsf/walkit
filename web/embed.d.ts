@@ -93,13 +93,20 @@ export interface Runtime {
   /** When (clock ms) something on the skin next changes by itself, or null. */
   nextDueAt(): number | null;
   focusedWindow(): number | null;
+  /** Gives window `id` the focus, as a press on it does. */
+  focusWindow(id: number): void;
   timeRemaining(): boolean;
   setTimeRemaining(on: boolean): void;
   eqAuto(): boolean;
   setEqAuto(on: boolean): void;
   /** Shows playlist entry `index` (from 0) as selected, or none for null; the page is not told back. */
   setPlaylistSelection(index: number | null): void;
+  /** Scrolls the playlist by rows, down for more than 0: a classic skin's, or a modern skin's. */
   scrollPlaylist(rows: number): void;
+  /** The first song a classic playlist shows: how far it is scrolled. */
+  playlistScroll(): number;
+  /** Scrolls a classic playlist as little as brings song `row` (from 0) into view. */
+  showPlaylistRow(row: number): void;
   /** Whether a finger drives the skin (a press takes the nearest control a few pixels off) or a mouse (only the one under it). */
   setTouch(on: boolean): void;
   /** Scrolls a classic playlist for notches of the mouse wheel, as far as the classic style's Winamp does. */

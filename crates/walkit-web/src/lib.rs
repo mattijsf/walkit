@@ -868,6 +868,19 @@ pub extern "C" fn wk_rt_focused_window(id: i32) -> i32 {
     with_rt(id, |r| r.engine.focused_window().map_or(-1, |w| w.0 as i32)).unwrap_or(-1)
 }
 
+/// Gives window `window` the focus, as a press on it does.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_focus_window(id: i32, window: i32) -> i32 {
+    let Ok(window) = u32::try_from(window) else {
+        return 0;
+    };
+    with_rt(id, |r| {
+        r.engine.focus_window(walkit::host::WindowId(window));
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
 /// Whether a classic skin's time displays count down.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_time_remaining(id: i32) -> i32 {
@@ -936,10 +949,27 @@ pub extern "C" fn wk_rt_playlist_selection(id: i32, index: i32) -> i32 {
     .unwrap_or(0)
 }
 
-/// Scrolls a classic playlist by `rows`, down for more than 0.
+/// Scrolls the playlist by `rows`, down for more than 0: a classic skin's, or a modern skin's.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {
-    with_rt(id, |r| r.engine.scroll_classic_playlist(rows))
+    with_rt(id, |r| {
+        r.engine.scroll_classic_playlist(rows);
+        r.engine.scroll_playlist(rows);
+    })
+    .map(|()| 1)
+    .unwrap_or(0)
+}
+
+/// The first song a classic playlist shows: how far it is scrolled, or -1 for no runtime.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_playlist_scroll(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.classic_playlist_scroll()).unwrap_or(-1)
+}
+
+/// Scrolls a classic playlist as little as brings song `row` into view.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_show_playlist_row(id: i32, row: i32) -> i32 {
+    with_rt(id, |r| r.engine.show_classic_playlist_row(row))
         .map(|()| 1)
         .unwrap_or(0)
 }
