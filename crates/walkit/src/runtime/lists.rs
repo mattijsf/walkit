@@ -799,23 +799,59 @@ impl SkinRuntime {
 
     /// Scrolls a modern skin's playlists by `rows`, down for more than 0, within their songs:
     /// what a host does for its mouse wheel over one. A classic playlist has
-    /// [`SkinRuntime::scroll_classic_playlist`].
+    /// [`SkinRuntime::scroll_classic_playlist`], and [`SkinRuntime::scroll_at`] finds the
+    /// list under a point.
     pub fn scroll_playlist(&mut self, rows: i32) {
         let views: Vec<ObjId> = (0..self.objects.len())
             .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
             .collect();
         let mut moved = false;
         for o in views {
-            let max = self.pl_max_scroll(o);
-            let to = (self.pl(o).scroll_px + rows * PL_ROW).clamp(0, max);
-            if to != self.pl(o).scroll_px {
-                self.pl_mut(o).scroll_px = to;
-                moved = true;
-            }
+            moved |= self.pl_scroll_by(o, rows);
         }
         if moved {
             self.repaint();
         }
+    }
+
+    /// Scrolls playlist `o` by `rows` within its songs; true when it moved.
+    fn pl_scroll_by(&mut self, o: ObjId, rows: i32) -> bool {
+        let max = self.pl_max_scroll(o);
+        let to = (self.pl(o).scroll_px + rows * PL_ROW).clamp(0, max);
+        let moved = to != self.pl(o).scroll_px;
+        self.pl_mut(o).scroll_px = to;
+        moved
+    }
+
+    /// Scrolls the list under the point (`x`, `y`) of the stack by `rows`, down for more than
+    /// 0: what a host does for its mouse wheel, wherever a skin shows its lists. The list is a
+    /// modern skin's playlist, its list of color themes, or a classic playlist window, and
+    /// each scrolls within what it holds. False when no list is under the point: the wheel
+    /// is then the host's to use for something else.
+    pub fn scroll_at(&mut self, x: i32, y: i32, rows: i32) -> bool {
+        let Some(o) = self.hit_test_stack(x, y) else {
+            return false;
+        };
+        match self.objects[o].kind {
+            Kind::PlaylistView(_) => {
+                if self.pl_scroll_by(o, rows) {
+                    self.repaint();
+                }
+            }
+            Kind::ColorThemeList(_) => {
+                let max = self.themes_max_scroll(o).max(0);
+                let to = (self.themes(o).scroll_px + rows * self.themes_row_h()).clamp(0, max);
+                if to != self.themes(o).scroll_px {
+                    self.themes_mut(o).scroll_px = to;
+                    self.repaint();
+                }
+            }
+            Kind::ClassicWindow(crate::classic::ClassicWindow::Playlist) => {
+                self.scroll_classic_playlist(rows);
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// Shows entry `index` (or none) as the playlists' selection, as the host's playlist

@@ -655,6 +655,17 @@ public class SkinRuntime(
      */
     public fun scrollPlaylist(rows: Int): Unit = Native.rtScrollPlaylist(h(), rows)
 
+    /**
+     * Scrolls the list under the point ([x], [y]) of the stack by [rows], down for more than 0: a
+     * playlist, classic or modern, or a list of color themes, each within what it holds. False
+     * when no list is under the point. For a mouse wheel, wherever a skin shows its lists.
+     */
+    public fun scrollAt(
+        x: Int,
+        y: Int,
+        rows: Int,
+    ): Boolean = Native.rtScrollAt(h(), x, y, rows)
+
     /** The first song a classic playlist shows: how far it is scrolled. */
     public val classicPlaylistScroll: Int
         get() = Native.rtClassicPlaylistScroll(h())

@@ -960,6 +960,14 @@ pub extern "C" fn wk_rt_scroll_playlist(id: i32, rows: i32) -> i32 {
     .unwrap_or(0)
 }
 
+/// Scrolls the list under the point (`x`, `y`) of the stack by `rows`, down for more than 0: a
+/// playlist, classic or modern, or a list of color themes. 1 when a list is under the point, 0
+/// when none is or for no runtime.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_scroll_at(id: i32, x: i32, y: i32, rows: i32) -> i32 {
+    with_rt(id, |r| i32::from(r.engine.scroll_at(x, y, rows))).unwrap_or(0)
+}
+
 /// The first song a classic playlist shows: how far it is scrolled, or -1 for no runtime.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_playlist_scroll(id: i32) -> i32 {

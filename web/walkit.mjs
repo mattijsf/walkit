@@ -433,9 +433,18 @@ export class Runtime {
     this.w.x.wk_rt_playlist_selection(this.id, index == null ? -1 : index);
   }
 
-  /** Scrolls a classic playlist by rows, down for more than 0. */
+  /** Scrolls the playlist by rows, down for more than 0: a classic skin's, or a modern skin's. */
   scrollPlaylist(rows) {
     this.w.x.wk_rt_scroll_playlist(this.id, rows);
+  }
+
+  /**
+   * Scrolls the list under the point (`x`, `y`) of the stack by rows, down for more than 0: a
+   * playlist, classic or modern, or a list of color themes. False when no list is under the
+   * point, and the wheel is then the page's.
+   */
+  scrollAt(x, y, rows) {
+    return this.w.x.wk_rt_scroll_at(this.id, x, y, rows) === 1;
   }
 
   /** Stages a song on the page's fake player: `title`, `lengthMs` long. */

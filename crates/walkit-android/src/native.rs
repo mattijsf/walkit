@@ -1304,6 +1304,21 @@ pub fn rt_scroll_playlist<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jl
     .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// Scrolls the list under the point (`x`, `y`) of the stack by `rows`, down for more than 0: a
+/// playlist, classic or modern, or a list of color themes. Whether a list is under the point.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_scroll_at<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    x: jint,
+    y: jint,
+    rows: jint,
+) -> jboolean {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.scroll_at(x, y, rows) as jboolean))
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// The first song a classic playlist shows: how far it is scrolled.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_classic_playlist_scroll<'l>(

@@ -2920,6 +2920,15 @@ fn the_host_brings_a_playlist_row_into_view() {
     // the wheel is read back the same way
     rt.scroll_classic_playlist(5);
     assert_eq!(rt.classic_playlist_scroll(), 5);
+    // and by the point it is at: over the playlist's window, not over the main window
+    let list = rt.window_of("pledit").expect("the playlist's window");
+    let at = rt.window_rect(list);
+    assert!(rt.scroll_at(at.left + 60, at.top + 40, 2));
+    assert_eq!(rt.classic_playlist_scroll(), 7);
+    let main = rt.main_window().expect("the main window");
+    let at = rt.window_rect(main);
+    assert!(!rt.scroll_at(at.left + 60, at.top + 40, 2));
+    assert_eq!(rt.classic_playlist_scroll(), 7);
 }
 
 #[test]

@@ -103,6 +103,8 @@ export interface Runtime {
   setPlaylistSelection(index: number | null): void;
   /** Scrolls the playlist by rows, down for more than 0: a classic skin's, or a modern skin's. */
   scrollPlaylist(rows: number): void;
+  /** Scrolls the list under a point of the stack by rows, down for more than 0: a playlist, classic or modern, or a list of color themes. False when no list is under the point. */
+  scrollAt(x: number, y: number, rows: number): boolean;
   /** The first song a classic playlist shows: how far it is scrolled. */
   playlistScroll(): number;
   /** Scrolls a classic playlist as little as brings song `row` (from 0) into view. */

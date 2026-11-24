@@ -376,6 +376,14 @@ internal object Native {
     )
 
     @JvmStatic
+    external fun rtScrollAt(
+        h: Long,
+        x: Int,
+        y: Int,
+        rows: Int,
+    ): Boolean
+
+    @JvmStatic
     external fun rtClassicPlaylistScroll(h: Long): Int
 
     @JvmStatic

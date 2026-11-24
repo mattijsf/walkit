@@ -93,6 +93,7 @@ The runtime also:
 - says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`;
 - shows the page's playlist selection, scrolls a playlist and brings a classic playlist's row
   into view: `setPlaylistSelection`, `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`;
+- scrolls the list under the mouse wheel, wherever the skin shows one: `scrollAt`;
 - keeps a classic skin's time direction and equalizer auto in step with the host's settings:
   `timeRemaining`, `eqAuto` and their setters.
 

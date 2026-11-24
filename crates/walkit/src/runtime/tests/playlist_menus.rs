@@ -154,6 +154,20 @@ fn the_host_scrolls_the_list_for_its_wheel() {
     rt.scroll_playlist(1);
     assert_eq!(top_row(&mut rt), end);
     assert_ne!(end, "PLAYLIST_SELECT 0");
+
+    // by the point the wheel is at: over the list it scrolls, over a button or off the
+    // window it is not the list's
+    rt.scroll_playlist(-1000);
+    assert!(rt.scroll_at(50, 60, 2));
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 2");
+    assert!(!rt.scroll_at(10, 8, 2), "over a button");
+    assert!(!rt.scroll_at(900, 900, 2), "off the window");
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 2");
+    assert!(
+        rt.scroll_at(50, 60, -100),
+        "at its start it is still the list's"
+    );
+    assert_eq!(top_row(&mut rt), "PLAYLIST_SELECT 0");
 }
 
 #[test]
