@@ -23,6 +23,10 @@ impl SkinRuntime {
                 .then_some(o);
         }
         if self.objects[o].group.is_some() {
+            // a frame's divider lies between its panes and is the frame's to drag
+            if self.frame_divider_at(o, px, py) {
+                return Some(o);
+            }
             match &self.objects[o].kind {
                 // entries scrolled out of the strip are not drawn there, and take no touch
                 Kind::Bucket(_) if !self.objects[o].base.rect.contains(px, py) => return None,
@@ -94,6 +98,9 @@ impl SkinRuntime {
                 return;
             }
             Kind::ClassicWindow(_) => return self.classic_pointer_down(o, px, py),
+            Kind::Frame(_) if self.frame_divider_at(o, px, py) => {
+                return self.frame_pointer_down(o, px, py)
+            }
             Kind::Menu(_) => self.menu_show_pressed(o, true),
             _ => {}
         }
@@ -110,6 +117,7 @@ impl SkinRuntime {
             Kind::ClassicWindow(_) => return self.classic_pointer_move(o, px, py),
             Kind::ColorThemeList(_) => return self.themes_pointer_move(o, py),
             Kind::PlaylistView(_) => return self.pl_pointer_move(o, py),
+            Kind::Frame(_) if self.frame_dragging(o) => return self.frame_pointer_move(o, px, py),
             _ => {}
         }
         self.dispatch(
@@ -124,6 +132,7 @@ impl SkinRuntime {
             Kind::ColorThemeList(_) => self.themes_pointer_up(o, py, inside),
             Kind::PlaylistView(_) => self.pl_pointer_up(o, py, inside),
             Kind::LayoutStatus(_) => self.status_pointer_up(o, px, py),
+            Kind::Frame(_) if self.frame_dragging(o) => self.frame_pointer_up(o),
             Kind::Button(_) => {
                 self.button_mut(o).pressed = false;
                 self.repaint();

@@ -3,6 +3,7 @@
 //! The runtime on small skins written in place: what the engine does that a trace cannot show.
 
 mod classic;
+mod frames;
 mod free;
 mod options;
 mod playlist_menus;

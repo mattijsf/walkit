@@ -407,6 +407,7 @@ impl SkinRuntime {
             // resize corner in MMD3
             if self.is_control(h)
                 || matches!(self.objects[h].kind, Kind::Menu(_) | Kind::LayoutStatus(_))
+                || self.frame_divider_at(h, x, y)
             {
                 return Some(h);
             }
@@ -729,7 +730,7 @@ impl SkinRuntime {
         ) {
             return false;
         }
-        if self.is_grip(o) {
+        if self.is_grip(o) || self.frame_dragging(o) {
             return false;
         }
         if matches!(self.objects[o].kind, Kind::Button(_) | Kind::Menu(_)) {

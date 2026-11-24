@@ -207,6 +207,84 @@ impl SkinRuntime {
         }
     }
 
+    /// Whether a point of the window is on the frame's divider, where a press drags it: the
+    /// frame is resizable and shows both panes.
+    pub(crate) fn frame_divider_at(&self, o: ObjId, px: i32, py: i32) -> bool {
+        let Kind::Frame(f) = &self.objects[o].kind else {
+            return false;
+        };
+        if !f.resizable || !f.sizer_rect.contains(px, py) {
+            return false;
+        }
+        match (f.first, f.second) {
+            (Some(a), Some(b)) => self.objects[a].base.visible && self.objects[b].base.visible,
+            _ => false,
+        }
+    }
+
+    /// How far along the frame a point is, and the point the frame's position is measured to:
+    /// the divider's near edge, or its far edge when a side by side frame counts from the right.
+    fn frame_along(&self, o: ObjId, px: i32, py: i32) -> (i32, i32) {
+        let rect = self.objects[o].base.rect;
+        let f = self.frame(o);
+        let (at, start) = if f.vertical {
+            (px - rect.left, f.sizer_rect.left - rect.left)
+        } else {
+            (py - rect.top, f.sizer_rect.top - rect.top)
+        };
+        let edge = if f.vertical && f.from_far {
+            start + f.sizer_rect.width
+        } else {
+            start
+        };
+        (at, edge)
+    }
+
+    /// A press on the divider takes hold of it where it is.
+    pub(crate) fn frame_pointer_down(&mut self, o: ObjId, px: i32, py: i32) {
+        let (at, edge) = self.frame_along(o, px, py);
+        self.frame_mut(o).grab = Some(at - edge);
+    }
+
+    /// The divider follows the pointer between the frame's minimum and maximum, and the
+    /// frame's scripts hear each new position.
+    pub(crate) fn frame_pointer_move(&mut self, o: ObjId, px: i32, py: i32) {
+        let Some(grab) = self.frame(o).grab else {
+            return;
+        };
+        let rect = self.objects[o].base.rect;
+        let (at, _) = self.frame_along(o, px, py);
+        let f = self.frame(o).clone();
+        let total = if f.vertical { rect.width } else { rect.height };
+        let edge = at - grab;
+        let mut pos = if f.from_far { total - edge } else { edge };
+        if let Some(m) = f.max_pos {
+            pos = pos.min(if m < 0 { total + m } else { m });
+        }
+        let top = (total - SIZER).max(0);
+        pos = pos.clamp(f.min_pos.min(top), top);
+        if pos == f.pos {
+            return;
+        }
+        self.frame_mut(o).pos = pos;
+        self.relayout();
+        self.dispatch(
+            crate::maki::Handle::Gui(o),
+            "onsetposition",
+            &[Value::Int(pos)],
+        );
+    }
+
+    /// The divider is let go.
+    pub(crate) fn frame_pointer_up(&mut self, o: ObjId) {
+        self.frame_mut(o).grab = None;
+    }
+
+    /// Whether the frame's divider is being dragged.
+    pub(crate) fn frame_dragging(&self, o: ObjId) -> bool {
+        matches!(&self.objects[o].kind, Kind::Frame(f) if f.grab.is_some())
+    }
+
     /// A frame's divider position.
     pub(crate) fn frame_position(&self, o: ObjId) -> i32 {
         self.frame(o).pos
