@@ -466,6 +466,7 @@ impl SkinRuntime {
                 Value::Null
             }
             "isobjectvalid" => Value::Bool(arg(args, 0).as_object().is_some()),
+            "isappactive" => Value::Bool(!self.app_inactive),
             "istransparencyavailable" | "isdesktopalphaavailable" | "isproversion" => {
                 Value::Bool(false)
             }
@@ -474,7 +475,6 @@ impl SkinRuntime {
             | "iskeydown"
             | "isminimized"
             | "getcurrenttrackrating"
-            | "isappactive"
             | "isloadingskin"
             | "getplaylistcount"
             | "getfilesize" => int(0),

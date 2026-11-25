@@ -247,6 +247,8 @@ pub struct SkinRuntime {
     focused: Option<ObjId>,
     /// The part of the focused window that has the keyboard, since a press on it.
     pub(crate) focused_part: Option<crate::host::FocusedPart>,
+    /// Whether another app has the keyboard, as the host said: then no window shows the focus.
+    pub(crate) app_inactive: bool,
     shown_before: HashSet<ContainerId>,
     pub(crate) scripts: Vec<Script>,
     pub(crate) systems: Vec<SystemObject>,
@@ -456,6 +458,7 @@ impl SkinRuntime {
             free: free::FreeState::default(),
             focused: None,
             focused_part: None,
+            app_inactive: false,
             shown_before: HashSet::new(),
             scripts: Vec::new(),
             systems: Vec::new(),

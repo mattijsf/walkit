@@ -88,6 +88,10 @@ pub(crate) struct PointerState {
     pub(crate) picked_this_gesture: bool,
     pub(crate) press_ended: bool,
     entered: bool,
+    /// The object the pointer is over with no button held, for a host with a mouse.
+    pub(crate) hovered: Option<ObjId>,
+    /// Whether the host has a mouse: it said where the pointer is with no button held.
+    mouse: bool,
     cancelling: bool,
     menu_refusals_logged: Vec<String>,
     /// What `has_skin_menu` answered for each object since the last layout pass.
@@ -179,6 +183,133 @@ impl SkinRuntime {
     /// `pointer_up` at a point of `window`, in that window's pixels.
     pub fn pointer_up_in(&mut self, window: crate::host::WindowId, x: i32, y: i32) {
         self.in_window(window, x, y, |rt, sx, sy| rt.pointer_up(sx, sy));
+    }
+
+    /// The pointer moves over the skin with no button held, at a point of the stack: for a host
+    /// with a mouse. The object under it hears `onEnterArea`, the one it left `onLeaveArea`, and
+    /// the one under it `onMouseMove`, as Winamp's do; a button shows its `hoverimage`. While a
+    /// press is held its own moves go to `pointer_move`, and this does nothing.
+    pub fn pointer_hover(&mut self, sx: i32, sy: i32) {
+        self.hover_at(Some((sx, sy)));
+    }
+
+    /// `pointer_hover` at a point of `window`, in that window's pixels.
+    pub fn pointer_hover_in(&mut self, window: crate::host::WindowId, x: i32, y: i32) {
+        self.in_window(window, x, y, |rt, sx, sy| rt.hover_at(Some((sx, sy))));
+    }
+
+    /// The pointer has left the skin's windows: the object it was over hears `onLeaveArea`.
+    pub fn pointer_leave(&mut self) {
+        self.hover_at(None);
+    }
+
+    /// The object the pointer is over with no button held, after `pointer_hover`.
+    fn hover_at(&mut self, at: Option<(i32, i32)>) {
+        self.pointer.mouse = true;
+        if self.captured.is_some() || self.pointer.deferred.is_some() {
+            return;
+        }
+        if self.needs_layout {
+            self.do_layout();
+        }
+        let under = at.and_then(|(sx, sy)| {
+            let l = self.pointer.aimed.or_else(|| self.window_under(sx, sy))?;
+            let (x, y) = self.layout_point(l, sx, sy);
+            self.hit_test(l, x, y).map(|o| (o, x, y))
+        });
+        let now = under.map(|(o, _, _)| o);
+        // as in Winamp, the move that leaves an object is that object's last, and the object
+        // the pointer came onto hears it come in with the next move
+        if let Some(was) = self.pointer.hovered.filter(|was| Some(*was) != now) {
+            self.pointer.hovered = None;
+            if self.all_objects.contains(&was) {
+                self.hover_shown(was);
+                self.dispatch(Handle::Gui(was), "onleavearea", &[]);
+                if let Some((sx, sy)) = at {
+                    let (x, y) = self
+                        .layout_object(was)
+                        .map_or((sx, sy), |l| self.layout_point(l, sx, sy));
+                    self.dispatch(
+                        Handle::Gui(was),
+                        "onmousemove",
+                        &[Value::Int(x), Value::Int(y)],
+                    );
+                }
+            }
+            return;
+        }
+        let Some((o, x, y)) = under else { return };
+        if self.pointer.hovered.is_none() {
+            self.pointer.hovered = Some(o);
+            self.hover_shown(o);
+            self.dispatch(Handle::Gui(o), "onenterarea", &[]);
+        }
+        if self.pointer.hovered == Some(o) {
+            self.dispatch(
+                Handle::Gui(o),
+                "onmousemove",
+                &[Value::Int(x), Value::Int(y)],
+            );
+        }
+    }
+
+    /// A mouse held on `o` moved to a point of the stack: off the object it hears
+    /// `onLeaveArea` and a button shows itself up, back on it hears `onEnterArea` and shows
+    /// itself down again, as Winamp's objects do while they hold the mouse. A slider, a list
+    /// and a divider being dragged hear nothing of it until the release.
+    fn held_over(&mut self, o: ObjId, sx: i32, sy: i32) {
+        if matches!(
+            self.objects[o].kind,
+            Kind::Slider(_)
+                | Kind::ClassicWindow(_)
+                | Kind::PlaylistView(_)
+                | Kind::ColorThemeList(_)
+                | Kind::LayoutStatus(_)
+                | Kind::Menu(_)
+                | Kind::Frame(_)
+        ) || self.pointer.resizing.is_some()
+        {
+            return;
+        }
+        let over = self
+            .pointer
+            .aimed
+            .or_else(|| self.window_under(sx, sy))
+            .and_then(|l| {
+                let (x, y) = self.layout_point(l, sx, sy);
+                self.hit_test(l, x, y)
+            })
+            == Some(o);
+        if over == self.pointer.entered {
+            return;
+        }
+        if let Kind::Button(b) = &mut self.objects[o].kind {
+            b.pressed = over;
+            self.repaint();
+        }
+        if over {
+            self.pointer.entered = true;
+            self.dispatch(Handle::Gui(o), "onenterarea", &[]);
+        } else {
+            self.leave_area(o);
+        }
+    }
+
+    /// Whether the pointer is over `o` with no button held.
+    pub(crate) fn hovered(&self, o: ObjId) -> bool {
+        self.pointer.hovered == Some(o) && self.captured.is_none()
+    }
+
+    /// Draws `o` again when it shows the pointer over it.
+    fn hover_shown(&mut self, o: ObjId) {
+        let shows = match &self.objects[o].kind {
+            Kind::Button(b) => b.hover_image.is_some(),
+            Kind::Slider(s) => s.hover_thumb.is_some(),
+            _ => false,
+        };
+        if shows {
+            self.repaint();
+        }
     }
 
     /// `double_tap` at a point of `window`, in that window's pixels.
@@ -651,10 +782,18 @@ impl SkinRuntime {
             }
         }
         self.object_pointer_down(target, x, y);
-        // a menu the press opened has let go of it already
+        // a menu the press opened has let go of it already; a mouse over the object has
+        // entered it already
         if self.captured == Some(target) {
+            let hovered = self.pointer.hovered.take();
+            if hovered != Some(target) {
+                if let Some(was) = hovered {
+                    self.hover_shown(was);
+                    self.dispatch(Handle::Gui(was), "onleavearea", &[]);
+                }
+                self.dispatch(Handle::Gui(target), "onenterarea", &[]);
+            }
             self.pointer.entered = true;
-            self.dispatch(Handle::Gui(target), "onenterarea", &[]);
         }
     }
 
@@ -704,6 +843,9 @@ impl SkinRuntime {
             self.drag_grip(&r, x, y);
         }
         if let Some(c) = self.captured {
+            if self.pointer.mouse {
+                self.held_over(c, sx, sy);
+            }
             if let Some(next) = self.eq_band_reached(c, sx, sy) {
                 // the band lets go and the one the finger reached takes the drag, as pressed there
                 self.object_pointer_up(c, x, y, true);
@@ -769,7 +911,15 @@ impl SkinRuntime {
             && y >= r.top - slop
             && y < r.bottom() + slop;
         self.object_pointer_up(target, x, y, inside);
-        self.leave_area(target);
+        if self.pointer.mouse && self.pointer.entered {
+            // a mouse let go over the object is still over it: no leave, and it shows so
+            self.pointer.entered = false;
+            self.pointer.hovered = Some(target);
+            self.hover_shown(target);
+        } else {
+            // off it, the next move of the mouse finds what is under it
+            self.leave_area(target);
+        }
     }
 
     /// A second tap of a double tap, at a point of the stack.

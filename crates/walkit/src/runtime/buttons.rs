@@ -180,6 +180,8 @@ impl SkinRuntime {
         let active = self.button_is_active(o);
         let img = if b.pressed {
             self.button_picture(o, b.down_image.as_deref())
+        } else if self.hovered(o) && self.objects[o].base.enabled {
+            self.button_picture(o, b.hover_image.as_deref())
         } else {
             None
         }

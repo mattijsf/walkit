@@ -71,7 +71,10 @@ Besides drawing, the runtime:
 - says where the page draws its visualizer: `visRect`, a classic skin's `avs` window framed by
   `gen.bmp`, or a modern skin's AVS holder;
 - says which window has the focus and gives it to another: `focusedWindow`, `focusWindow`, and
-  which part has the keys, the playlist after a press on it: `focusedPart`;
+  which part has the keys, the playlist after a press on it: `focusedPart`; while the page has
+  not the keyboard no window shows the focus, as Winamp's show themselves behind: `setAppActive`;
+- tells a skin where a mouse is with no button held, as Winamp's objects hear it, and a button
+  shows its hover picture, a slider its hover thumb: `pointerHover`, `pointerLeave`;
 - shows the page's playlist selection, scrolls a playlist, brings a row into view and follows
   the song that plays, as Winamp's playlist does, classic or modern: `setPlaylistSelection`,
   `scrollPlaylist`, `playlistScroll`, `showPlaylistRow`, `followPlaylistSong`;

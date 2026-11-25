@@ -312,6 +312,24 @@ internal object Native {
     )
 
     @JvmStatic
+    external fun rtPointerHover(
+        h: Long,
+        x: Int,
+        y: Int,
+    )
+
+    @JvmStatic
+    external fun rtPointerHoverIn(
+        h: Long,
+        window: Int,
+        x: Int,
+        y: Int,
+    )
+
+    @JvmStatic
+    external fun rtPointerLeave(h: Long)
+
+    @JvmStatic
     external fun rtPointerUpIn(
         h: Long,
         window: Int,
@@ -419,6 +437,12 @@ internal object Native {
     external fun rtFocusWindow(
         h: Long,
         id: Int,
+    )
+
+    @JvmStatic
+    external fun rtSetAppActive(
+        h: Long,
+        active: Boolean,
     )
 
     @JvmStatic

@@ -105,6 +105,8 @@ impl SkinRuntime {
         }
         let img = if s.dragging {
             s.down_thumb.clone()
+        } else if self.hovered(o) && self.objects[o].base.enabled {
+            s.hover_thumb.clone()
         } else {
             None
         }

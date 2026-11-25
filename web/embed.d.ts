@@ -66,6 +66,10 @@ export interface Runtime {
   setVis(vis?: { spectrum?: Float32Array; waveform?: Float32Array; vu?: [number, number] }): void;
   pointerDown(x: number, y: number, seq?: number): void;
   pointerMove(x: number, y: number): void;
+  /** A mouse moves to a point with no button held: what is under it hears it, a button shows its hover picture. */
+  pointerHover(x: number, y: number): void;
+  /** A mouse has left the skin's windows. */
+  pointerLeave(): void;
   pointerUp(x: number, y: number): void;
   doubleTap(x: number, y: number, seq?: number): void;
   rightClick(seq?: number): void;
@@ -99,6 +103,8 @@ export interface Runtime {
   focusedWindow(): number | null;
   /** Gives window `id` the focus, as a press on it does. */
   focusWindow(id: number): void;
+  /** Whether the page has the keyboard: while it has not, no window shows the focus. */
+  setAppActive(active: boolean): void;
   timeRemaining(): boolean;
   setTimeRemaining(on: boolean): void;
   eqAuto(): boolean;

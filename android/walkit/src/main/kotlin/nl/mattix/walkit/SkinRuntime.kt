@@ -314,6 +314,13 @@ public class SkinRuntime(
      */
     public fun focusWindow(id: WindowId): Unit = Native.rtFocusWindow(h(), id.raw)
 
+    /**
+     * Whether the app has the keyboard. While another app has it no window shows the focus, as
+     * every Winamp window shows itself behind then; the window that had it shows it again when
+     * the app is active again. A touch makes the app active too.
+     */
+    public fun setAppActive(active: Boolean): Unit = Native.rtSetAppActive(h(), active)
+
     /** Where [id] sits in the stack, in layout pixels. */
     public fun windowRect(id: WindowId): Rect = Native.rtWindowRect(h(), id.raw).let { Rect(it[0], it[1], it[2], it[3]) }
 
@@ -537,6 +544,26 @@ public class SkinRuntime(
         x: Int,
         y: Int,
     ): Unit = Native.rtPointerMoveIn(h(), window.raw, x, y)
+
+    /**
+     * A mouse or a pen moves to a point of the stack with no button held: the object under it
+     * hears it come in and move, the one it left hears it go, and a button shows its hover
+     * picture. While a press is held this does nothing.
+     */
+    public fun pointerHover(
+        x: Int,
+        y: Int,
+    ): Unit = Native.rtPointerHover(h(), x, y)
+
+    /** [pointerHover] at a point of [window], in that window's pixels. */
+    public fun pointerHover(
+        window: WindowId,
+        x: Int,
+        y: Int,
+    ): Unit = Native.rtPointerHoverIn(h(), window.raw, x, y)
+
+    /** A mouse or a pen has left the skin's windows. */
+    public fun pointerLeave(): Unit = Native.rtPointerLeave(h())
 
     public fun pointerUp(
         x: Int,

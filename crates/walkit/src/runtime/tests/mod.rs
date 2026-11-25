@@ -5,6 +5,7 @@
 mod classic;
 mod frames;
 mod free;
+mod hover;
 mod options;
 mod playlist_menus;
 mod presentation;

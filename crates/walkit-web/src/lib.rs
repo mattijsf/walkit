@@ -711,6 +711,22 @@ pub extern "C" fn wk_rt_pointer_move(id: i32, x: i32, y: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// A mouse moves to a point of the stack with no button held.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_pointer_hover(id: i32, x: i32, y: i32) -> i32 {
+    with_rt(id, |r| r.engine.pointer_hover(x, y))
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
+/// A mouse has left the skin's windows.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_pointer_leave(id: i32) -> i32 {
+    with_rt(id, |r| r.engine.pointer_leave())
+        .map(|()| 1)
+        .unwrap_or(0)
+}
+
 /// The finger lifts at a point of the stack.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_pointer_up(id: i32, x: i32, y: i32) -> i32 {
@@ -921,6 +937,14 @@ pub extern "C" fn wk_rt_focus_window(id: i32, window: i32) -> i32 {
     })
     .map(|()| 1)
     .unwrap_or(0)
+}
+
+/// Tells the engine whether the page has the keyboard: while it has not, no window shows the focus.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_set_app_active(id: i32, active: i32) -> i32 {
+    with_rt(id, |r| r.engine.set_app_active(active != 0))
+        .map(|()| 1)
+        .unwrap_or(0)
 }
 
 /// Whether a classic skin's time displays count down.

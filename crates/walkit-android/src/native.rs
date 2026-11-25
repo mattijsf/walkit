@@ -1145,6 +1145,44 @@ pub fn rt_pointer_move_in<'l>(
     .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// A mouse or a pen moves to a point of the stack with no button held.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_pointer_hover<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    x: jint,
+    y: jint,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_hover(x, y)))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// A mouse or a pen moves to a point of window `window` with no button held, in that window's pixels.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_pointer_hover_in<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    window: jint,
+    x: jint,
+    y: jint,
+) {
+    env.with_env(|env| {
+        with_rt(env, h, |r| {
+            r.rt.pointer_hover_in(WindowId(window as u32), x, y);
+        })
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// A mouse or a pen has left the skin's windows.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_pointer_leave<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.pointer_leave()))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
 /// The finger lifts at a point of window `window`, in that window's pixels.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_pointer_up_in<'l>(
@@ -1404,6 +1442,18 @@ pub fn rt_focused_part<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_focus_window<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong, id: jint) {
     env.with_env(|env| with_rt(env, h, |r| r.rt.focus_window(WindowId(id as u32))))
+        .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+/// Tells the engine whether the app has the keyboard: while it has not, no window shows the focus.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_set_app_active<'l>(
+    mut env: EnvUnowned<'l>,
+    _class: JClass<'l>,
+    h: jlong,
+    active: jboolean,
+) {
+    env.with_env(|env| with_rt(env, h, |r| r.rt.set_app_active(active)))
         .resolve::<ThrowRuntimeExAndDefault>();
 }
 
