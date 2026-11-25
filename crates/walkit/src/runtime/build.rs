@@ -580,9 +580,13 @@ impl SkinRuntime {
                 def.get("id").unwrap_or("").to_lowercase()
             ));
         }
-        if let Some(b) = behavior_of(def) {
-            if let Some(g) = self.objects[group].group.as_mut() {
-                g.behavior = Some(b);
+        // a behavior stands in for the base's script: a redefinition that leaves out the base's
+        // scripts (inherit_content="0") leaves out its behavior too
+        if want.contains(&"scripts") {
+            if let Some(b) = behavior_of(def) {
+                if let Some(g) = self.objects[group].group.as_mut() {
+                    g.behavior = Some(b);
+                }
             }
         }
         let own_id = def.get("id").map(|s| s.to_lowercase());
