@@ -105,5 +105,8 @@ A published version cannot be replaced, only yanked. The other crates are `publi
   on for the workspace (`[workspace.lints]` in `Cargo.toml`).
 - Run `tools/gate.sh` before every push. The lefthook pre-push hook runs it, and CI
   (`.github/workflows/ci.yml`) runs it only when started by hand.
+- The lefthook pre-commit hook checks formatting for the languages a commit touches: rustfmt,
+  swift-format (`.swift-format`, shared with the desktop host), ktlint through Spotless, and
+  `node --check` for the web modules. It only checks; fix and commit again.
 - Commit subjects follow Conventional Commits; the lefthook commit-msg hook and the Commits
   workflow check them (`tools/check-commit-message.sh`).
