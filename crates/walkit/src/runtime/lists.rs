@@ -4,7 +4,7 @@
 //! list, and a window's status bar.
 
 use super::SkinRuntime;
-use crate::draw::{Align, BitmapDef, DrawCmd, FontDef, Rect, Rgb, TextCmd, VAlign};
+use crate::draw::{Align, BitmapDef, DrawCmd, FontDef, Gamma, Rect, Rgb, TextCmd, VAlign};
 use crate::gui::{to_bool, Kind, ObjId};
 use crate::maki::{Handle, Value};
 use crate::text::time;
@@ -38,10 +38,12 @@ const PL_LEFT_BORDER: i32 = 2;
 const PL_BAR: i32 = 15;
 const PL_CHANNEL_X: i32 = 6;
 const PL_CHANNEL_W: i32 = 6;
-const PL_THUMB_MIN: i32 = 17;
+const PL_THUMB_H: i32 = 18;
 const PL_GRIP: &str = "wasabi.scrollbar.vertical.grip";
 const PL_BORDER: Rgb = Rgb(0x7F8795);
 const PL_LIGHT: Rgb = Rgb(0xCCD0D9);
+/// The list header color Winamp's wasabi base gives a skin that names none.
+const PL_COLUMN: Rgb = Rgb(0x666666);
 
 const STATUS_PLAYLIST: &str = "45f3f7c1-a6f3-4ee6-a15e-125e92fc3f8d";
 const STATUS_LEFT: [&str; 4] = ["Add", "Rem", "Sel", "Misc"];
@@ -557,7 +559,19 @@ impl SkinRuntime {
         }
         let alpha = self.objects[o].base.effective_alpha;
         let tracks = self.player.tracks();
-        let border = self.color("wasabi.window.background").unwrap_or(PL_BORDER);
+        let bar = if self.wal_version < 1.0 {
+            self.old_bar_colors(o, out)
+        } else {
+            BarColors {
+                border: self.color("wasabi.window.background").unwrap_or(PL_BORDER),
+                light: self.color("wasabi.border.sunken").unwrap_or(PL_LIGHT),
+                // without a skin color the channel is dark gray (Winamp3)
+                channel: self
+                    .color("wasabi.scrollbar.background")
+                    .unwrap_or(Rgb(0x333333)),
+            }
+        };
+        let border = bar.border;
         let back = self.pl_background();
         let text = self.color("wasabi.list.text").unwrap_or(Rgb(0xFFFFFF));
         // without a current color the current entry is white at half strength, whatever the
@@ -644,27 +658,141 @@ impl SkinRuntime {
             ));
         }
         out.push(DrawCmd::Unclip);
-        self.draw_playlist_scrollbar(o, out, border, alpha);
+        self.draw_playlist_scrollbar(o, out, &bar, alpha);
     }
 
-    /// Winamp's list scrollbar, as 5.666 draws it: 5 px of the frame's gray, a light line, a
-    /// 6 px channel in the skin's `wasabi.scrollbar.background` color, a light line and 2 px of
-    /// border; no arrows. The skin's thumb picture is shrunk, with filtering, to 8 px over the
-    /// channel and its two light lines, 17 px tall when nothing scrolls.
+    /// The scrollbar's colors for a skin older than version 1, which Winamp works out from the
+    /// skin's window background instead of reading its `wasabi.*` colors (`gen_ff`, checked
+    /// against every MMD3 color theme and Winamp3's default skin):
+    /// - the window background is the skin's color, or else the frame's own color where the list
+    ///   sits: Winamp draws a frame in memory and takes the pixel in its middle, and the
+    ///   window's drawing behind the list's middle stands in for that;
+    /// - the light lines are half the window background plus 7f7f7f, or only half from e1 up;
+    /// - the channel is half the list header color. A header darker than 1f gives way to half
+    ///   the window background with red and blue swapped, as Winamp shows it: MMD3's orange
+    ///   a45d01 gives a navy 001729.
+    fn old_bar_colors(&mut self, o: ObjId, drawn: &[DrawCmd]) -> BarColors {
+        let rect = self.objects[o].base.rect;
+        let border = self
+            .color("wasabi.window.background")
+            .or_else(|| {
+                self.drawn_color_at(
+                    drawn,
+                    rect.left + rect.width / 2,
+                    rect.top + rect.height / 2,
+                )
+            })
+            .unwrap_or(PL_BORDER);
+        let half = (border.0 >> 1) & 0x7F_7F7F;
+        let light = if brightest(border.0) < 0xE1 {
+            half + 0x7F_7F7F
+        } else {
+            half
+        };
+        let column = self
+            .color("wasabi.list.column.background")
+            .unwrap_or(PL_COLUMN);
+        let column = if brightest(column.0) < 0x1F {
+            swap_red_blue(half)
+        } else {
+            column.0
+        };
+        BarColors {
+            border,
+            light: Rgb(light),
+            channel: Rgb((column >> 1) & 0x7F_7F7F),
+        }
+    }
+
+    /// The color the commands drawn so far leave at `x`, `y`: the last solid fill or picture
+    /// pixel over the point, inside the clips around it. `None` where nothing solid is drawn.
+    fn drawn_color_at(&mut self, drawn: &[DrawCmd], x: i32, y: i32) -> Option<Rgb> {
+        // whether the point is inside each clip still open
+        let mut clips: Vec<bool> = Vec::new();
+        let mut found = None;
+        for cmd in drawn {
+            let shown = clips.iter().all(|inside| *inside);
+            match cmd {
+                DrawCmd::Clip(r) => clips.push(r.contains(x, y)),
+                DrawCmd::Unclip => {
+                    clips.pop();
+                }
+                DrawCmd::Fill { rect, color, alpha }
+                    if shown && *alpha == 255 && rect.contains(x, y) =>
+                {
+                    found = Some(*color);
+                }
+                DrawCmd::Image {
+                    bitmap,
+                    dst,
+                    alpha,
+                    gamma,
+                    ..
+                } if shown && *alpha == 255 && dst.contains(x, y) => {
+                    if let Some(c) = self.picture_color_at(bitmap, *dst, *gamma, x, y) {
+                        found = Some(c);
+                    }
+                }
+                _ => {}
+            }
+        }
+        found
+    }
+
+    /// The pixel of `bitmap`, stretched over `dst`, that lands on `x`, `y`, tinted; `None`
+    /// where the picture is clear there or cannot be read.
+    fn picture_color_at(
+        &mut self,
+        bitmap: &BitmapDef,
+        dst: Rect,
+        gamma: Option<Gamma>,
+        x: i32,
+        y: i32,
+    ) -> Option<Rgb> {
+        let (w, h) = if let (Some(w), Some(h)) = (bitmap.w, bitmap.h) {
+            (w, h)
+        } else {
+            let full = self.image_size(&bitmap.file)?;
+            (
+                bitmap.w.unwrap_or(full.0 - bitmap.x),
+                bitmap.h.unwrap_or(full.1 - bitmap.y),
+            )
+        };
+        if w <= 0 || h <= 0 || dst.width <= 0 || dst.height <= 0 {
+            return None;
+        }
+        let px = bitmap.x + ((x - dst.left) * w / dst.width).min(w - 1);
+        let py = bitmap.y + ((y - dst.top) * h / dst.height).min(h - 1);
+        let argb = match crate::generated::solid_spec(&bitmap.file) {
+            Some((_, _, argb)) => argb,
+            None => self.host.pixel(&bitmap.file, px, py)?,
+        };
+        if argb >> 24 == 0 {
+            return None;
+        }
+        let tint = gamma.or_else(|| self.gamma(bitmap.gamma_group.as_deref()));
+        Some(Rgb(match tint {
+            Some(g) => g.apply(argb | 0xFF00_0000) & 0xFF_FFFF,
+            None => argb & 0xFF_FFFF,
+        }))
+    }
+
+    /// Winamp's list scrollbar, as 5.666 draws it: 5 px of the frame's color, a light line, a
+    /// 6 px channel, a light line and 2 px of border; no arrows. The thumb is 8 by 18 px over
+    /// the channel and its two light lines, from the list's top when nothing scrolls: the
+    /// skin's framed button (the nine `wasabi.button` pictures, not its scrollbar thumb
+    /// picture), see-through where the button is, and the grip picture at its own size in the
+    /// middle (Winamp Modern, MMD3).
     fn draw_playlist_scrollbar(
         &mut self,
         o: ObjId,
         out: &mut Vec<DrawCmd>,
-        border: Rgb,
+        bar: &BarColors,
         alpha: i32,
     ) {
         let rect = self.objects[o].base.rect;
-        let light = self.color("wasabi.border.sunken").unwrap_or(PL_LIGHT);
+        let (border, light, channel) = (bar.border, bar.light, bar.channel);
         let x = rect.right() - PL_BAR;
-        // without a skin color the channel is dark gray (Winamp3)
-        let channel = self
-            .color("wasabi.scrollbar.background")
-            .unwrap_or(Rgb(0x333333));
         out.push(DrawCmd::Fill {
             rect: Rect::new(x, rect.top, PL_CHANNEL_X - 1, rect.height),
             color: border,
@@ -686,33 +814,41 @@ impl SkinRuntime {
             alpha,
         });
         // the thumb keeps its size however long the list (Wasabi SDK scrollbar; WinampModern-pllong)
-        let thumb_h = PL_THUMB_MIN;
-        let travel = (rect.height - 2 - thumb_h).max(0);
+        let thumb_h = PL_THUMB_H;
+        let travel = (rect.height - thumb_h).max(0);
         let max = self.pl_max_scroll(o);
         let scroll = self.pl(o).scroll_px;
-        let top = rect.top + 1 + if max == 0 { 0 } else { travel * scroll / max };
-        match self.bitmap(THUMB) {
-            Some(thumb) => {
-                out.push(DrawCmd::Image {
-                    bitmap: thumb,
-                    dst: Rect::new(x + PL_CHANNEL_X - 1, top, PL_CHANNEL_W + 2, thumb_h),
-                    alpha,
-                    gamma: None,
-                    smooth: true,
-                });
-                // the skin's grip picture at the picture's size, centered on the thumb
-                if let Some(g) = self.bitmap(PL_GRIP) {
-                    let (gw, gh) = self.bitmap_size(PL_GRIP).unwrap_or((0, 0));
-                    let gx = x + PL_CHANNEL_X - 1 + (PL_CHANNEL_W + 2 - gw) / 2;
-                    let gy = top + (thumb_h - gh) / 2;
-                    out.push(DrawCmd::image(g, Rect::new(gx, gy, gw, gh), alpha));
-                }
-            }
-            None => out.push(DrawCmd::Fill {
-                rect: Rect::new(x + PL_CHANNEL_X, top, PL_CHANNEL_W, thumb_h),
+        let top = rect.top + if max == 0 { 0 } else { travel * scroll / max };
+        let thumb = Rect::new(x + PL_CHANNEL_X - 1, top, PL_CHANNEL_W + 2, thumb_h);
+        if self.bitmap("wasabi.button.top.left").is_some() {
+            // the button's see-through edges show the border color, not the channel's lines
+            out.push(DrawCmd::Fill {
+                rect: thumb,
+                color: border,
+                alpha,
+            });
+            self.draw_framed_button(out, thumb, alpha, false);
+        } else if let Some(picture) = self.bitmap(THUMB) {
+            out.push(DrawCmd::Image {
+                bitmap: picture,
+                dst: thumb,
+                alpha,
+                gamma: None,
+                smooth: true,
+            });
+        } else {
+            out.push(DrawCmd::Fill {
+                rect: Rect::new(thumb.left + 1, top, thumb.width - 2, thumb_h),
                 color: light,
                 alpha,
-            }),
+            });
+        }
+        // the skin's grip picture at the picture's size, centered on the thumb
+        if let Some(g) = self.bitmap(PL_GRIP) {
+            let (gw, gh) = self.bitmap_size(PL_GRIP).unwrap_or((0, 0));
+            let gx = thumb.left + (thumb.width - gw) / 2;
+            let gy = top + (thumb_h - gh) / 2;
+            out.push(DrawCmd::image(g, Rect::new(gx, gy, gw, gh), alpha));
         }
     }
 
@@ -1230,4 +1366,22 @@ fn row_into_view(row: i32, top: i32, rows: i32, len: i32, centre: bool) -> Optio
     }
     let to = (row - rows / 2).min(len - rows);
     Some(to.max(0))
+}
+
+/// The colors of a playlist's scrollbar: the border around the channel, the light lines at its
+/// sides and the channel.
+struct BarColors {
+    border: Rgb,
+    light: Rgb,
+    channel: Rgb,
+}
+
+/// The largest of an RGB color's three parts.
+fn brightest(rgb: u32) -> u32 {
+    (rgb >> 16 & 0xFF).max(rgb >> 8 & 0xFF).max(rgb & 0xFF)
+}
+
+/// `rgb` with its red and blue parts traded.
+fn swap_red_blue(rgb: u32) -> u32 {
+    (rgb & 0xFF) << 16 | (rgb & 0xFF00) | (rgb >> 16 & 0xFF)
 }
