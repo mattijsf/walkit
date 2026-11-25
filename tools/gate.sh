@@ -1,5 +1,5 @@
 #!/bin/sh
-# The push gate: formatting, clippy with warnings as errors, every test.
+# The push gate: formatting (Rust, Swift, Kotlin), clippy with warnings as errors, every test.
 # The pre-push hook runs it; CI runs it only when started by hand.
 set -eu
 cd "$(dirname "$0")/.."
@@ -16,6 +16,10 @@ cargo test -p walkit --features truetype truetype
 # the web player's modules parse (node is what serves them)
 if command -v node >/dev/null 2>&1; then
   for f in web/*.mjs; do node --check "$f"; done
+fi
+# the macOS example's Swift: Apple's swift-format, which comes with Xcode (.swift-format)
+if command -v xcrun >/dev/null 2>&1 && xcrun --find swift-format >/dev/null 2>&1; then
+  xcrun swift-format lint --strict -r examples/macos/WalkitExample
 fi
 # the Kotlin side of the Android library, where the SDK and cargo-ndk are present: no device needed
 if [ -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ] && [ -x "$HOME/.cargo/bin/cargo-ndk" ]; then

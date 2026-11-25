@@ -1,4 +1,25 @@
 # Git hooks. One-time setup after clone: `lefthook install` (brew install lefthook)
+#
+# pre-commit: fast format and syntax checks on the languages a commit touches. Nothing is
+# rewritten: fix with `cargo fmt --all`, `xcrun swift-format format -i -r <dir>` or
+# `(cd android && ./gradlew spotlessApply)` and commit again.
+pre-commit:
+  parallel: true
+  commands:
+    rustfmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    swift-format:
+      glob: "*.swift"
+      run: xcrun swift-format lint --strict {staged_files}
+    ktlint:
+      glob: "*.{kt,kts}"
+      root: "android/"
+      run: ./gradlew -q spotlessCheck
+    node:
+      glob: "web/*.mjs"
+      run: for f in {staged_files}; do node --check "$f" || exit 1; done
+
 commit-msg:
   commands:
     conventional:

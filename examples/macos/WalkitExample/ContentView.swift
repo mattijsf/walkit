@@ -23,7 +23,8 @@ struct ContentView: View {
             SkinView(skin: library.skin, size: $size)
                 .frame(
                     minWidth: size.width, idealWidth: size.width, maxWidth: .infinity,
-                    minHeight: size.height, idealHeight: size.height, maxHeight: .infinity)
+                    minHeight: size.height, idealHeight: size.height, maxHeight: .infinity
+                )
                 .overlay {
                     if library.skin == nil {
                         Text(library.loading ? "Loading a skin" : "No skin").foregroundStyle(.secondary)
