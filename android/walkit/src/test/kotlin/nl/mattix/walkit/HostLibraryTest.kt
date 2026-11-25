@@ -75,6 +75,7 @@ class HostLibraryTest {
             rt.setAppActive(true)
             rt.pointerHover(10, 10)
             rt.pointerLeave()
+            assertEquals(null, rt.tooltip)
             rt.setClassicShades(false)
             rt.setPointerModifiers(ctrl = true, shift = false)
             rt.setClassicRowMarks(RowMarks(listOf(RowMark(listOf("#.#", ".#."), "A"), RowMark(text = "B")), listOf(0, null, 1)))

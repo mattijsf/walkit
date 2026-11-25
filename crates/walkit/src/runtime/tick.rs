@@ -86,6 +86,9 @@ impl SkinRuntime {
         if let Some(d) = self.classic_next_due_at(now) {
             due = due.min(d);
         }
+        if let Some(d) = self.tooltip_due_at() {
+            due = due.min(d);
+        }
         if status == Status::Playing {
             for g in self.progress_grids.clone() {
                 if self.shows(g) {

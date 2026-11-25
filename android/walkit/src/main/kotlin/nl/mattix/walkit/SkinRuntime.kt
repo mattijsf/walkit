@@ -565,6 +565,13 @@ public class SkinRuntime(
     /** A mouse or a pen has left the skin's windows. */
     public fun pointerLeave(): Unit = Native.rtPointerLeave(h())
 
+    /**
+     * The tooltip to show beside the mouse now, or null: from 350 ms after the mouse came onto an
+     * object, for 3 s, as Winamp shows it. Ask again at [nextDueAt].
+     */
+    public val tooltip: String?
+        get() = Native.rtTooltip(h()).ifEmpty { null }
+
     public fun pointerUp(
         x: Int,
         y: Int,

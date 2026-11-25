@@ -290,6 +290,11 @@ export class Runtime {
     this.w.x.wk_rt_pointer_hover(this.id, x, y);
   }
 
+  /** The tooltip to show beside the mouse now, or null: from 350 ms after the mouse came onto an object, for 3 s. Ask again at `nextDueAt`. */
+  tooltip() {
+    return this.w.x.wk_rt_tooltip(this.id) ? this.w.result() : null;
+  }
+
   /** A mouse has left the skin's windows. */
   pointerLeave() {
     this.w.x.wk_rt_pointer_leave(this.id);
