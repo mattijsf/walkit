@@ -719,6 +719,16 @@ pub extern "C" fn wk_rt_pointer_hover(id: i32, x: i32, y: i32) -> i32 {
         .unwrap_or(0)
 }
 
+/// The tooltip to show now into the result: 1 with one, 0 with none.
+#[unsafe(no_mangle)]
+pub extern "C" fn wk_rt_tooltip(id: i32) -> i32 {
+    let Some(Some(text)) = with_rt(id, |r| r.engine.tooltip()) else {
+        return 0;
+    };
+    with_state(|s| s.result = text.into_bytes());
+    1
+}
+
 /// A mouse has left the skin's windows.
 #[unsafe(no_mangle)]
 pub extern "C" fn wk_rt_pointer_leave(id: i32) -> i32 {

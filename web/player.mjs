@@ -388,6 +388,26 @@ function show(frame) {
   state.renderer.draw(ctx, frame, s);
 }
 
+// the skin's tooltip, just above the mouse with its left edge there, as Winamp's tooltip script places it
+const tip = document.createElement("div");
+tip.style.cssText =
+  "position:fixed;display:none;pointer-events:none;font:12px system-ui,sans-serif;" +
+  "background:#ffffe1;color:#000;border:1px solid #767676;padding:1px 4px;white-space:nowrap;z-index:10";
+document.body.appendChild(tip);
+let mouseAt = [0, 0];
+canvas.addEventListener("pointermove", (e) => (mouseAt = [e.clientX, e.clientY]));
+
+function showTooltip(text) {
+  if (!text) {
+    tip.style.display = "none";
+    return;
+  }
+  tip.textContent = text;
+  tip.style.display = "block";
+  tip.style.left = `${Math.min(mouseAt[0], innerWidth - tip.offsetWidth)}px`;
+  tip.style.top = `${Math.max(mouseAt[1] - tip.offsetHeight, 0)}px`;
+}
+
 function loop() {
   requestAnimationFrame(loop);
   const rt = state.rt;
@@ -399,6 +419,7 @@ function loop() {
   const changed = rt.tick();
   st.tickMs += performance.now() - t0;
   st.ticks++;
+  showTooltip(rt.tooltip());
   if (!changed && !state.dirty) {
     report(now);
     return;

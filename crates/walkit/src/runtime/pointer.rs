@@ -11,6 +11,10 @@ use crate::gui::{Kind, ObjId};
 use crate::host::SkinMenu;
 use crate::maki::{Handle, Value};
 
+/// How long the mouse rests on an object before its tooltip shows, in ms.
+const TOOLTIP_DELAY: i64 = 350;
+/// How long a tooltip shows, in ms.
+const TOOLTIP_SHOWN: i64 = 3000;
 /// Menus a script may pop in reply to one touch; more answer 0 without showing.
 const MAX_MENUS_PER_GESTURE: i32 = 3;
 /// The id of a wasabi title bar's group, and of the layer over the whole bar that takes its drags.
@@ -92,6 +96,8 @@ pub(crate) struct PointerState {
     pub(crate) hovered: Option<ObjId>,
     /// Whether the host has a mouse: it said where the pointer is with no button held.
     mouse: bool,
+    /// When the mouse came onto the hovered object, for its tooltip.
+    tip_since: Option<i64>,
     cancelling: bool,
     menu_refusals_logged: Vec<String>,
     /// What `has_skin_menu` answered for each object since the last layout pass.
@@ -241,6 +247,7 @@ impl SkinRuntime {
         let Some((o, x, y)) = under else { return };
         if self.pointer.hovered.is_none() {
             self.pointer.hovered = Some(o);
+            self.pointer.tip_since = Some(self.now());
             self.hover_shown(o);
             self.dispatch(Handle::Gui(o), "onenterarea", &[]);
         }
@@ -293,6 +300,41 @@ impl SkinRuntime {
         } else {
             self.leave_area(o);
         }
+    }
+
+    /// The tooltip to show now: the hovered object's `tooltip`, from 350 ms after the mouse came
+    /// onto it until 3 s later, as Winamp 5.666 shows it. None during a press, and after one until
+    /// the mouse comes onto an object again. The host draws it beside the mouse and asks again
+    /// at [`SkinRuntime::next_due_at`].
+    pub fn tooltip(&mut self) -> Option<String> {
+        let since = self.pointer.tip_since?;
+        let o = self
+            .pointer
+            .hovered
+            .filter(|o| self.all_objects.contains(o))?;
+        if self.captured.is_some() || !self.objects[o].base.visible {
+            return None;
+        }
+        let held = self.now() - since;
+        if !(TOOLTIP_DELAY..TOOLTIP_DELAY + TOOLTIP_SHOWN).contains(&held) {
+            return None;
+        }
+        self.objects[o]
+            .base
+            .tooltip
+            .clone()
+            .filter(|t| !t.trim().is_empty())
+    }
+
+    /// When the tooltip next shows or goes, for `next_due_at`.
+    pub(crate) fn tooltip_due_at(&self) -> Option<i64> {
+        let since = self.pointer.tip_since?;
+        let o = self.pointer.hovered?;
+        self.objects.get(o)?.base.tooltip.as_ref()?;
+        let now = self.now();
+        [since + TOOLTIP_DELAY, since + TOOLTIP_DELAY + TOOLTIP_SHOWN]
+            .into_iter()
+            .find(|t| *t > now)
     }
 
     /// Whether the pointer is over `o` with no button held.
@@ -749,6 +791,8 @@ impl SkinRuntime {
 
     /// The object hears the button go down at a point of the stack, and the finger come in.
     fn press(&mut self, target: ObjId, sx: i32, sy: i32) {
+        // a press hides the tooltip until the mouse comes onto an object again
+        self.pointer.tip_since = None;
         let window = self.layout_object(target);
         self.pointer.captured_origin = window.map_or(Rect::EMPTY, |l| self.window_rect_of(l));
         self.pointer.captured_scale = window.map_or(1.0, |l| self.layout_scale(l));

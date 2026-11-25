@@ -68,6 +68,8 @@ export interface Runtime {
   pointerMove(x: number, y: number): void;
   /** A mouse moves to a point with no button held: what is under it hears it, a button shows its hover picture. */
   pointerHover(x: number, y: number): void;
+  /** The tooltip to show beside the mouse now, or null; ask again at `nextDueAt`. */
+  tooltip(): string | null;
   /** A mouse has left the skin's windows. */
   pointerLeave(): void;
   pointerUp(x: number, y: number): void;

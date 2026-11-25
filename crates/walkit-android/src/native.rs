@@ -1176,6 +1176,16 @@ pub fn rt_pointer_hover_in<'l>(
     .resolve::<ThrowRuntimeExAndDefault>();
 }
 
+/// The tooltip to show now, or an empty string.
+#[jni_mangle("nl.mattix.walkit.Native")]
+pub fn rt_tooltip<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) -> JString<'l> {
+    env.with_env(|env| {
+        let tip = with_rt(env, h, |r| r.rt.tooltip().unwrap_or_default())?;
+        env.new_string(&tip)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 /// A mouse or a pen has left the skin's windows.
 #[jni_mangle("nl.mattix.walkit.Native")]
 pub fn rt_pointer_leave<'l>(mut env: EnvUnowned<'l>, _class: JClass<'l>, h: jlong) {

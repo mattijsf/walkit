@@ -329,6 +329,8 @@ internal object Native {
     @JvmStatic
     external fun rtPointerLeave(h: Long)
 
+    @JvmStatic external fun rtTooltip(h: Long): String
+
     @JvmStatic
     external fun rtPointerUpIn(
         h: Long,
