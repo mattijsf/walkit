@@ -1183,10 +1183,13 @@ CONTENT
 
 
 EQ_W, EQ_H = 300, 112
-# the sliders: preamp, then the ten bands, each 14 wide and 54 high
-EQ_SLIDER_Y, EQ_SLIDER_H = 42, 54
-EQ_PREAMP_X = 18
-EQ_BAND_X = [60 + 22 * i for i in range(10)]
+# the sliders: preamp, then the ten bands, each 14 wide and 52 high; with the labels under
+# them they leave 3 rows free at the top and the bottom of the well
+EQ_SLIDER_Y, EQ_SLIDER_H = 42, 52
+EQ_LABEL_Y = 96
+# 15 pixels free left of the preamp and right of the last band
+EQ_PREAMP_X = 23
+EQ_BAND_X = [65 + 22 * i for i in range(10)]
 EQ_LABELS = ["60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K", "16K"]
 
 
@@ -1199,11 +1202,14 @@ def modern_eq_bg():
     img.sunken(7, 38, 286, 67)
     for x in [EQ_PREAMP_X] + EQ_BAND_X:
         img.vline(x + 7, EQ_SLIDER_Y + 2, EQ_SLIDER_H - 4, GROOVE)
-    for label, y in (("+12", 42), ("0", 66), ("-12", 90)):
-        draw_text(img, 52 - text_width(label), y, label, INK_DIM)
-    draw_text_centered(img, EQ_PREAMP_X, 98, 14, "PRE", INK_DIM)
+    # +12, 0 and -12 centered on the thumb at the top, middle and bottom of its travel
+    travel = EQ_SLIDER_H - 7
+    for label, at in (("+12", 0), ("0", travel // 2), ("-12", travel)):
+        y = EQ_SLIDER_Y + at + 3 - 2
+        draw_text(img, 57 - text_width(label), y, label, INK_DIM)
+    draw_text_centered(img, EQ_PREAMP_X, EQ_LABEL_Y, 14, "PRE", INK_DIM)
     for x, label in zip(EQ_BAND_X, EQ_LABELS):
-        draw_text_centered(img, x, 98, 14, label, INK_DIM)
+        draw_text_centered(img, x, EQ_LABEL_Y, 14, label, INK_DIM)
     return img
 
 
@@ -1524,27 +1530,27 @@ FRAME_GROUPS
         downImage="eq.auto.down" tooltip="Load presets with each song"/>
       <eqvis id="eq.curve" x="74" y="22" w="216" h="10" colortop="200,255,245"
         colormiddle="45,212,191" colorbottom="22,96,88" colorpreamp="112,120,131"/>
-      <slider id="eq.preamp" action="EQ_BAND" param="preamp" x="18" y="42" w="14" h="54"
+      <slider id="eq.preamp" action="EQ_BAND" param="preamp" x="23" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="Preamp"/>
-      <slider id="eq.1" action="EQ_BAND" param="1" x="60" y="42" w="14" h="54"
+      <slider id="eq.1" action="EQ_BAND" param="1" x="65" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="60 Hz"/>
-      <slider id="eq.2" action="EQ_BAND" param="2" x="82" y="42" w="14" h="54"
+      <slider id="eq.2" action="EQ_BAND" param="2" x="87" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="170 Hz"/>
-      <slider id="eq.3" action="EQ_BAND" param="3" x="104" y="42" w="14" h="54"
+      <slider id="eq.3" action="EQ_BAND" param="3" x="109" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="310 Hz"/>
-      <slider id="eq.4" action="EQ_BAND" param="4" x="126" y="42" w="14" h="54"
+      <slider id="eq.4" action="EQ_BAND" param="4" x="131" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="600 Hz"/>
-      <slider id="eq.5" action="EQ_BAND" param="5" x="148" y="42" w="14" h="54"
+      <slider id="eq.5" action="EQ_BAND" param="5" x="153" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="1 kHz"/>
-      <slider id="eq.6" action="EQ_BAND" param="6" x="170" y="42" w="14" h="54"
+      <slider id="eq.6" action="EQ_BAND" param="6" x="175" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="3 kHz"/>
-      <slider id="eq.7" action="EQ_BAND" param="7" x="192" y="42" w="14" h="54"
+      <slider id="eq.7" action="EQ_BAND" param="7" x="197" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="6 kHz"/>
-      <slider id="eq.8" action="EQ_BAND" param="8" x="214" y="42" w="14" h="54"
+      <slider id="eq.8" action="EQ_BAND" param="8" x="219" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="12 kHz"/>
-      <slider id="eq.9" action="EQ_BAND" param="9" x="236" y="42" w="14" h="54"
+      <slider id="eq.9" action="EQ_BAND" param="9" x="241" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="14 kHz"/>
-      <slider id="eq.10" action="EQ_BAND" param="10" x="258" y="42" w="14" h="54"
+      <slider id="eq.10" action="EQ_BAND" param="10" x="263" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="16 kHz"/>
     </layout>
   </container>
