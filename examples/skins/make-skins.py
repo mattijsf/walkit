@@ -1046,7 +1046,6 @@ def classic_files():
 
 CLEAR = (0, 0, 0, 0)
 MAIN_W, MAIN_H = 300, 112
-PL_W, PL_H = 300, 180
 
 
 def modern_main_bg():
@@ -1070,12 +1069,320 @@ def vol_icon(img, x, y):
         img.vline(x + 2 + c, y + 2 - c, 6 + 2 * c, INK_DIM)
 
 
-def modern_pl_bg():
-    img = Canvas(PL_W, PL_H, BG)
-    img.edges(0, 0, PL_W, PL_H, BG_HI, EDGE)
-    title_strip(img, 1, 1, PL_W - 2, 15, "PLAYLIST", True)
-    img.sunken(7, 21, PL_W - 14, PL_H - 28)
+# The playlist, visualizer and media library resize: a grid of frame pieces, the title in two
+# halves either side of the middle, grips tiled out to them, and a size grip. At 300 wide they
+# match the fixed windows pixel for pixel.
+FRAMED = [
+    # prefix, container's title, well color, default size
+    ("pl", "PLAYLIST", "panel", 300, 180),
+    ("vis", "VISUALIZATION", "black", 300, 180),
+    ("ml", "MEDIA LIBRARY", "panel", 300, 232),
+]
+FRAME = {
+    "frame.tl": (0, 0, 25, 22),
+    "frame.t": (25, 0, 25, 22),
+    "frame.tr": (50, 0, 25, 22),
+    "frame.l": (75, 0, 8, 1),
+    "frame.r": (83, 0, 8, 1),
+    "frame.bl": (0, 22, 25, 8),
+    "frame.b": (25, 22, 25, 8),
+    "frame.br": (50, 22, 25, 8),
+    "frame.m.panel": (91, 0, 1, 1),
+    "frame.m.black": (92, 0, 1, 1),
+    "frame.grip": (93, 0, 2, 3),
+    "frame.resizer": (95, 0, 8, 8),
+}
+
+
+def frame_png():
+    """The window as modern_window_bg draws it, cut into grid pieces: the border, the title
+    bar, the frame and the rims of the well."""
+    img = Canvas(103, 30, CLEAR)
+    # the top: border, the title bar's highlight, face and line, the frame, the well's rim
+    img.fill(0, 0, 75, 22, BG)
+    img.hline(0, 0, 75, BG_HI)
+    img.hline(0, 1, 75, BG_HI)
+    img.fill(0, 2, 75, 13, TITLE)
+    img.hline(0, 15, 75, EDGE)
+    img.vline(0, 0, 22, BG_HI)
+    img.vline(74, 0, 22, EDGE)
+    img.hline(7, 21, 61, BG_LO)
+    img.put(67, 21, BG_HI)
+    # the sides
+    img.fill(75, 0, 16, 1, BG)
+    img.put(75, 0, BG_HI)
+    img.put(82, 0, BG_LO)
+    img.put(83, 0, BG_HI)
+    img.put(90, 0, EDGE)
+    # the bottom: the well's rim, the frame, the border
+    img.fill(0, 22, 75, 8, BG)
+    img.hline(7, 22, 61, BG_HI)
+    img.vline(0, 22, 7, BG_HI)
+    img.vline(74, 22, 8, EDGE)
+    img.hline(0, 29, 75, EDGE)
+    # the wells, the grip tile, the size grip
+    img.put(91, 0, PANEL)
+    img.put(92, 0, (0, 0, 0))
+    img.put(93, 0, ACCENT_DIM)
+    img.put(94, 2, ACCENT_DIM)
+    # the size grip: the frame's bottom right corner, opaque so all of it takes the drag, with
+    # three rows of dots
+    img.fill(95, 0, 8, 8, BG)
+    img.put(95, 0, BG_HI)
+    img.vline(102, 0, 8, EDGE)
+    img.hline(95, 7, 8, EDGE)
+    for r, c in ((6, 6), (6, 4), (4, 6), (6, 2), (4, 4), (2, 6)):
+        img.put(95 + c, r - 1, INK_FAINT)
     return img
+
+
+def titles_png():
+    """Each framed window's title, one per row of 5."""
+    img = Canvas(max(text_width(t) for _, t, _, _, _ in FRAMED), 5 * len(FRAMED), CLEAR)
+    for i, (_, title, _, _, _) in enumerate(FRAMED):
+        draw_text(img, 0, 5 * i, title, ACCENT)
+    return img
+
+
+def framed_xml():
+    """The elements, the title groups and the layouts of the framed windows."""
+    elements = [
+        f'    <bitmap id="{id_}" file="img/frame.png" x="{x}" y="{y}" w="{w}" h="{h}"/>'
+        for id_, (x, y, w, h) in FRAME.items()
+    ]
+    groups, layouts = [], {}
+    for i, (prefix, title, well, w, h) in enumerate(FRAMED):
+        tw = text_width(title)
+        # as title_strip centers the name in a strip from x 1 to w - 2
+        left = (tw + 1) // 2
+        right = tw - left
+        elements.append(f'    <bitmap id="{prefix}.title.l" file="img/titles.png" x="0" y="{5 * i}"'
+                        f' w="{left}" h="5"/>')
+        elements.append(f'    <bitmap id="{prefix}.title.r" file="img/titles.png" x="{left}"'
+                        f' y="{5 * i}" w="{right}" h="5"/>')
+        groups.append(f'''  <groupdef id="{prefix}.title.left">
+    <layer id="{prefix}.grip.left" x="21" y="7" w="-{21 + left + 6}" relatw="1" h="3" image="frame.grip" tile="1"/>
+    <layer id="{prefix}.title.l" x="-{left}" relatx="1" y="6" image="{prefix}.title.l"/>
+  </groupdef>
+  <groupdef id="{prefix}.title.right">
+    <layer id="{prefix}.title.r" x="0" y="6" image="{prefix}.title.r"/>
+    <layer id="{prefix}.grip.right" x="{right + 6}" y="7" w="-{right + 6 + 47}" relatw="1" h="3" image="frame.grip" tile="1"/>
+  </groupdef>''')
+        layouts[prefix] = f'''    <layout id="normal" background="frame.m.{well}" w="{w}" h="{h}" minimum_w="300" minimum_h="116">
+      <grid id="{prefix}.frame" x="0" y="0" w="0" h="0" relatw="1" relath="1"
+        topleft="frame.tl" top="frame.t" topright="frame.tr" left="frame.l" middle="frame.m.{well}"
+        right="frame.r" bottomleft="frame.bl" bottom="frame.b" bottomright="frame.br"/>
+      <group id="{prefix}.title.left" x="0" y="0" w="50" relatw="%" h="17"/>
+      <group id="{prefix}.title.right" x="50" relatx="%" y="0" w="50" relatw="%" h="17"/>
+      <layer id="{prefix}.titlebar" x="0" y="0" w="-20" relatw="1" h="17" move="1"/>
+      <button id="{prefix}.close" action="CLOSE" x="-14" relatx="1" y="4" image="close" downImage="close.down" tooltip="Close"/>
+CONTENT
+      <layer id="{prefix}.resize" x="-8" relatx="1" y="-8" relaty="1" image="frame.resizer" resize="bottomright"/>
+    </layout>'''
+    return "\n".join(elements), "\n".join(groups), layouts
+
+
+EQ_W, EQ_H = 300, 112
+# the sliders: preamp, then the ten bands, each 14 wide and 52 high; with the labels under
+# them they leave 3 rows free at the top and the bottom of the well
+EQ_SLIDER_Y, EQ_SLIDER_H = 42, 52
+EQ_LABEL_Y = 96
+# 15 pixels free left of the preamp and right of the last band
+EQ_PREAMP_X = 23
+EQ_BAND_X = [65 + 22 * i for i in range(10)]
+EQ_LABELS = ["60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K", "16K"]
+
+
+def modern_eq_bg():
+    img = Canvas(EQ_W, EQ_H, BG)
+    img.edges(0, 0, EQ_W, EQ_H, BG_HI, EDGE)
+    title_strip(img, 1, 1, EQ_W - 2, 15, "EQUALIZER", True)
+    # the curve's well, then the sliders' well with a groove under each slider
+    img.sunken(72, 20, 220, 14)
+    img.sunken(7, 38, 286, 67)
+    for x in [EQ_PREAMP_X] + EQ_BAND_X:
+        img.vline(x + 7, EQ_SLIDER_Y + 2, EQ_SLIDER_H - 4, GROOVE)
+    # +12, 0 and -12 centered on the thumb at the top, middle and bottom of its travel
+    travel = EQ_SLIDER_H - 7
+    for label, at in (("+12", 0), ("0", travel // 2), ("-12", travel)):
+        y = EQ_SLIDER_Y + at + 3 - 2
+        draw_text(img, 57 - text_width(label), y, label, INK_DIM)
+    draw_text_centered(img, EQ_PREAMP_X, EQ_LABEL_Y, 14, "PRE", INK_DIM)
+    for x, label in zip(EQ_BAND_X, EQ_LABELS):
+        draw_text_centered(img, x, EQ_LABEL_Y, 14, label, INK_DIM)
+    return img
+
+
+def modern_led_button(label, w, h, state):
+    """The equalizer's on and auto buttons: off, on (`lit`), or held."""
+    img = Canvas(w, h, CLEAR)
+    button(img, 0, 0, w, h, label=label, down=state == "down", lit=state == "lit")
+    return img
+
+
+# Where each wasabi base element sits on img/wasabi.png: (x, y, w, h). The skin lays them over
+# the base's own, so the windows Winamp frames itself (plug-ins, the base's dialogs) and the
+# lists, buttons and scroll bars inside them match the skin.
+WASABI = {
+    "wasabi.frame.top.left": (0, 0, 15, 15),
+    "wasabi.frame.top": (15, 0, 15, 15),
+    "wasabi.frame.top.right": (30, 0, 15, 15),
+    "wasabi.frame.left": (45, 0, 5, 15),
+    "wasabi.frame.right": (50, 0, 5, 15),
+    "wasabi.frame.bottom.left.top": (0, 15, 15, 2),
+    "wasabi.frame.bottom.left": (0, 17, 15, 1),
+    "wasabi.frame.bottom.left.bottom": (0, 18, 15, 2),
+    "wasabi.frame.bottom.top": (15, 15, 15, 2),
+    "wasabi.frame.bottom": (15, 17, 15, 1),
+    "wasabi.frame.bottom.bottom": (15, 18, 15, 2),
+    "wasabi.frame.bottom.right.top": (30, 15, 15, 2),
+    "wasabi.frame.bottom.right": (30, 17, 15, 1),
+    "wasabi.frame.bottom.right.bottom": (30, 18, 15, 2),
+    "wasabi.frame.resizer": (55, 0, 12, 12),
+    "wasabi.titlebar.left.active": (0, 20, 7, 9),
+    "wasabi.titlebar.center.active": (7, 20, 7, 9),
+    "wasabi.titlebar.right.active": (14, 20, 7, 9),
+    "wasabi.titlebar.left.inactive": (0, 29, 7, 9),
+    "wasabi.titlebar.center.inactive": (7, 29, 7, 9),
+    "wasabi.titlebar.right.inactive": (14, 29, 7, 9),
+    "wasabi.button.sysmenu": (21, 20, 14, 9),
+    "wasabi.button.sysmenu.pressed": (21, 29, 14, 9),
+    "wasabi.button.close": (35, 20, 14, 9),
+    "wasabi.button.close.pressed": (35, 29, 14, 9),
+    "wasabi.scrollbar.vertical.grip": (153, 40, 6, 8),
+    "wasabi.scrollbar.horizontal.grip": (160, 40, 8, 6),
+    "wasabi.scrollbar.horizontal.background.left": (153, 50, 5, 5),
+    "wasabi.scrollbar.horizontal.background.middle": (158, 50, 5, 5),
+    "wasabi.scrollbar.horizontal.background.right": (163, 50, 5, 5),
+    "wasabi.scrollbar.vertical.background.top": (153, 55, 5, 5),
+    "wasabi.scrollbar.vertical.background.middle": (158, 55, 5, 5),
+    "wasabi.scrollbar.vertical.background.bottom": (163, 55, 5, 5),
+    "wasabi.list.background": (80, 80, 17, 17),
+    "wasabi.tree.background": (80, 80, 17, 17),
+    "wasabi.window.top.left": (100, 80, 1, 1),
+    "wasabi.window.top": (101, 80, 17, 1),
+    "wasabi.window.top.right": (118, 80, 1, 1),
+    "wasabi.window.left": (100, 81, 1, 17),
+    "wasabi.window.center": (101, 81, 17, 17),
+    "wasabi.window.right": (118, 81, 1, 17),
+    "wasabi.window.bottom.left": (100, 98, 1, 1),
+    "wasabi.window.bottom": (101, 98, 17, 1),
+    "wasabi.window.bottom.right": (118, 98, 1, 1),
+}
+# the scroll bar's arrows and thumbs, each at rest, under the mouse and held
+for i, state in enumerate(("", ".hover", ".pressed")):
+    WASABI[f"wasabi.scrollbar.horizontal.left{state}"] = (0, 40 + 13 * i, 17, 13)
+    WASABI[f"wasabi.scrollbar.horizontal.right{state}"] = (17, 40 + 13 * i, 17, 13)
+    WASABI[f"wasabi.scrollbar.horizontal.button{state}"] = (34, 40 + 13 * i, 41, 13)
+    WASABI[f"wasabi.scrollbar.vertical.left{state}"] = (75 + 13 * i, 40, 13, 17)
+    WASABI[f"wasabi.scrollbar.vertical.right{state}"] = (75 + 13 * i, 57, 13, 17)
+    WASABI[f"wasabi.scrollbar.vertical.button{state}"] = (114 + 13 * i, 40, 13, 41)
+# the framed button, at rest and pressed: 4 pixel corners round a 25 pixel middle
+for prefix, x0 in (("wasabi.button.", 0), ("wasabi.button.pressed.", 40)):
+    for name, (x, y, w, h) in {
+        "top.left": (0, 0, 4, 4), "top": (4, 0, 25, 4), "top.right": (29, 0, 4, 4),
+        "left": (0, 4, 4, 25), "middle": (4, 4, 25, 25), "right": (29, 4, 4, 25),
+        "bottom.left": (0, 29, 4, 4), "bottom": (4, 29, 25, 4), "bottom.right": (29, 29, 4, 4),
+    }.items():
+        WASABI[prefix + name] = (x0 + x, 80 + y, w, h)
+WASABI["wasabi.button.pressed.center"] = WASABI["wasabi.button.pressed.middle"]
+
+
+def wasabi_png():
+    img = Canvas(170, 115, CLEAR)
+    # the standard frame: the title bar's 15 rows, the sides, the bottom in three bands
+    for x in (0, 15, 30):
+        img.fill(x, 0, 15, 14, TITLE)
+        img.hline(x, 0, 15, BG_HI)
+        img.hline(x, 14, 15, EDGE)
+        img.fill(x, 15, 15, 5, BG)
+    img.vline(0, 0, 14, BG_HI)
+    img.vline(44, 0, 15, EDGE)
+    img.fill(45, 0, 10, 15, BG)
+    img.vline(45, 0, 15, BG_HI)
+    img.vline(49, 0, 15, BG_LO)
+    img.vline(50, 0, 15, BG_HI)
+    img.vline(54, 0, 15, EDGE)
+    img.hline(5, 15, 25, BG_HI)
+    img.hline(30, 15, 11, BG_HI)
+    img.vline(0, 15, 5, BG_HI)
+    img.vline(44, 15, 5, EDGE)
+    img.hline(0, 19, 45, EDGE)
+    img.put(4, 15, BG_LO)
+    # the size grip
+    for r in range(12):
+        for c in range(12):
+            if r + c >= 11 and (r + c) % 3 == 0 and r % 3 == 2:
+                img.put(55 + c, r, INK_FAINT)
+    # the title's streaks either side of the name, active and not
+    for y, line in ((20, ACCENT_DIM), (29, INK_FAINT)):
+        img.fill(0, y, 21, 9, CLEAR)
+        img.hline(1, y + 3, 20, line)
+        img.hline(1, y + 5, 20, line)
+    # the window menu and close buttons
+    for y, down in ((20, False), (29, True)):
+        for x, kind in ((21, "menu"), (35, "close")):
+            img.round_rect(x, y, 14, 9, ACCENT_DARK if down else BTN_HI)
+            icon(img, kind, x + 7, y + 4, ACCENT if down else INK)
+    # the scroll bars
+    faces = ((BTN, BTN_HI, BTN_LO, INK), (BTN_HI, BTN_HI, BTN_LO, INK),
+             (BTN_DOWN, BTN_LO, BTN_HI, ACCENT))
+    for i, (face, hi, lo, mark) in enumerate(faces):
+        y = 40 + 13 * i
+        for x, w, kind in ((0, 17, "left"), (17, 17, "right"), (34, 41, None)):
+            img.raised(x, y, w, 13, face, hi, lo)
+            if kind == "left":
+                icon_triangle_left(img, x + 7, y + 4, mark, 5)
+            elif kind == "right":
+                icon_triangle_right(img, x + 8, y + 4, mark, 5)
+        x = 75 + 13 * i
+        for y, kind in ((40, "up"), (57, "down")):
+            img.raised(x, y, 13, 17, face, hi, lo)
+            icon(img, kind, x + 6, y + 8, mark)
+        img.raised(114 + 13 * i, 40, 13, 41, face, hi, lo)
+    for r in (1, 4, 7):
+        img.hline(153, 40 + r, 6, INK_DIM)
+    for c in (1, 4, 7):
+        img.vline(160 + c, 40, 6, INK_DIM)
+    img.fill(153, 50, 15, 10, PANEL)
+    # the framed button
+    for x, face, hi, lo in ((0, BTN, BTN_HI, BTN_LO), (40, BTN_DOWN, BTN_LO, BTN_HI)):
+        img.fill(x, 80, 33, 33, face)
+        img.edges(x, 80, 33, 33, hi, lo)
+        for cx, cy in ((x, 80), (x + 32, 80), (x, 112), (x + 32, 112)):
+            img.put(cx, cy, CLEAR)
+    # a list's background, and a window's: a dark line round the window's color
+    img.fill(80, 80, 17, 17, PANEL)
+    img.fill(100, 80, 19, 19, BG_LO)
+    img.fill(101, 81, 17, 17, BG)
+    return img
+
+
+def title_font_png():
+    """The standard frame's title font, as Winamp's text.bmp lays out its letters: cells 5 wide
+    and 11 high, the letter on rows 3 to 7 so it centers on the title bar's buttons."""
+    img = Canvas(155, 33, CLEAR)
+    rows = [
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ\"@",
+        "0123456789….:()-'!_+\\/[]^&%,=$#",
+        "ÅÖÄ?*",
+    ]
+    for r, chars in enumerate(rows):
+        for i, c in enumerate(chars):
+            draw_glyph(img, i * 5, r * 11 + 3, c, ACCENT)
+    return img
+
+
+def wasabi_elements_xml():
+    lines = [
+        '    <bitmapfont id="studio.component.title" file="img/title-font.png" charwidth="5"'
+        ' charheight="11" hspacing="0" vspacing="0"/>'
+    ]
+    for id_, (x, y, w, h) in WASABI.items():
+        lines.append(
+            f'    <bitmap id="{id_}" file="img/wasabi.png" x="{x}" y="{y}" w="{w}" h="{h}"/>'
+        )
+    return "\n".join(lines)
 
 
 def modern_button(kind, w, h, down):
@@ -1104,7 +1411,8 @@ def modern_thumb(w, h, color):
 
 SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- walkit's own modern example skin: one main window and a playlist window. -->
+<!-- walkit's modern example skin: the main window, equalizer, playlist, visualizer and
+     media library, 300 pixels wide. -->
 <WinampAbstractionLayer version="0.8">
   <skininfo>
     <version>1.0</version>
@@ -1115,7 +1423,7 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
   <elements>
     <bitmap id="main.bg" file="img/main-bg.png"/>
-    <bitmap id="pl.bg" file="img/pl-bg.png"/>
+FRAME_ELEMENTS
     <bitmap id="close" file="img/close.png"/>
     <bitmap id="close.down" file="img/close-down.png"/>
     <bitmap id="prev" file="img/prev.png"/>
@@ -1130,6 +1438,17 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <bitmap id="next.down" file="img/next-down.png"/>
     <bitmap id="pl" file="img/pl.png"/>
     <bitmap id="pl.down" file="img/pl-down.png"/>
+    <bitmap id="eq" file="img/eq.png"/>
+    <bitmap id="eq.down" file="img/eq-down.png"/>
+    <bitmap id="eq.bg" file="img/eq-bg.png"/>
+    <bitmap id="eq.on" file="img/eq-on.png"/>
+    <bitmap id="eq.on.lit" file="img/eq-on-lit.png"/>
+    <bitmap id="eq.on.down" file="img/eq-on-down.png"/>
+    <bitmap id="eq.auto" file="img/eq-auto.png"/>
+    <bitmap id="eq.auto.lit" file="img/eq-auto-lit.png"/>
+    <bitmap id="eq.auto.down" file="img/eq-auto-down.png"/>
+    <bitmap id="eq.thumb" file="img/eq-thumb.png"/>
+    <bitmap id="eq.thumb.down" file="img/eq-thumb-down.png"/>
     <bitmap id="seek.thumb" file="img/seek-thumb.png"/>
     <bitmap id="seek.thumb.down" file="img/seek-thumb-down.png"/>
     <bitmap id="volume.thumb" file="img/volume-thumb.png"/>
@@ -1142,7 +1461,34 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <color id="wasabi.list.text.selected.background" value="30,76,71"/>
     <color id="wasabi.border.sunken" value="38,42,49"/>
     <color id="wasabi.scrollbar.background" value="30,33,38"/>
+    <color id="wasabi.list.item.selected" value="30,76,71"/>
+    <color id="wasabi.list.item.focused" value="30,76,71"/>
+    <color id="wasabi.list.item.selected.fg" value="216,222,228"/>
+    <color id="wasabi.list.column.background" value="48,53,61"/>
+    <color id="wasabi.list.column.text" value="216,222,228"/>
+    <color id="wasabi.list.column.separator" value="22,24,28"/>
+    <color id="wasabi.tree.text" value="174,186,196"/>
+    <color id="wasabi.tree.selected" value="30,76,71"/>
+    <color id="wasabi.tree.hiliteddrop" value="22,96,88"/>
+    <color id="wasabi.itemlist.outline.current" value="45,212,191"/>
+    <color id="wasabi.itemlist.outline.focus" value="22,96,88"/>
+    <color id="wasabi.itemlist.selborder" value="22,96,88"/>
+    <color id="wasabi.button.text" value="216,222,228"/>
+    <color id="wasabi.button.hiliteText" value="45,212,191"/>
+    <color id="wasabi.button.dimmedText" value="112,120,131"/>
+    <color id="wasabi.edit.text" value="216,222,228"/>
+    <color id="wasabi.edit.background" value="12,14,17"/>
+    <color id="wasabi.edit.selection" value="30,76,71"/>
+    <color id="wasabi.text.color" value="216,222,228"/>
+    <color id="wasabi.labelwnd.foreground" value="216,222,228"/>
+    <color id="wasabi.labelwnd.background" value="30,33,38"/>
+    <color id="wasabi.component.title.foreground" value="45,212,191"/>
+    <color id="wasabi.component.title.border" value="30,33,38"/>
+    <!-- the wasabi base's frame, title bar, buttons and scroll bars, in this skin's look -->
+WASABI_ELEMENTS
   </elements>
+
+FRAME_GROUPS
 
   <container id="main" name="Main Window" default_x="0" default_y="0" default_visible="1">
     <layout id="normal" background="main.bg" w="300" h="112">
@@ -1166,39 +1512,114 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <button id="pause" action="PAUSE" x="60" y="84" image="pause" downImage="pause.down" tooltip="Pause"/>
       <button id="stop" action="STOP" x="86" y="84" image="stop" downImage="stop.down" tooltip="Stop"/>
       <button id="next" action="NEXT" x="112" y="84" image="next" downImage="next.down" tooltip="Next"/>
-      <button id="pltoggle" action="TOGGLE" param="pledit" x="146" y="84" image="pl" downImage="pl.down" tooltip="Playlist"/>
+      <button id="eqtoggle" action="TOGGLE" param="equalizer" x="144" y="84" image="eq" downImage="eq.down" tooltip="Equalizer"/>
+      <button id="pltoggle" action="TOGGLE" param="pledit" x="166" y="84" image="pl" downImage="pl.down" tooltip="Playlist"/>
 
       <slider id="volume" action="VOLUME" x="204" y="88" w="88" h="12"
         thumb="volume.thumb" downThumb="volume.thumb.down"/>
     </layout>
   </container>
 
-  <container id="pledit" name="Playlist Editor" default_x="0" default_y="112" default_visible="1">
-    <layout id="normal" background="pl.bg" w="300" h="180">
-      <layer id="pl.titlebar" x="0" y="0" w="280" h="17" move="1"/>
-      <button id="pl.close" action="CLOSE" x="286" y="4" image="close" downImage="close.down" tooltip="Close"/>
-      <component id="pl.list" x="8" y="22" w="284" h="150"
+  <container id="equalizer" name="Equalizer" default_x="0" default_y="112" default_visible="1">
+    <layout id="normal" background="eq.bg" w="300" h="112">
+      <layer id="eq.titlebar" x="0" y="0" w="280" h="17" move="1"/>
+      <button id="eq.close" action="CLOSE" x="286" y="4" image="close" downImage="close.down" tooltip="Close"/>
+      <button id="eq.on" action="EQ_TOGGLE" x="8" y="21" image="eq.on" activeImage="eq.on.lit"
+        downImage="eq.on.down" tooltip="Equalizer on/off"/>
+      <button id="eq.auto" action="EQ_AUTO" x="36" y="21" image="eq.auto" activeImage="eq.auto.lit"
+        downImage="eq.auto.down" tooltip="Load presets with each song"/>
+      <eqvis id="eq.curve" x="74" y="22" w="216" h="10" colortop="200,255,245"
+        colormiddle="45,212,191" colorbottom="22,96,88" colorpreamp="112,120,131"/>
+      <slider id="eq.preamp" action="EQ_BAND" param="preamp" x="23" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="Preamp"/>
+      <slider id="eq.1" action="EQ_BAND" param="1" x="65" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="60 Hz"/>
+      <slider id="eq.2" action="EQ_BAND" param="2" x="87" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="170 Hz"/>
+      <slider id="eq.3" action="EQ_BAND" param="3" x="109" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="310 Hz"/>
+      <slider id="eq.4" action="EQ_BAND" param="4" x="131" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="600 Hz"/>
+      <slider id="eq.5" action="EQ_BAND" param="5" x="153" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="1 kHz"/>
+      <slider id="eq.6" action="EQ_BAND" param="6" x="175" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="3 kHz"/>
+      <slider id="eq.7" action="EQ_BAND" param="7" x="197" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="6 kHz"/>
+      <slider id="eq.8" action="EQ_BAND" param="8" x="219" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="12 kHz"/>
+      <slider id="eq.9" action="EQ_BAND" param="9" x="241" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="14 kHz"/>
+      <slider id="eq.10" action="EQ_BAND" param="10" x="263" y="42" w="14" h="52"
+        orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="16 kHz"/>
+    </layout>
+  </container>
+
+  <container id="pledit" name="Playlist Editor" default_x="0" default_y="224" default_visible="1">
+LAYOUT_PL
+      <component id="pl.list" x="8" y="22" w="-16" h="-30" relatw="1" relath="1"
         param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}"/>
+    </layout>
+  </container>
+  <container id="avs" name="Visualization" dynamic="1" component="guid:{0000000A-000C-0010-FF7B-01014263450C}"
+    default_x="0" default_y="404" default_visible="0">
+LAYOUT_VIS
+      <component id="vis.holder" x="8" y="22" w="-16" h="-30" relatw="1" relath="1" noshowcmdbar="1" autoopen="1" autoclose="1"
+        param="guid:{0000000A-000C-0010-FF7B-01014263450C}"/>
+    </layout>
+  </container>
+
+  <container id="ml" name="Media Library" dynamic="1" component="guid:{6B0EDF80-C9A5-11D3-9F26-00C04F39FFC6}"
+    default_x="300" default_y="0" default_visible="0">
+LAYOUT_ML
+      <component id="ml.list" x="8" y="22" w="-16" h="-30" relatw="1" relath="1" noshowcmdbar="1" autoopen="1" autoclose="1"
+        param="guid:{6B0EDF80-C9A5-11D3-9F26-00C04F39FFC6}"/>
     </layout>
   </container>
 </WinampAbstractionLayer>
 """
 
 
+def skin_xml():
+    """SKIN_XML with the wasabi elements and the framed windows filled in: each LAYOUT_<PREFIX>
+    line and the content under it, up to its </layout>, becomes that window's layout."""
+    elements, groups, layouts = framed_xml()
+    xml = SKIN_XML.replace("WASABI_ELEMENTS", wasabi_elements_xml())
+    xml = xml.replace("FRAME_ELEMENTS", elements).replace("FRAME_GROUPS", groups)
+    for prefix, layout in layouts.items():
+        start = xml.index(f"LAYOUT_{prefix.upper()}\n")
+        end = xml.index("    </layout>\n", start) + len("    </layout>\n")
+        content = xml[start + len(f"LAYOUT_{prefix.upper()}\n"):end - len("    </layout>\n")]
+        xml = xml[:start] + layout.replace("CONTENT\n", content) + "\n" + xml[end:]
+    return xml
+
+
 def modern_files():
     files = {
-        "skin.xml": SKIN_XML.encode(),
+        "skin.xml": skin_xml().encode(),
         "img/main-bg.png": png(modern_main_bg()),
-        "img/pl-bg.png": png(modern_pl_bg()),
+        "img/eq-bg.png": png(modern_eq_bg()),
+        "img/frame.png": png(frame_png()),
+        "img/titles.png": png(titles_png()),
+        "img/wasabi.png": png(wasabi_png()),
+        "img/title-font.png": png(title_font_png()),
+        "img/eq.png": png(modern_text_button("EQ", 20, 18, False)),
+        "img/eq-down.png": png(modern_text_button("EQ", 20, 18, True)),
+        "img/eq-thumb.png": png(modern_thumb(14, 7, ACCENT)),
+        "img/eq-thumb-down.png": png(modern_thumb(14, 7, INK)),
         "img/close.png": png(modern_close(False)),
         "img/close-down.png": png(modern_close(True)),
-        "img/pl.png": png(modern_text_button("PL", 24, 18, False)),
-        "img/pl-down.png": png(modern_text_button("PL", 24, 18, True)),
+        "img/pl.png": png(modern_text_button("PL", 20, 18, False)),
+        "img/pl-down.png": png(modern_text_button("PL", 20, 18, True)),
         "img/seek-thumb.png": png(modern_thumb(24, 10, ACCENT)),
         "img/seek-thumb-down.png": png(modern_thumb(24, 10, INK)),
         "img/volume-thumb.png": png(modern_thumb(10, 12, ACCENT)),
         "img/volume-thumb-down.png": png(modern_thumb(10, 12, INK)),
     }
+    for label, name, w in (("ON", "eq-on", 26), ("AUTO", "eq-auto", 34)):
+        files[f"img/{name}.png"] = png(modern_led_button(label, w, 12, "off"))
+        files[f"img/{name}-lit.png"] = png(modern_led_button(label, w, 12, "lit"))
+        files[f"img/{name}-down.png"] = png(modern_led_button(label, w, 12, "down"))
     for kind in ("prev", "play", "pause", "stop", "next"):
         files[f"img/{kind}.png"] = png(modern_button(kind, 24, 18, False))
         files[f"img/{kind}-down.png"] = png(modern_button(kind, 24, 18, True))
