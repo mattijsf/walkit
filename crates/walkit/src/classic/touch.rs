@@ -576,6 +576,13 @@ impl SkinRuntime {
         self.classic_press.filter(|p| p.object == o)
     }
 
+    /// The control held down on classic window `o` with the pointer still over it.
+    pub(crate) fn classic_held(&self, o: ObjId) -> Option<Control> {
+        self.classic_press_on(o)
+            .filter(|p| p.inside)
+            .map(|p| p.control)
+    }
+
     /// What a press at `px`, `py` of classic window `o` (of kind `w`) takes, and the point of
     /// it: the control there, the main window's vis only while something plays. Under touch a
     /// finger on a place without a control takes the nearest control within the touch slop, and
