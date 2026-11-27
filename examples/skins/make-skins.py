@@ -1046,7 +1046,6 @@ def classic_files():
 
 CLEAR = (0, 0, 0, 0)
 MAIN_W, MAIN_H = 300, 112
-PL_W, PL_H = 300, 180
 
 
 def modern_main_bg():
@@ -1070,22 +1069,120 @@ def vol_icon(img, x, y):
         img.vline(x + 2 + c, y + 2 - c, 6 + 2 * c, INK_DIM)
 
 
-def modern_window_bg(w, h, name, well=PANEL):
-    """A window: the border, the title bar with `name`, and the well under it."""
-    img = Canvas(w, h, BG)
-    img.edges(0, 0, w, h, BG_HI, EDGE)
-    title_strip(img, 1, 1, w - 2, 15, name, True)
-    img.sunken(7, 21, w - 14, h - 28, well)
+# The playlist, visualizer and media library resize: a grid of frame pieces, the title in two
+# halves either side of the middle, grips tiled out to them, and a size grip. At 300 wide they
+# match the fixed windows pixel for pixel.
+FRAMED = [
+    # prefix, container's title, well color, default size
+    ("pl", "PLAYLIST", "panel", 300, 180),
+    ("vis", "VISUALIZATION", "black", 300, 180),
+    ("ml", "MEDIA LIBRARY", "panel", 300, 232),
+]
+FRAME = {
+    "frame.tl": (0, 0, 25, 22),
+    "frame.t": (25, 0, 25, 22),
+    "frame.tr": (50, 0, 25, 22),
+    "frame.l": (75, 0, 8, 1),
+    "frame.r": (83, 0, 8, 1),
+    "frame.bl": (0, 22, 25, 8),
+    "frame.b": (25, 22, 25, 8),
+    "frame.br": (50, 22, 25, 8),
+    "frame.m.panel": (91, 0, 1, 1),
+    "frame.m.black": (92, 0, 1, 1),
+    "frame.grip": (93, 0, 2, 3),
+    "frame.resizer": (95, 0, 8, 8),
+}
+
+
+def frame_png():
+    """The window as modern_window_bg draws it, cut into grid pieces: the border, the title
+    bar, the frame and the rims of the well."""
+    img = Canvas(103, 30, CLEAR)
+    # the top: border, the title bar's highlight, face and line, the frame, the well's rim
+    img.fill(0, 0, 75, 22, BG)
+    img.hline(0, 0, 75, BG_HI)
+    img.hline(0, 1, 75, BG_HI)
+    img.fill(0, 2, 75, 13, TITLE)
+    img.hline(0, 15, 75, EDGE)
+    img.vline(0, 0, 22, BG_HI)
+    img.vline(74, 0, 22, EDGE)
+    img.hline(7, 21, 61, BG_LO)
+    img.put(67, 21, BG_HI)
+    # the sides
+    img.fill(75, 0, 16, 1, BG)
+    img.put(75, 0, BG_HI)
+    img.put(82, 0, BG_LO)
+    img.put(83, 0, BG_HI)
+    img.put(90, 0, EDGE)
+    # the bottom: the well's rim, the frame, the border
+    img.fill(0, 22, 75, 8, BG)
+    img.hline(7, 22, 61, BG_HI)
+    img.vline(0, 22, 7, BG_HI)
+    img.vline(74, 22, 8, EDGE)
+    img.hline(0, 29, 75, EDGE)
+    # the wells, the grip tile, the size grip
+    img.put(91, 0, PANEL)
+    img.put(92, 0, (0, 0, 0))
+    img.put(93, 0, ACCENT_DIM)
+    img.put(94, 2, ACCENT_DIM)
+    # the size grip: the frame's bottom right corner, opaque so all of it takes the drag, with
+    # three rows of dots
+    img.fill(95, 0, 8, 8, BG)
+    img.put(95, 0, BG_HI)
+    img.vline(102, 0, 8, EDGE)
+    img.hline(95, 7, 8, EDGE)
+    for r, c in ((6, 6), (6, 4), (4, 6), (6, 2), (4, 4), (2, 6)):
+        img.put(95 + c, r - 1, INK_FAINT)
     return img
 
 
-def modern_pl_bg():
-    return modern_window_bg(PL_W, PL_H, "PLAYLIST")
+def titles_png():
+    """Each framed window's title, one per row of 5."""
+    img = Canvas(max(text_width(t) for _, t, _, _, _ in FRAMED), 5 * len(FRAMED), CLEAR)
+    for i, (_, title, _, _, _) in enumerate(FRAMED):
+        draw_text(img, 0, 5 * i, title, ACCENT)
+    return img
+
+
+def framed_xml():
+    """The elements, the title groups and the layouts of the framed windows."""
+    elements = [
+        f'    <bitmap id="{id_}" file="img/frame.png" x="{x}" y="{y}" w="{w}" h="{h}"/>'
+        for id_, (x, y, w, h) in FRAME.items()
+    ]
+    groups, layouts = [], {}
+    for i, (prefix, title, well, w, h) in enumerate(FRAMED):
+        tw = text_width(title)
+        # as title_strip centers the name in a strip from x 1 to w - 2
+        left = (tw + 1) // 2
+        right = tw - left
+        elements.append(f'    <bitmap id="{prefix}.title.l" file="img/titles.png" x="0" y="{5 * i}"'
+                        f' w="{left}" h="5"/>')
+        elements.append(f'    <bitmap id="{prefix}.title.r" file="img/titles.png" x="{left}"'
+                        f' y="{5 * i}" w="{right}" h="5"/>')
+        groups.append(f'''  <groupdef id="{prefix}.title.left">
+    <layer id="{prefix}.grip.left" x="21" y="7" w="-{21 + left + 6}" relatw="1" h="3" image="frame.grip" tile="1"/>
+    <layer id="{prefix}.title.l" x="-{left}" relatx="1" y="6" image="{prefix}.title.l"/>
+  </groupdef>
+  <groupdef id="{prefix}.title.right">
+    <layer id="{prefix}.title.r" x="0" y="6" image="{prefix}.title.r"/>
+    <layer id="{prefix}.grip.right" x="{right + 6}" y="7" w="-{right + 6 + 47}" relatw="1" h="3" image="frame.grip" tile="1"/>
+  </groupdef>''')
+        layouts[prefix] = f'''    <layout id="normal" background="frame.m.{well}" w="{w}" h="{h}" minimum_w="300" minimum_h="116">
+      <grid id="{prefix}.frame" x="0" y="0" w="0" h="0" relatw="1" relath="1"
+        topleft="frame.tl" top="frame.t" topright="frame.tr" left="frame.l" middle="frame.m.{well}"
+        right="frame.r" bottomleft="frame.bl" bottom="frame.b" bottomright="frame.br"/>
+      <group id="{prefix}.title.left" x="0" y="0" w="50" relatw="%" h="17"/>
+      <group id="{prefix}.title.right" x="50" relatx="%" y="0" w="50" relatw="%" h="17"/>
+      <layer id="{prefix}.titlebar" x="0" y="0" w="-20" relatw="1" h="17" move="1"/>
+      <button id="{prefix}.close" action="CLOSE" x="-14" relatx="1" y="4" image="close" downImage="close.down" tooltip="Close"/>
+CONTENT
+      <layer id="{prefix}.resize" x="-8" relatx="1" y="-8" relaty="1" image="frame.resizer" resize="bottomright"/>
+    </layout>'''
+    return "\n".join(elements), "\n".join(groups), layouts
 
 
 EQ_W, EQ_H = 300, 112
-VIS_W, VIS_H = 300, 180
-ML_W, ML_H = 300, 232
 # the sliders: preamp, then the ten bands, each 14 wide and 54 high
 EQ_SLIDER_Y, EQ_SLIDER_H = 42, 54
 EQ_PREAMP_X = 18
@@ -1108,14 +1205,6 @@ def modern_eq_bg():
     for x, label in zip(EQ_BAND_X, EQ_LABELS):
         draw_text_centered(img, x, 98, 14, label, INK_DIM)
     return img
-
-
-def modern_vis_bg():
-    return modern_window_bg(VIS_W, VIS_H, "VISUALIZATION", (0, 0, 0))
-
-
-def modern_ml_bg():
-    return modern_window_bg(ML_W, ML_H, "MEDIA LIBRARY")
 
 
 def modern_led_button(label, w, h, state):
@@ -1328,7 +1417,7 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
   <elements>
     <bitmap id="main.bg" file="img/main-bg.png"/>
-    <bitmap id="pl.bg" file="img/pl-bg.png"/>
+FRAME_ELEMENTS
     <bitmap id="close" file="img/close.png"/>
     <bitmap id="close.down" file="img/close-down.png"/>
     <bitmap id="prev" file="img/prev.png"/>
@@ -1354,8 +1443,6 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <bitmap id="eq.auto.down" file="img/eq-auto-down.png"/>
     <bitmap id="eq.thumb" file="img/eq-thumb.png"/>
     <bitmap id="eq.thumb.down" file="img/eq-thumb-down.png"/>
-    <bitmap id="vis.bg" file="img/vis-bg.png"/>
-    <bitmap id="ml.bg" file="img/ml-bg.png"/>
     <bitmap id="seek.thumb" file="img/seek-thumb.png"/>
     <bitmap id="seek.thumb.down" file="img/seek-thumb-down.png"/>
     <bitmap id="volume.thumb" file="img/volume-thumb.png"/>
@@ -1394,6 +1481,8 @@ SKIN_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <!-- the wasabi base's frame, title bar, buttons and scroll bars, in this skin's look -->
 WASABI_ELEMENTS
   </elements>
+
+FRAME_GROUPS
 
   <container id="main" name="Main Window" default_x="0" default_y="0" default_visible="1">
     <layout id="normal" background="main.bg" w="300" h="112">
@@ -1461,29 +1550,23 @@ WASABI_ELEMENTS
   </container>
 
   <container id="pledit" name="Playlist Editor" default_x="0" default_y="224" default_visible="1">
-    <layout id="normal" background="pl.bg" w="300" h="180">
-      <layer id="pl.titlebar" x="0" y="0" w="280" h="17" move="1"/>
-      <button id="pl.close" action="CLOSE" x="286" y="4" image="close" downImage="close.down" tooltip="Close"/>
-      <component id="pl.list" x="8" y="22" w="284" h="150"
+LAYOUT_PL
+      <component id="pl.list" x="8" y="22" w="-16" h="-30" relatw="1" relath="1"
         param="guid:{45F3F7C1-A6F3-4ee6-A15E-125E92FC3F8D}"/>
     </layout>
   </container>
   <container id="avs" name="Visualization" dynamic="1" component="guid:{0000000A-000C-0010-FF7B-01014263450C}"
     default_x="0" default_y="404" default_visible="0">
-    <layout id="normal" background="vis.bg" w="300" h="180">
-      <layer id="vis.titlebar" x="0" y="0" w="280" h="17" move="1"/>
-      <button id="vis.close" action="CLOSE" x="286" y="4" image="close" downImage="close.down" tooltip="Close"/>
-      <component id="vis.holder" x="8" y="22" w="284" h="150" noshowcmdbar="1" autoopen="1" autoclose="1"
+LAYOUT_VIS
+      <component id="vis.holder" x="8" y="22" w="-16" h="-30" relatw="1" relath="1" noshowcmdbar="1" autoopen="1" autoclose="1"
         param="guid:{0000000A-000C-0010-FF7B-01014263450C}"/>
     </layout>
   </container>
 
   <container id="ml" name="Media Library" dynamic="1" component="guid:{6B0EDF80-C9A5-11D3-9F26-00C04F39FFC6}"
     default_x="300" default_y="0" default_visible="0">
-    <layout id="normal" background="ml.bg" w="300" h="232">
-      <layer id="ml.titlebar" x="0" y="0" w="280" h="17" move="1"/>
-      <button id="ml.close" action="CLOSE" x="286" y="4" image="close" downImage="close.down" tooltip="Close"/>
-      <component id="ml.list" x="8" y="22" w="284" h="202" noshowcmdbar="1" autoopen="1" autoclose="1"
+LAYOUT_ML
+      <component id="ml.list" x="8" y="22" w="-16" h="-30" relatw="1" relath="1" noshowcmdbar="1" autoopen="1" autoclose="1"
         param="guid:{6B0EDF80-C9A5-11D3-9F26-00C04F39FFC6}"/>
     </layout>
   </container>
@@ -1491,14 +1574,27 @@ WASABI_ELEMENTS
 """
 
 
+def skin_xml():
+    """SKIN_XML with the wasabi elements and the framed windows filled in: each LAYOUT_<PREFIX>
+    line and the content under it, up to its </layout>, becomes that window's layout."""
+    elements, groups, layouts = framed_xml()
+    xml = SKIN_XML.replace("WASABI_ELEMENTS", wasabi_elements_xml())
+    xml = xml.replace("FRAME_ELEMENTS", elements).replace("FRAME_GROUPS", groups)
+    for prefix, layout in layouts.items():
+        start = xml.index(f"LAYOUT_{prefix.upper()}\n")
+        end = xml.index("    </layout>\n", start) + len("    </layout>\n")
+        content = xml[start + len(f"LAYOUT_{prefix.upper()}\n"):end - len("    </layout>\n")]
+        xml = xml[:start] + layout.replace("CONTENT\n", content) + "\n" + xml[end:]
+    return xml
+
+
 def modern_files():
     files = {
-        "skin.xml": SKIN_XML.replace("WASABI_ELEMENTS", wasabi_elements_xml()).encode(),
+        "skin.xml": skin_xml().encode(),
         "img/main-bg.png": png(modern_main_bg()),
-        "img/pl-bg.png": png(modern_pl_bg()),
         "img/eq-bg.png": png(modern_eq_bg()),
-        "img/vis-bg.png": png(modern_vis_bg()),
-        "img/ml-bg.png": png(modern_ml_bg()),
+        "img/frame.png": png(frame_png()),
+        "img/titles.png": png(titles_png()),
         "img/wasabi.png": png(wasabi_png()),
         "img/title-font.png": png(title_font_png()),
         "img/eq.png": png(modern_text_button("EQ", 20, 18, False)),

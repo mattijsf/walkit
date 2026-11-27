@@ -8,7 +8,8 @@ Two small skins the example apps show when they cannot download a skin:
 - `walkit-modern.wal`: a modern skin (`skin.xml` and PNGs, no scripts), every window 300
   pixels wide for phone screens: a main window (song title, time, song info, vis, seek and
   volume sliders, transport buttons, equalizer and playlist toggles), an equalizer, a playlist,
-  a visualizer window that holds the host's visualizer, and a media library window. It also
+  a visualizer window that holds the host's visualizer, and a media library window. The
+  playlist, visualizer and media library resize from their bottom right corner. It also
   replaces the wasabi base's frame, title bar, buttons, scroll bars and list colors, so the
   windows Winamp frames itself match the skin.
 
