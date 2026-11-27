@@ -3,7 +3,8 @@
 Two small skins the example apps show when they cannot download a skin:
 
 - `walkit-classic.wsz`: a classic skin with the main window, equalizer and playlist editor,
-  their shade bars, `pledit.txt` and `viscolor.txt`.
+  their shade bars, the `gen.bmp` frame of the visualizer, library and plug-in windows,
+  `genex.bmp`, `pledit.txt` and `viscolor.txt`.
 - `walkit-modern.wal`: a modern skin (`skin.xml` and PNGs, no scripts) with a main window
   (song title, time, song info, vis, seek and volume sliders, transport buttons, a playlist
   toggle) and a playlist window.

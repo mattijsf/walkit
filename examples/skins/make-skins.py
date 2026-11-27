@@ -292,20 +292,35 @@ def grip(img, x, y, w, color):
         img.put(xx + 1, y + 2, color)
 
 
-def title_strip(img, x, y, w, h, name, active):
-    """A title bar: a flat strip with a grip either side of the centered name."""
+def title_strip(img, x, y, w, h, name, active, classic=False):
+    """A title bar: a flat strip with a grip either side of the centered name.
+
+    Winamp puts a classic title bar's buttons at y 3, 9 high: `classic` runs the strip to
+    row 13 with no dark line under it, which the window draws on row 14, and centers the name
+    and grip on row 7 with the buttons."""
     face = TITLE if active else TITLE_OFF
     img.fill(x, y, w, h, face)
     img.hline(x, y, w, BG_HI if active else BG)
-    img.hline(x, y + h - 1, w, EDGE)
+    if not classic:
+        img.hline(x, y + h - 1, w, EDGE)
     tw = text_width(name)
     tx = x + (w - tw) // 2
-    ty = y + (h - 5) // 2
+    ty = y + 5 if classic else y + (h - 5) // 2
     line = ACCENT_DIM if active else INK_FAINT
     gy = ty + 1
     grip(img, x + 20, gy, tx - x - 26, line)
     grip(img, tx + tw + 6, gy, x + w - 46 - (tx + tw + 6), line)
     draw_text(img, tx, ty, name, ACCENT if active else INK_DIM)
+
+
+def frame_title_piece(img, x, y, w, active):
+    """A 20-high title piece of a framed window (playlist, gen): the 14-high bar as
+    `title_strip` draws it, the line under it, the frame and the top rim of the well."""
+    img.fill(x, y, w, 14, TITLE if active else TITLE_OFF)
+    img.hline(x, y, w, BG_HI if active else BG)
+    img.hline(x, y + 14, w, EDGE)
+    img.fill(x, y + 15, w, 5, BG)
+    img.hline(x, y + 19, w, BG_LO)
 
 
 # ---------------------------------------------------------------------------
@@ -421,7 +436,7 @@ def titlebar_bmp():
     small_button(img, 9, 27, "unshade", True)
     # the bar, active and not, with its buttons in place
     for y, active in ((0, True), (15, False)):
-        title_strip(img, 27, y, 275, 14, "WALKIT", active)
+        title_strip(img, 27, y, 275, 14, "WALKIT", active, classic=True)
         face = TITLE if active else TITLE_OFF
         small_button(img, 27 + 6, y + 3, "menu", face=face)
         small_button(img, 27 + 244, y + 3, "min", face=face)
@@ -603,6 +618,8 @@ def main_bmp():
     img = Canvas(275, 116, BG)
     img.edges(0, 0, 275, 116, BG_HI, EDGE)
     img.edges(1, 1, 273, 114, BG, BG_LO)
+    # the line under the title bar
+    img.hline(0, 14, 275, EDGE)
     # the time and vis display, the clutter bar beside it
     img.sunken(20, 22, 85, 40)
     img.fill(72, 30, 2, 2, ACCENT)
@@ -632,6 +649,7 @@ def eqmain_bmp():
     # the window: border, the sliders' well, labels
     img.edges(0, 0, 275, 116, BG_HI, EDGE)
     img.edges(1, 1, 273, 114, BG, BG_LO)
+    img.hline(0, 14, 275, EDGE)
     img.sunken(16, 36, 247, 67)
     img.vline(74, 40, 59, GROOVE)
     for label, y in (("+12", 37), ("0", 67), ("-12", 95)):
@@ -644,7 +662,7 @@ def eqmain_bmp():
     small_button(img, 0, 125, "close", True)
     # the title bar, active and not
     for y, active in ((134, True), (149, False)):
-        title_strip(img, 0, y, 275, 14, "EQUALIZER", active)
+        title_strip(img, 0, y, 275, 14, "EQUALIZER", active, classic=True)
         face = TITLE if active else TITLE_OFF
         small_button(img, 254, y + 3, "shade", face=face)
         small_button(img, 264, y + 3, "close", face=face)
@@ -736,16 +754,21 @@ def pledit_bmp():
     for y, active in ((0, True), (21, False)):
         face = TITLE if active else TITLE_OFF
         for x, w in ((0, 25), (26, 100), (127, 25), (153, 25)):
-            img.fill(x, y, w, 20, face)
-            img.hline(x, y, w, BG_HI if active else BG)
-            img.hline(x, y + 19, w, EDGE)
+            frame_title_piece(img, x, y, w, active)
+        # the frame's sides start under the bar: the left one's edge and rim, the right
+        # one's rim over the list and the scroll bar, and its edge
+        img.vline(0, y + 15, 5, BG_HI)
+        img.hline(0, y + 19, 11, BG)
+        img.put(0, y + 19, BG_HI)
+        img.hline(153 + 18, y + 19, 7, BG)
+        img.vline(153 + 24, y + 15, 5, EDGE)
         line = ACCENT_DIM if active else INK_FAINT
-        grip(img, 127, y + 8, 25, line)
-        grip(img, 0, y + 8, 25, line)
-        draw_text_centered(img, 26, y + 8, 100, "PLAYLIST", ACCENT if active else INK_DIM)
-        grip(img, 26, y + 8, 18, line)
-        grip(img, 108, y + 8, 18, line)
-        grip(img, 153, y + 8, 4, line)
+        grip(img, 127, y + 6, 24, line)
+        grip(img, 6, y + 6, 18, line)
+        draw_text_centered(img, 26, y + 5, 100, "PLAYLIST", ACCENT if active else INK_DIM)
+        grip(img, 26, y + 6, 18, line)
+        grip(img, 108, y + 6, 18, line)
+        grip(img, 153, y + 6, 4, line)
         small_button(img, 153 + 5, y + 3, "shade", face=face)
         small_button(img, 153 + 15, y + 3, "close", face=face)
     # the sides: left 12, right 5 + track 8 + 7
@@ -824,6 +847,151 @@ def bottom_base(img, x, y, w):
     img.hline(x, y + 37, w, EDGE)
 
 
+def gen_font_row(img, y, chars, active):
+    """`chars` as gen.bmp's font: each glyph in a cell one pixel wider than it, on the title's
+    face, between separator columns that the engine scans row y + 2 for."""
+    face = TITLE if active else TITLE_OFF
+    x = 0
+    img.vline(x, y, 7, EDGE)
+    for c in chars:
+        w = len(glyph(c)[0]) + 1
+        img.fill(x + 1, y, w, 7, face)
+        draw_glyph(img, x + 1, y + 1, c, ACCENT if active else INK_DIM)
+        x += w + 1
+        img.vline(x, y, 7, EDGE)
+
+
+def gen_bmp():
+    """gen.bmp: the frame of the visualizer, media library and plug-in windows, each piece
+    where Winamp 5.666 reads it."""
+    img = Canvas(194, 109, BG)
+    # the title, active (y 0) and not (y 21): left corner, left of the name, under the name,
+    # right of the name, the fill between, right corner with the close button
+    for y, active in ((0, True), (21, False)):
+        face = TITLE if active else TITLE_OFF
+        line = ACCENT_DIM if active else INK_FAINT
+        for x in (0, 26, 52, 78, 104, 130):
+            frame_title_piece(img, x, y, 25, active)
+        grip(img, 6, y + 6, 18, line)
+        grip(img, 26, y + 6, 18, line)
+        grip(img, 78 + 6, y + 6, 18, line)
+        grip(img, 104, y + 6, 24, line)
+        grip(img, 130, y + 6, 10, line)
+        small_button(img, 130 + 14, y + 3, "close", face=face)
+        # the left side's edge and rim start under the bar; so do the right side's
+        img.vline(0, y + 15, 5, BG_HI)
+        img.hline(0, y + 19, 10, BG)
+        img.put(0, y + 19, BG_HI)
+        img.hline(130 + 17, y + 19, 8, BG)
+        img.put(130 + 17, y + 19, BG_HI)
+        img.vline(130 + 24, y + 15, 5, EDGE)
+    # the bottom bar's left and right ends: the well's bottom rim, the frame, the edge
+    img.fill(0, 42, 125, 14, BG)
+    img.vline(0, 42, 13, BG_HI)
+    img.hline(11, 42, 114, BG_HI)
+    img.put(10, 42, BG_LO)
+    img.hline(0, 55, 125, EDGE)
+    img.fill(0, 57, 125, 14, BG)
+    img.hline(0, 57, 118, BG_HI)
+    img.vline(124, 57, 14, EDGE)
+    img.hline(0, 70, 125, EDGE)
+    # the sides, 29 high, and the same again 24 high above the bottom bar
+    for x, h in ((127, 29), (158, 24)):
+        img.fill(x, 42, 11, h, BG)
+        img.vline(x, 42, h, BG_HI)
+        img.vline(x + 10, 42, h, BG_LO)
+    for x, h in ((139, 29), (170, 24)):
+        img.fill(x, 42, 8, h, BG)
+        img.vline(x, 42, h, BG_HI)
+        img.vline(x + 7, 42, h, EDGE)
+    # the close button held
+    small_button(img, 148, 42, "close", True)
+    # the bottom bar's fill and the size grip
+    img.fill(127, 72, 25, 14, BG)
+    img.hline(127, 72, 25, BG_HI)
+    img.hline(127, 85, 25, EDGE)
+    img.fill(118, 72, 7, 7, BG)
+    for r in range(7):
+        for c in range(7):
+            if r + c >= 6 and (r + c) % 2 == 0 and r % 2 == 0:
+                img.put(118 + c, 72 + r, INK_FAINT)
+    # the font: digits on rows 72 and 80, letters on rows 88 and 96
+    digits = "0123456789-:"
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    gen_font_row(img, 72, digits, True)
+    gen_font_row(img, 80, digits, False)
+    gen_font_row(img, 88, letters, True)
+    gen_font_row(img, 96, letters, False)
+    return img
+
+
+def genex_bmp():
+    """genex.bmp: the button, scroll bar arrows and thumbs the media library and plug-ins
+    use inside a gen window, and from x 48 of row 0 one color per two pixels, in wa_dlg.h's
+    order. Unused space is cyan 00c6ff, as in Winamp's base skin; pixel 111 stays cyan, since
+    a color equal to it counts as unset."""
+    img = Canvas(130, 75, (0, 198, 255))
+    # the button, at rest (y 0) and pressed (y 15), without a label
+    img.raised(0, 0, 47, 15, BTN, BTN_HI, BTN_LO)
+    img.raised(0, 15, 47, 15, BTN_DOWN, BTN_LO, BTN_HI)
+    # the scroll bar's arrows, 14 x 14: up and down on row 31, left and right on row 45,
+    # at rest from x 0 and pressed from x 28
+    for x0, down in ((0, False), (28, True)):
+        for i, kind in enumerate(("up", "down", "left", "right")):
+            x, y = x0 + 14 * (i % 2), 31 + 14 * (i // 2)
+            if down:
+                img.raised(x, y, 14, 14, BTN_DOWN, BTN_LO, BTN_HI)
+            else:
+                img.raised(x, y, 14, 14, BTN, BTN_HI, BTN_LO)
+            color = ACCENT if down else INK
+            if kind in ("up", "down"):
+                icon(img, kind, x + 7, y + 7, color)
+            elif kind == "left":
+                icon_triangle_left(img, x + 5, y + 4, color, 5)
+            else:
+                icon_triangle_right(img, x + 6, y + 4, color, 5)
+    # the thumbs, at rest and held: vertical 14 x 28 at x 56 and 70, horizontal 28 x 14 at
+    # rows 31 and 45
+    for x, held in ((56, False), (70, True)):
+        img.raised(x, 31, 14, 28, BTN_DOWN if held else BTN, BTN_HI, BTN_LO)
+        for r in (41, 44, 47):
+            img.hline(x + 4, r, 6, ACCENT if held else BTN_HI)
+    for y, held in ((31, False), (45, True)):
+        img.raised(84, y, 28, 14, BTN_DOWN if held else BTN, BTN_HI, BTN_LO)
+        for c in (94, 97, 100):
+            img.vline(c, y + 4, 6, ACCENT if held else BTN_HI)
+    selected = (30, 76, 71)
+    colors = (
+        PANEL,  # item background
+        INK,  # item text
+        BG,  # window background
+        INK,  # button text
+        INK,  # window text
+        BTN_HI,  # highlight: the frames round lists
+        selected,  # selected item
+        BTN,  # list header background
+        INK,  # list header text
+        BTN_HI,  # list header frame top
+        BTN,  # list header frame middle
+        BTN_LO,  # list header frame bottom
+        BG,  # header past the last column
+        BTN_HI,  # scroll bar thumb
+        PANEL,  # scroll bar track
+        BTN,  # inactive scroll bar thumb
+        PANEL,  # inactive scroll bar track
+        BG,  # corner between scroll bars
+        INK,  # selection bar text
+        selected,  # selection bar
+        INK_DIM,  # inactive selection bar text
+        BG_HI,  # inactive selection bar
+        (16, 18, 22),  # every second row
+        INK,  # every second row's text
+    )
+    for i, c in enumerate(colors):
+        img.fill(48 + 2 * i, 0, 2, 1, c)
+    return img
+
+
 def viscolor_txt():
     colors = [PANEL, (28, 32, 38)]
     # the analyzer from the top down: light to dark
@@ -865,6 +1033,8 @@ def classic_files():
         "eqmain.bmp": bmp(eqmain_bmp()),
         "eq_ex.bmp": bmp(eq_ex_bmp()),
         "pledit.bmp": bmp(pledit_bmp()),
+        "gen.bmp": bmp(gen_bmp()),
+        "genex.bmp": bmp(genex_bmp()),
         "pledit.txt": pledit_txt(),
         "viscolor.txt": viscolor_txt(),
     }
