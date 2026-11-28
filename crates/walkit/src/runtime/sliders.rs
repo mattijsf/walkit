@@ -294,31 +294,33 @@ impl SkinRuntime {
         }
     }
 
-    /// Follows the player when the user is not holding the thumb.
-    pub(crate) fn slider_sync(&mut self, o: ObjId) {
+    /// Follows the player when the user is not holding the thumb. Whether the thumb moved, and
+    /// whether it shows: `None` when it stayed.
+    pub(crate) fn slider_sync(&mut self, o: ObjId) -> Option<bool> {
         if self.slider(o).dragging {
-            return;
+            return None;
         }
-        let Some(target) = self.slider_target(o) else {
-            return;
-        };
+        let target = self.slider_target(o)?;
         let s = self.slider(o);
-        if target != s.position || !s.synced {
-            let synced = s.synced;
-            let s = self.slider_mut(o);
-            s.position = target.clamp(s.low, s.high.max(s.low));
-            // a thumb out of sight draws nothing; it shows where it is when it shows again
-            if self.shows(o) {
-                self.repaint();
-            }
-            // the first placement is the skin starting up, not a change scripts react to
-            if synced {
-                let pos = self.slider(o).position;
-                self.dispatch(Handle::Gui(o), "onsetposition", &[Value::Int(pos)]);
-                self.dispatch(Handle::Gui(o), "onpostedposition", &[Value::Int(pos)]);
-            }
-            self.slider_mut(o).synced = true;
+        if target == s.position && s.synced {
+            return None;
         }
+        let synced = s.synced;
+        let s = self.slider_mut(o);
+        s.position = target.clamp(s.low, s.high.max(s.low));
+        let shows = self.shows(o);
+        // the first placement is the skin starting up, not a change scripts react to: it draws
+        // everything again. A thumb out of sight draws nothing, and shows where it is when it
+        // shows again
+        if synced {
+            let pos = self.slider(o).position;
+            self.dispatch(Handle::Gui(o), "onsetposition", &[Value::Int(pos)]);
+            self.dispatch(Handle::Gui(o), "onpostedposition", &[Value::Int(pos)]);
+        } else if shows {
+            self.repaint();
+        }
+        self.slider_mut(o).synced = true;
+        synced.then_some(shows)
     }
 
     /// Where the player says a slider should sit, or `None` for one the player does not drive.

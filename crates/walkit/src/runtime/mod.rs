@@ -308,6 +308,8 @@ pub struct SkinRuntime {
     moved_windows: HashSet<ObjId>,
     /// The objects that moved by themselves since the last draw.
     moved_objects: Vec<ObjId>,
+    /// The windows among `moved_windows` that draw again whole.
+    whole_windows: HashSet<ObjId>,
     /// The second a classic playlist's time showed when it last drew, and whether it counted down.
     clock_second: (i32, bool),
     /// The clock's reading when the drawing pass under way began; `None` between passes.
@@ -522,6 +524,7 @@ impl SkinRuntime {
             classic_next_at: 0,
             moved_windows: HashSet::new(),
             moved_objects: Vec::new(),
+            whole_windows: HashSet::new(),
             clock_second: (-1, false),
             painting_at: None,
             window_drawings: HashMap::new(),

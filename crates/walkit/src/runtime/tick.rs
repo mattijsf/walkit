@@ -125,8 +125,20 @@ impl SkinRuntime {
         if t >= self.classic_status_until {
             self.classic_status_end();
         }
+        // a thumb that follows the player draws its window again whole, with every other thumb
+        // that moved in it, shown or not, as the windows drawn whole would show them
+        let mut followed = Vec::new();
+        let mut shown = false;
         for o in self.sliders.clone() {
-            self.slider_sync(o);
+            if let Some(shows) = self.slider_sync(o) {
+                followed.push(o);
+                shown |= shows;
+            }
+        }
+        if shown {
+            for o in followed {
+                self.moved_whole(o);
+            }
         }
         // a text out of sight still keeps its ticker and its message up to date
         for o in self.texts.clone() {
@@ -215,6 +227,15 @@ impl SkinRuntime {
             )
         });
         main && self.classic_title_scrolls()
+    }
+
+    /// Object `o` moved by itself, in a way its window shows only when drawn whole: that window
+    /// draws again, all of it.
+    fn moved_whole(&mut self, o: ObjId) {
+        if let Some(l) = self.layout_object(o) {
+            self.whole_windows.insert(l);
+        }
+        self.moved(o);
     }
 
     /// Object `o` moved by itself: its window draws again.
