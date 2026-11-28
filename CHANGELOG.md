@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.7](https://github.com/mattijsf/walkit/compare/v0.10.6...v0.10.7) (2026-11-28)
+
+
+### Features
+
+* hosts ask which windows changed and draw only those ([d91718e](https://github.com/mattijsf/walkit/commit/d91718e3b0e62f16e7ebe85287b57a40dda6d30b))
+* players number their playlist, read once per change ([1c5171b](https://github.com/mattijsf/walkit/commit/1c5171b473fcafcd2ceba1365aa019bdab609c38))
+
+
+### Bug Fixes
+
+* a seek bar following the song redraws its own window only ([ddf9971](https://github.com/mattijsf/walkit/commit/ddf99713e32ad5abb2cf211e946f4c2baf5c54d4))
+* classic gen windows show their resize grip ([abdd912](https://github.com/mattijsf/walkit/commit/abdd91237817fd5b65520f7b31805564ca7a204c))
+
 ## [0.10.6](https://github.com/mattijsf/walkit/compare/v0.10.5...v0.10.6) (2026-11-28)
 
 
