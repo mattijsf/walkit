@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.6](https://github.com/mattijsf/walkit/compare/v0.10.5...v0.10.6) (2026-11-28)
+
+
+### Features
+
+* **examples:** modern equalizer presets and band levels ([#42](https://github.com/mattijsf/walkit/issues/42)) ([6daeda3](https://github.com/mattijsf/walkit/commit/6daeda3d7672ed33d473daaad354cd64c0594280))
+
+
+### Bug Fixes
+
+* **classic:** pressed look for EQ shade, playlist and shade bar buttons ([#41](https://github.com/mattijsf/walkit/issues/41)) ([2644043](https://github.com/mattijsf/walkit/commit/2644043a6e525c65a92678ec496155deadc4d065))
+* **examples:** classic title lines and button art match Winamp ([#40](https://github.com/mattijsf/walkit/issues/40)) ([e3e9da3](https://github.com/mattijsf/walkit/commit/e3e9da34cbd060dda80ad0b679d08575a6fd0e63))
+
 ## [0.10.5](https://github.com/mattijsf/walkit/compare/v0.10.4...v0.10.5) (2026-11-27)
 
 
