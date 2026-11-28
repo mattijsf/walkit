@@ -739,6 +739,22 @@ impl SkinRuntime {
     }
 }
 
+/// What changed in the windows since they were last drawn ([`SkinRuntime::changed_windows`]),
+/// worked out without drawing them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WindowChanges {
+    /// Nothing: every window keeps its drawing, its place and its order.
+    Nothing,
+    /// Only where the windows show, or their order, changed: every window keeps its drawing.
+    /// [`SkinRuntime::take_placed_only`] gives the places.
+    Placed,
+    /// These windows, bottom to top, draw again; the others keep their drawing. Where the
+    /// windows show may have changed too.
+    Windows(Vec<crate::host::WindowId>),
+    /// Any window may have changed: every one draws again.
+    All,
+}
+
 /// One window's drawing with the object that drew each command ([`SkinRuntime::draw_windows_owned`]):
 /// `owners[i]` is the object (an id into the skin's objects, the same from frame to frame while
 /// the skin is loaded) whose drawing `cmds[i]` is, or `None` for a command that is the window's

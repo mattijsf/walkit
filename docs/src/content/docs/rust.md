@@ -84,6 +84,37 @@ fn main() {
 }
 ```
 
+### Drawing only what changed
+
+A host that keeps each window's pixels between frames can ask which windows changed instead of
+taking every drawing.
+[`changed_windows`](/walkit/api/walkit/runtime/struct.SkinRuntime.html#method.changed_windows)
+says so without drawing: `Nothing`, `Placed` (the windows only moved), `Windows` (these draw
+again) or `All`.
+[`draw_changed_windows`](/walkit/api/walkit/runtime/struct.SkinRuntime.html#method.draw_changed_windows)
+then gives the drawings of those windows alone, the same lists `draw_windows_owned` would give
+them:
+
+```rust
+if rt.tick() {
+    match rt.changed_windows() {
+        WindowChanges::Nothing => {}
+        WindowChanges::Placed => { /* move the windows to rt.window_rect(id) */ }
+        _ => {
+            for (id, window) in rt.draw_changed_windows() {
+                // draw window.cmds into the pixels kept for window id
+            }
+        }
+    }
+}
+```
+
+A player that knows when its playlist changed says so with
+[`playlist_version`](/walkit/api/walkit/player/trait.Player.html#method.playlist_version): a
+number that moves with every change to the list. The engine then reads the list once per change
+instead of several times a tick and once per row it draws, which is most of a tick's cost with
+a long playlist.
+
 [`examples/macos`](https://github.com/mattijsf/walkit/tree/main/examples/macos) is a complete
 desktop app built this way: a SwiftUI app over a small Rust library that runs the engine behind
 a C interface and draws the draw list with a software renderer.
