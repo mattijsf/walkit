@@ -292,12 +292,25 @@ def grip(img, x, y, w, color):
         img.put(xx + 1, y + 2, color)
 
 
-def title_strip(img, x, y, w, h, name, active, classic=False):
+# the space a classic title's lines keep from the frame, the buttons and the name
+GRIP_PAD = 4
+
+
+def grip_lines(img, x0, x1, y, color):
+    """Two solid lines from x0 to x1 inclusive: Winamp tiles and stretches the 25 wide title
+    pieces, and solid lines join where a dotted pattern would break at the seams."""
+    if x1 >= x0:
+        img.hline(x0, y, x1 - x0 + 1, color)
+        img.hline(x0, y + 2, x1 - x0 + 1, color)
+
+
+def title_strip(img, x, y, w, h, name, active, classic=False, left=6, right=None):
     """A title bar: a flat strip with a grip either side of the centered name.
 
     Winamp puts a classic title bar's buttons at y 3, 9 high: `classic` runs the strip to
     row 13 with no dark line under it, which the window draws on row 14, and centers the name
-    and grip on row 7 with the buttons."""
+    and grip on row 7 with the buttons. Its lines run from `left` to the buttons at `right`
+    (offsets in the bar), GRIP_PAD clear of them and of the name."""
     face = TITLE if active else TITLE_OFF
     img.fill(x, y, w, h, face)
     img.hline(x, y, w, BG_HI if active else BG)
@@ -308,8 +321,12 @@ def title_strip(img, x, y, w, h, name, active, classic=False):
     ty = y + 5 if classic else y + (h - 5) // 2
     line = ACCENT_DIM if active else INK_FAINT
     gy = ty + 1
-    grip(img, x + 20, gy, tx - x - 26, line)
-    grip(img, tx + tw + 6, gy, x + w - 46 - (tx + tw + 6), line)
+    if classic:
+        grip_lines(img, x + left, tx - GRIP_PAD - 1, gy, line)
+        grip_lines(img, tx + tw + GRIP_PAD, x + right - GRIP_PAD - 1, gy, line)
+    else:
+        grip(img, x + 20, gy, tx - x - 26, line)
+        grip(img, tx + tw + 6, gy, x + w - 46 - (tx + tw + 6), line)
     draw_text(img, tx, ty, name, ACCENT if active else INK_DIM)
 
 
@@ -436,7 +453,8 @@ def titlebar_bmp():
     small_button(img, 9, 27, "unshade", True)
     # the bar, active and not, with its buttons in place
     for y, active in ((0, True), (15, False)):
-        title_strip(img, 27, y, 275, 14, "WALKIT", active, classic=True)
+        title_strip(img, 27, y, 275, 14, "WALKIT", active, classic=True,
+                    left=15 + GRIP_PAD, right=244)
         face = TITLE if active else TITLE_OFF
         small_button(img, 27 + 6, y + 3, "menu", face=face)
         small_button(img, 27 + 244, y + 3, "min", face=face)
@@ -662,7 +680,7 @@ def eqmain_bmp():
     small_button(img, 0, 125, "close", True)
     # the title bar, active and not
     for y, active in ((134, True), (149, False)):
-        title_strip(img, 0, y, 275, 14, "EQUALIZER", active, classic=True)
+        title_strip(img, 0, y, 275, 14, "EQUALIZER", active, classic=True, right=254)
         face = TITLE if active else TITLE_OFF
         small_button(img, 254, y + 3, "shade", face=face)
         small_button(img, 264, y + 3, "close", face=face)
@@ -731,8 +749,9 @@ def eq_ex_bmp():
     for i in range(3):
         img.fill(1 + 3 * i, 30, 3, 7, mix(ACCENT_MID, ACCENT, i / 2))
         img.fill(11 + 3 * i, 30, 3, 7, mix(ACCENT_MID, ACCENT, i / 2))
-    small_button(img, 1, 38, "unshade", True)
-    small_button(img, 1, 47, "shade", True)
+    # pressed: the title bar's shade button (1, 38), the shade bar's (1, 47)
+    small_button(img, 1, 38, "shade", True)
+    small_button(img, 1, 47, "unshade", True)
     small_button(img, 11, 38, "close")
     small_button(img, 11, 47, "close", True)
     return img
@@ -762,15 +781,19 @@ def pledit_bmp():
         img.put(0, y + 19, BG_HI)
         img.hline(153 + 18, y + 19, 7, BG)
         img.vline(153 + 24, y + 15, 5, EDGE)
+        # the lines run on through the tiles: from the frame, round the name, to the buttons
         line = ACCENT_DIM if active else INK_FAINT
-        grip(img, 127, y + 6, 24, line)
-        grip(img, 6, y + 6, 18, line)
-        draw_text_centered(img, 26, y + 5, 100, "PLAYLIST", ACCENT if active else INK_DIM)
-        grip(img, 26, y + 6, 18, line)
-        grip(img, 108, y + 6, 18, line)
-        grip(img, 153, y + 6, 4, line)
+        tw = text_width("PLAYLIST")
+        tx = 26 + (100 - tw) // 2
+        grip_lines(img, 6, 24, y + 6, line)
+        grip_lines(img, 26, tx - GRIP_PAD - 1, y + 6, line)
+        draw_text(img, tx, y + 5, "PLAYLIST", ACCENT if active else INK_DIM)
+        grip_lines(img, tx + tw + GRIP_PAD, 125, y + 6, line)
+        grip_lines(img, 127, 151, y + 6, line)
+        grip_lines(img, 153, 153 + 5 - GRIP_PAD - 1, y + 6, line)
+        # shade at w-20 and close at w-11, where Winamp draws them pressed
         small_button(img, 153 + 5, y + 3, "shade", face=face)
-        small_button(img, 153 + 15, y + 3, "close", face=face)
+        small_button(img, 153 + 14, y + 3, "close", face=face)
     # the sides: left 12, right 5 + track 8 + 7
     img.fill(0, 42, 12, 29, BG)
     img.vline(0, 42, 29, BG_HI)
@@ -798,7 +821,7 @@ def pledit_bmp():
             img.fill(x, y + 3, w, 8, PANEL)
         img.fill(99 + 21, y + 3, 29, 8, face)
         small_button(img, 99 + 30, y + 3, "unshade", face=face)
-        small_button(img, 99 + 40, y + 3, "close", face=face)
+        small_button(img, 99 + 39, y + 3, "close", face=face)
     img.fill(72, 57, 25, 14, TITLE_OFF)
     img.hline(72, 57, 25, BG)
     img.hline(72, 70, 25, EDGE)
@@ -872,11 +895,13 @@ def gen_bmp():
         line = ACCENT_DIM if active else INK_FAINT
         for x in (0, 26, 52, 78, 104, 130):
             frame_title_piece(img, x, y, 25, active)
-        grip(img, 6, y + 6, 18, line)
-        grip(img, 26, y + 6, 18, line)
-        grip(img, 78 + 6, y + 6, 18, line)
-        grip(img, 104, y + 6, 24, line)
-        grip(img, 130, y + 6, 10, line)
+        # the lines: from the frame, up to the name and on from it, through the fill, to
+        # the close button at w-11
+        grip_lines(img, 6, 24, y + 6, line)
+        grip_lines(img, 26, 26 + 24 - GRIP_PAD, y + 6, line)
+        grip_lines(img, 78 + GRIP_PAD, 78 + 24, y + 6, line)
+        grip_lines(img, 104, 128, y + 6, line)
+        grip_lines(img, 130, 130 + 14 - GRIP_PAD - 1, y + 6, line)
         small_button(img, 130 + 14, y + 3, "close", face=face)
         # the left side's edge and rim start under the bar; so do the right side's
         img.vline(0, y + 15, 5, BG_HI)
