@@ -558,6 +558,79 @@ fn the_equalizer_and_playlist_shade_bars() {
     );
 }
 
+#[test]
+fn held_title_buttons_show_their_pressed_pictures() {
+    // (window, press x, y, sheet, the blit: source x, y, w, h, x, y in the window)
+    type Press = (
+        crate::host::WindowId,
+        i32,
+        i32,
+        &'static str,
+        (i32, i32, i32, i32, i32, i32),
+    );
+    // Winamp 5.666 in a VM: every title button of the main window, the equalizer and the
+    // playlist shows its pressed picture while held, in the window and on its shade bar
+    let mut rt = classic();
+    assert!(rt.open_window("equalizer"));
+    assert!(rt.open_window("pledit"));
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    let pl = rt.window_of("pledit").expect("the playlist");
+    let check = |rt: &mut SkinRuntime, presses: &[Press]| {
+        for (n, &(window, x, y, sheet, want)) in presses.iter().enumerate() {
+            let at = rt.window_rect(window);
+            rt.pointer_down(at.left + x, at.top + y, 10 + n as i32);
+            let windows = rt.draw_windows();
+            let (_, cmds) = windows
+                .iter()
+                .find(|(r, _)| *r == at)
+                .expect("the window drawn");
+            assert!(
+                blits(cmds, sheet).contains(&want),
+                "{sheet} {want:?} held at {x}, {y}"
+            );
+            // slid off before the release: nothing happens
+            rt.pointer_move(at.left + 100, at.top + 300);
+            rt.pointer_up(at.left + 100, at.top + 300);
+            rt.ensure_layout();
+        }
+    };
+    check(
+        &mut rt,
+        &[
+            (main, 10, 7, "titlebar.bmp", (0, 9, 9, 9, 6, 3)),
+            (main, 248, 7, "titlebar.bmp", (9, 9, 9, 9, 244, 3)),
+            (main, 258, 7, "titlebar.bmp", (9, 18, 9, 9, 254, 3)),
+            (main, 268, 7, "titlebar.bmp", (18, 9, 9, 9, 264, 3)),
+            (eq, 258, 7, "eq_ex.bmp", (1, 38, 9, 9, 254, 3)),
+            (eq, 268, 7, "eqmain.bmp", (0, 125, 9, 9, 264, 3)),
+            (pl, 259, 7, "pledit.bmp", (62, 42, 9, 9, 255, 3)),
+            (pl, 268, 7, "pledit.bmp", (52, 42, 9, 9, 264, 3)),
+        ],
+    );
+    for w in [main, eq, pl] {
+        rt.set_window_layout(w, "shade");
+    }
+    rt.ensure_layout();
+    let main = rt.main_window().expect("the main window");
+    let eq = rt.window_of("equalizer").expect("the equalizer");
+    let pl = rt.window_of("pledit").expect("the playlist");
+    check(
+        &mut rt,
+        &[
+            (main, 10, 7, "titlebar.bmp", (0, 9, 9, 9, 6, 3)),
+            (main, 248, 7, "titlebar.bmp", (9, 9, 9, 9, 244, 3)),
+            (main, 258, 7, "titlebar.bmp", (9, 27, 9, 9, 254, 3)),
+            (main, 268, 7, "titlebar.bmp", (18, 9, 9, 9, 264, 3)),
+            (eq, 258, 7, "eq_ex.bmp", (1, 47, 9, 9, 254, 3)),
+            (eq, 268, 7, "eq_ex.bmp", (11, 47, 9, 9, 264, 3)),
+            (pl, 259, 7, "pledit.bmp", (150, 42, 9, 9, 255, 3)),
+            (pl, 268, 7, "pledit.bmp", (52, 42, 9, 9, 264, 3)),
+        ],
+    );
+}
+
 fn font_cell(c: char) -> (i32, i32) {
     crate::classic::font::cell(c)
 }

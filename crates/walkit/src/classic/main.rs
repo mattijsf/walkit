@@ -316,6 +316,14 @@ impl SkinRuntime {
             0,
             0,
         );
+        // the bar's buttons are the strip's until pressed
+        match self.classic_held(o) {
+            Some(Control::Menu) => p.blit("titlebar.bmp", 0, 9, 9, 9, 6, 3),
+            Some(Control::Minimize) => p.blit("titlebar.bmp", 9, 9, 9, 9, 244, 3),
+            Some(Control::Shade) => p.blit("titlebar.bmp", 9, 27, 9, 9, 254, 3),
+            Some(Control::Close) => p.blit("titlebar.bmp", 18, 9, 9, 9, 264, 3),
+            _ => {}
+        }
         if let Some(px) = &vis {
             p.vis(px, vis::SHADE_WIDTH, &palette, 79, 5);
         }

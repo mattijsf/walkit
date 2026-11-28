@@ -44,6 +44,9 @@ impl SkinRuntime {
             164
         };
         p.blit("eqmain.bmp", 224, presets_y, 44, 12, 217, 18);
+        if pressed(Control::Shade) {
+            p.blit("eq_ex.bmp", 1, 38, 9, 9, 254, 3);
+        }
         if pressed(Control::Close) {
             p.blit("eqmain.bmp", 0, 125, 9, 9, 264, 3);
         }
@@ -77,6 +80,12 @@ impl SkinRuntime {
             sheets: self.classic_sheets.clone(),
         };
         p.blit("eq_ex.bmp", 0, if active { 0 } else { 15 }, 275, 14, 0, 0);
+        // the bar's buttons are the strip's until pressed
+        match self.classic_held(o) {
+            Some(Control::Shade) => p.blit("eq_ex.bmp", 1, 47, 9, 9, 254, 3),
+            Some(Control::Close) => p.blit("eq_ex.bmp", 11, 47, 9, 9, 264, 3),
+            _ => {}
+        }
         p.blit(
             "eq_ex.bmp",
             1 + ((volume * 3) >> 8) * 3,

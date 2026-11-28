@@ -107,6 +107,12 @@ impl SkinRuntime {
             x += rest;
         }
         p.blit("pledit.bmp", 99, y, 50, 14, x, 0);
+        // the bar's buttons are the strip's until pressed
+        match self.classic_held(o) {
+            Some(Control::Shade) => p.blit("pledit.bmp", 150, 42, 9, 9, w - 20, 3),
+            Some(Control::Close) => p.blit("pledit.bmp", 52, 42, 9, 9, w - 11, 3),
+            _ => {}
+        }
         // the song's line in text.bmp cells (with the bitmap font): "n. TITLE" from
         // x 4 at y 4, its length ending at w-29, blank cells between
         let index = self.player.track_index();
@@ -592,6 +598,12 @@ impl SkinRuntime {
             x += rest;
         }
         p.blit("pledit.bmp", 153, y1, 25, 20, x, 0);
+        // the title bar's buttons are the corner's until pressed
+        match self.classic_held(o) {
+            Some(Control::Shade) => p.blit("pledit.bmp", 62, 42, 9, 9, w - 20, 3),
+            Some(Control::Close) => p.blit("pledit.bmp", 52, 42, 9, 9, w - 11, 3),
+            _ => {}
+        }
         // the sides, 29 rows at a time, the last run stretched, the scrollbar's track between
         // the right side's two pieces
         let mut y = 20;
