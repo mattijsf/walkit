@@ -163,7 +163,7 @@ impl SkinRuntime {
         if pressed {
             p.blit(SHEET, 148, 42, 9, 9, w - 11, 3);
         }
-        // every gen window here sizes, so it shows the grip
+        // every gen window here sizes, so it keeps the grip in its bottom right corner
         gen_frame(&mut p, w, h, true);
     }
 
@@ -294,8 +294,10 @@ fn gen_frame(p: &mut Painter, w: i32, h: i32, sizes: bool) {
         p.stretch(SHEET, 127, 72, 25, BOTTOM, x, bar, rest, BOTTOM);
         x += rest;
     }
+    // the bottom bar's right end holds the grip; a window that can't be resized covers it
+    // with the plain patch at (118,72)
     p.blit(SHEET, 0, 57, 125, BOTTOM, x, bar);
-    if sizes {
+    if !sizes {
         p.blit(SHEET, 118, 72, 7, 7, x + 112, y + 26);
     }
 }

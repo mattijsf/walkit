@@ -2608,7 +2608,24 @@ fn the_library_frame_tiles_its_sides_and_bottom() {
         21,
         "(775-250)/25 fills"
     );
-    assert!(b.contains(&(118, 72, 7, 7, 762, 307)), "the grip");
+}
+
+#[test]
+fn the_library_shows_the_grip_of_its_bottom_bar() {
+    // Winamp 5.666 in a VM, base skin: a gen window that sizes shows the grip drawn in
+    // gen.bmp's bottom bar right end (0,57), at x 113..118 of it, rows 2..7
+    let (_, b) = library_at(775, 319);
+    let right = b
+        .iter()
+        .position(|b| *b == (0, 57, 125, 14, 650, 305))
+        .expect("bottom bar right");
+    let grip = Rect::new(650 + 112, 305 + 2, 7, 7);
+    let over: Vec<_> = b[right + 1..]
+        .iter()
+        .filter(|b| Rect::new(b.4, b.5, b.2, b.3).overlaps(&grip))
+        .collect();
+    assert_eq!(over, Vec::<&Blit>::new(), "nothing covers the grip");
+    assert!(!b.iter().any(|b| (b.0, b.1) == (118, 72)), "no plain patch");
 }
 
 #[test]
