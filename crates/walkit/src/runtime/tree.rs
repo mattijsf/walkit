@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use super::{
     toggle_guid, ContainerId, DrawCmd, DrawnWindow, Handle, ObjId, Rect, SkinRuntime, Value,
-    WindowDrawing, MAX_LAYOUT_PASSES, TOGGLE_GUIDS,
+    WindowChanges, WindowDrawing, MAX_LAYOUT_PASSES, TOGGLE_GUIDS,
 };
 
 impl SkinRuntime {
@@ -478,6 +478,59 @@ impl SkinRuntime {
                 cmds: d.cmds,
                 owners: d.owners,
             })
+            .collect()
+    }
+
+    /// What drawing the windows now would change, without drawing them: after
+    /// [`SkinRuntime::tick`] and the host's own calls, a host learns which windows to draw
+    /// again, or that none need it.
+    pub fn changed_windows(&mut self) -> WindowChanges {
+        if self.dirty || self.needs_layout {
+            return WindowChanges::All;
+        }
+        let windows = self.z_windows();
+        if !windows.iter().all(|l| self.window_drawings.contains_key(l)) {
+            return WindowChanges::All;
+        }
+        if !self.moved_dirty {
+            return WindowChanges::Nothing;
+        }
+        // only objects that move by themselves changed, and only their windows draw again
+        let changed: Vec<crate::host::WindowId> = windows
+            .into_iter()
+            .filter(|l| self.moved_windows.contains(l))
+            .map(|l| self.window_id_of(l))
+            .collect();
+        if changed.is_empty() {
+            WindowChanges::Placed
+        } else {
+            WindowChanges::Windows(changed)
+        }
+    }
+
+    /// The drawings of the windows that changed since they were last drawn, bottom to top, each
+    /// with its id, as [`SkinRuntime::draw_windows_owned`] gives them; the windows left out keep
+    /// their last drawing. Empty when [`SkinRuntime::changed_windows`] says nothing changed or
+    /// only places did, and then nothing is drawn. Where each window shows is
+    /// [`SkinRuntime::window_rect`], and the order is [`SkinRuntime::drawn_window_ids`].
+    pub fn draw_changed_windows(&mut self) -> Vec<(crate::host::WindowId, DrawnWindow)> {
+        let ids = match self.changed_windows() {
+            WindowChanges::Nothing => return Vec::new(),
+            // the move taken as drawn, as a drawing of every window would take it
+            WindowChanges::Placed => {
+                self.moved_dirty = false;
+                self.moved_windows.clear();
+                self.moved_objects.clear();
+                return Vec::new();
+            }
+            WindowChanges::Windows(ids) => Some(ids),
+            WindowChanges::All => None,
+        };
+        let drawn = self.draw_windows_owned();
+        let all = self.drawn_window_ids();
+        all.into_iter()
+            .zip(drawn)
+            .filter(|(id, _)| ids.as_ref().is_none_or(|ids| ids.contains(id)))
             .collect()
     }
 
