@@ -1138,7 +1138,7 @@ impl SkinRuntime {
                 control_at(w, rect.width, rect.height, self.classic_row(), px, py)
             {
                 let index = self.classic_pl_scroll(rect.height) + i;
-                if (index as usize) < self.player.tracks().len() {
+                if (index as usize) < self.tracks().len() {
                     // the selection first: the host's menu acts on it, so a row outside it
                     // becomes the selection, and a row in it keeps the rows selected with it
                     let selected = self.classic_selected_row == Some(index)
@@ -1195,7 +1195,7 @@ impl SkinRuntime {
             }
             (_, Some(Control::PlRow(i))) => {
                 let index = self.classic_pl_scroll(rect.height) + i;
-                if (index as usize) < self.player.tracks().len() {
+                if (index as usize) < self.tracks().len() {
                     self.classic_select_row(o, Some(index));
                     self.player.play_track(index);
                 }
@@ -1281,7 +1281,7 @@ impl SkinRuntime {
                 // the rows scroll with the finger, a row per row height
                 let h = self.objects[press.object].base.rect.height;
                 let rows = (press.from.1 - py) / self.classic_row();
-                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+                let past = self.tracks().len() as i32 - self.classic_pl_rows(h);
                 self.classic_pl_scroll = (press.scroll_from + rows).clamp(0, past.max(0));
             }
             Control::PlScroll => {
@@ -1289,7 +1289,7 @@ impl SkinRuntime {
                 // thumb's share of the rows past the window, cut down as Winamp cuts it (a
                 // click on the track at 50 of a 116-tall list of 20 shows row 9 in the VM)
                 let h = self.objects[press.object].base.rect.height;
-                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+                let past = self.tracks().len() as i32 - self.classic_pl_rows(h);
                 let track = h - 76;
                 if past > 0 && track > 0 {
                     let along = (py - 20 - 9).clamp(0, track);
@@ -1467,7 +1467,7 @@ impl SkinRuntime {
             Control::PlTime => self.classic_remaining = !self.classic_remaining,
             Control::PlScrollUp | Control::PlScrollDown => {
                 let h = self.objects[o].base.rect.height;
-                let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+                let past = self.tracks().len() as i32 - self.classic_pl_rows(h);
                 let rows = self.classic_style.arrow_rows();
                 let step = if press.control == Control::PlScrollUp {
                     -rows
@@ -1502,7 +1502,7 @@ impl SkinRuntime {
             Control::PlRow(i) => {
                 let h = self.objects[o].base.rect.height;
                 let index = self.classic_pl_scroll(h) + i;
-                if (index as usize) < self.player.tracks().len() {
+                if (index as usize) < self.tracks().len() {
                     if self.pointer.ctrl || self.pointer.shift {
                         self.classic_extend_selection(o, index);
                     } else {

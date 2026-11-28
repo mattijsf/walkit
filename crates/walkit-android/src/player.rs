@@ -84,7 +84,7 @@ impl JniPlayer {
     }
 
     /// The playlist's number, when the player gives one.
-    fn playlist_version(&self) -> Option<i64> {
+    fn bridge_playlist_version(&self) -> Option<i64> {
         if self.number(PLAYLIST_NUMBERED) == 0 {
             return None;
         }
@@ -336,7 +336,7 @@ impl Player for JniPlayer {
     }
 
     fn tracks(&self) -> Vec<Track> {
-        if let Some(version) = self.playlist_version() {
+        if let Some(version) = self.bridge_playlist_version() {
             let mut kept = self.tracks_kept.borrow_mut();
             if let Some((v, tracks)) = kept.as_ref() {
                 if *v == version {
@@ -352,6 +352,10 @@ impl Player for JniPlayer {
             .borrow_mut()
             .get_or_insert_with(|| self.read_tracks())
             .clone()
+    }
+
+    fn playlist_version(&self) -> Option<u64> {
+        self.bridge_playlist_version().map(|v| v as u64)
     }
 
     fn track_index(&self) -> i32 {

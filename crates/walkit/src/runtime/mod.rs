@@ -34,6 +34,7 @@ mod vis;
 mod vm;
 mod windows;
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 
@@ -45,7 +46,7 @@ use crate::host::{
     UnknownObject, WindowId, WindowInfo,
 };
 use crate::maki::{Handle, Script, SystemObject, Value};
-use crate::player::{Player, Status};
+use crate::player::{Player, Status, Track};
 use crate::xml::XmlNode;
 
 pub(crate) const MAX_LAYOUT_PASSES: i32 = 4;
@@ -322,7 +323,12 @@ pub struct SkinRuntime {
     last_title: String,
     last_volume: i32,
     last_switches: i32,
-    last_tracks: Vec<crate::player::Track>,
+    /// The playlist as the last tick read it, for a player that does not number it.
+    last_tracks: Vec<Track>,
+    /// The playlist's number as the last tick read it.
+    last_playlist_version: Option<u64>,
+    /// The playlist the engine reads while its number holds.
+    playlist: RefCell<Option<(u64, Rc<Vec<Track>>)>>,
     last_track_index: i32,
     last_eq_on: bool,
     last_preamp: i32,
@@ -375,7 +381,12 @@ impl SkinRuntime {
         let last_title = player.title();
         let last_volume = player.volume();
         let last_switches = switches_of(&*player);
-        let last_tracks = player.tracks();
+        let last_playlist_version = player.playlist_version();
+        let last_tracks = if last_playlist_version.is_some() {
+            Vec::new()
+        } else {
+            player.tracks()
+        };
         let last_track_index = player.track_index();
         let last_eq_on = player.eq_enabled();
         let last_preamp = player.eq_preamp();
@@ -522,6 +533,8 @@ impl SkinRuntime {
             last_volume,
             last_switches,
             last_tracks,
+            last_playlist_version,
+            playlist: RefCell::new(None),
             last_track_index,
             last_eq_on,
             last_preamp,
@@ -577,6 +590,23 @@ impl SkinRuntime {
     /// drawing began: a real clock moves on meanwhile, and one pass shows one moment.
     pub fn now(&self) -> i64 {
         self.painting_at.unwrap_or_else(|| (self.clock)())
+    }
+
+    /// The player's playlist: the list kept from the last read while
+    /// [`Player::playlist_version`] holds, read anew when it moved or the player gives none.
+    pub(crate) fn tracks(&self) -> Rc<Vec<Track>> {
+        let version = self.player.playlist_version();
+        if let (Some(v), Some((kept, tracks))) = (version, &*self.playlist.borrow()) {
+            if v == *kept {
+                return tracks.clone();
+            }
+        }
+        // the list moves into its `Rc` as it is: a player read on every use pays no copy
+        let tracks = Rc::new(self.player.tracks());
+        if version.is_some() || self.playlist.borrow().is_some() {
+            *self.playlist.borrow_mut() = version.map(|v| (v, tracks.clone()));
+        }
+        tracks
     }
 
     /// The screen a skin may place windows on before the host sets a view size, in layout pixels.

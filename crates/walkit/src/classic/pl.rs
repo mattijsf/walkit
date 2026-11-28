@@ -118,10 +118,10 @@ impl SkinRuntime {
         let index = self.player.track_index();
         let (title, length) = usize::try_from(index)
             .ok()
-            .and_then(|i| self.player.tracks().into_iter().nth(i))
+            .and_then(|i| self.tracks().get(i).cloned())
             .map_or((String::new(), 0), |t| (t.title, t.length_ms / 1000));
         if self.classic_style == ClassicStyle::Winamp291 {
-            let count = self.player.tracks().len();
+            let count = self.tracks().len();
             let line = numbered(index as usize + 1, count, &title);
             Self::shade_line_291(&mut p, w, &line, length);
             return;
@@ -130,7 +130,7 @@ impl SkinRuntime {
         let time_cells = time.chars().count() as i32;
         let room = (w - 29 - 4) / 5 - time_cells - 1;
         let mut x = 4;
-        let line: Vec<char> = numbered(index as usize + 1, self.player.tracks().len(), &title)
+        let line: Vec<char> = numbered(index as usize + 1, self.tracks().len(), &title)
             .chars()
             .collect();
         let room = room.max(0) as usize;
@@ -241,7 +241,7 @@ impl SkinRuntime {
 
     /// The first row shown, clamped to the rows that fit under the list's end.
     pub(crate) fn classic_pl_scroll(&self, h: i32) -> i32 {
-        let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+        let past = self.tracks().len() as i32 - self.classic_pl_rows(h);
         self.classic_pl_scroll.clamp(0, past.max(0))
     }
 
@@ -419,7 +419,7 @@ impl SkinRuntime {
             .layout_object(o)
             .is_some_and(|l| self.has_focus(Some(l)));
         let style = self.classic_pledit.clone();
-        let tracks = self.player.tracks();
+        let tracks = self.tracks();
         let current = self.player.track_index();
         let mut p = Painter {
             at,

@@ -527,7 +527,7 @@ impl SkinRuntime {
     }
 
     fn pl_max_scroll(&self, o: ObjId) -> i32 {
-        (PL_TOP + self.player.tracks().len() as i32 * PL_ROW - self.pl_list_rect(o).height).max(0)
+        (PL_TOP + self.tracks().len() as i32 * PL_ROW - self.pl_list_rect(o).height).max(0)
     }
 
     /// The playlist's background: the skin's list color, else the top-left pixel of its list
@@ -558,7 +558,7 @@ impl SkinRuntime {
             return;
         }
         let alpha = self.objects[o].base.effective_alpha;
-        let tracks = self.player.tracks();
+        let tracks = self.tracks();
         let bar = if self.wal_version < 1.0 {
             self.old_bar_colors(o, out)
         } else {
@@ -1012,7 +1012,7 @@ impl SkinRuntime {
     }
 
     fn bring_row_into_view(&mut self, row: i32, centre: bool) {
-        let len = self.player.tracks().len() as i32;
+        let len = self.tracks().len() as i32;
         if len == 0 {
             return;
         }
@@ -1078,7 +1078,7 @@ impl SkinRuntime {
     /// Shows entry `index` (or none) as the playlists' selection, as the host's playlist
     /// has it after it changed the selection or the list itself; the host is not told back.
     pub fn set_playlist_selection(&mut self, index: Option<i32>) {
-        let row = index.filter(|&i| i >= 0 && (i as usize) < self.player.tracks().len());
+        let row = index.filter(|&i| i >= 0 && (i as usize) < self.tracks().len());
         let views: Vec<ObjId> = (0..self.objects.len())
             .filter(|&o| matches!(self.objects[o].kind, Kind::PlaylistView(_)))
             .collect();
@@ -1100,7 +1100,7 @@ impl SkinRuntime {
     fn pl_row_at(&self, o: ObjId, py: i32) -> Option<i32> {
         let rows_top = self.objects[o].base.rect.top + PL_TOP;
         let index = (py - rows_top + self.pl(o).scroll_px) / PL_ROW;
-        if index >= 0 && (index as usize) < self.player.tracks().len() {
+        if index >= 0 && (index as usize) < self.tracks().len() {
             Some(index)
         } else {
             None
@@ -1111,7 +1111,7 @@ impl SkinRuntime {
         let selected = self.pl(o).selected;
         self.playlist_selected_ms = usize::try_from(selected)
             .ok()
-            .and_then(|i| self.player.tracks().get(i).map(|t| t.length_ms))
+            .and_then(|i| self.tracks().get(i).map(|t| t.length_ms))
             .unwrap_or(0);
         self.invalidate();
     }

@@ -417,7 +417,7 @@ impl SkinRuntime {
             }
             // the playlist editor's "selected / total" lengths
             Some("pe_info") => {
-                let total: i32 = p
+                let total: i32 = self
                     .tracks()
                     .iter()
                     .fold(0i32, |a, t| a.wrapping_add(t.length_ms));

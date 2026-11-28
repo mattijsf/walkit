@@ -403,12 +403,21 @@ impl SkinRuntime {
             self.last_switches = switches;
             self.dirty = true;
         }
-        // another list with the same rows shows the same (a player may build the list on every read)
-        let tracks = self.player.tracks();
-        if tracks != self.last_tracks {
-            self.dirty = true;
-            self.last_tracks = tracks;
+        // a numbered playlist changed when its number moved; another list with the same rows
+        // shows the same (a player may build the list on every read)
+        let version = self.player.playlist_version();
+        if version.is_some() {
+            if version != self.last_playlist_version {
+                self.dirty = true;
+            }
+        } else {
+            let tracks = self.player.tracks();
+            if tracks != self.last_tracks {
+                self.dirty = true;
+                self.last_tracks = tracks;
+            }
         }
+        self.last_playlist_version = version;
         let index = self.player.track_index();
         if index != self.last_track_index {
             self.last_track_index = index;
