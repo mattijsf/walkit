@@ -121,6 +121,14 @@ pub trait Player {
             length_ms: self.length_ms(),
         }]
     }
+    /// A number that moves whenever [`Player::tracks`] would give another list (an entry added,
+    /// removed, moved or renamed) and holds while it would not. The engine then reads the list
+    /// once per change instead of on every use, which is several times a tick and once per row
+    /// drawn. `None`, the default, for a player that cannot tell: the list is read whenever it
+    /// is needed, and compared with the last one every tick.
+    fn playlist_version(&self) -> Option<u64> {
+        None
+    }
     /// Which entry is current.
     fn track_index(&self) -> i32 {
         0
@@ -147,8 +155,14 @@ pub struct FakePlayer {
     status: Status,
     started_at: i64,
     paused_at: i32,
-    /// Set to show several entries; empty means the playlist is the current song alone.
+    /// Set to show several entries; empty means the playlist is the current song alone. Set
+    /// it before the runtime holds the player: from then on only [`Player::set_track`] changes
+    /// the list, and moves [`Player::playlist_version`].
     pub playlist: Vec<Track>,
+    /// Whether it numbers its playlist ([`Player::playlist_version`]); on by default. Off, it
+    /// is a player that cannot tell when its list changed.
+    pub numbered: bool,
+    playlist_changes: u64,
     index: i32,
     /// The song's length.
     pub length_ms: i32,
@@ -183,6 +197,8 @@ impl FakePlayer {
             started_at: 0,
             paused_at: 0,
             playlist: Vec::new(),
+            numbered: true,
+            playlist_changes: 0,
             index: 0,
             length_ms: 215_000,
             title: "Andamp - Modern skin demo".to_string(),
@@ -221,6 +237,8 @@ impl Player for FakePlayer {
     fn set_track(&mut self, title: &str, length_ms: i32) {
         self.title = title.to_string();
         self.length_ms = length_ms;
+        // the list shows the current song, or is it
+        self.playlist_changes += 1;
         if let Some(t) = self.playlist.get_mut(self.index.max(0) as usize) {
             t.title = title.to_string();
             t.length_ms = length_ms;
@@ -387,8 +405,12 @@ impl Player for FakePlayer {
         }
     }
 
+    fn playlist_version(&self) -> Option<u64> {
+        self.numbered.then_some(self.playlist_changes)
+    }
     fn track_index(&self) -> i32 {
-        self.index.clamp(0, self.tracks().len() as i32 - 1)
+        // the list's length without building the list
+        self.index.clamp(0, self.playlist.len().max(1) as i32 - 1)
     }
 
     fn play_track(&mut self, index: i32) {

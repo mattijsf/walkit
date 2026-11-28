@@ -49,7 +49,7 @@ impl SkinRuntime {
     /// all or invert: a classic skin's playlist and a modern skin's, which in Winamp is the same
     /// window. Rows past the list are left out, and the host is not told back.
     pub fn set_classic_playlist_selection(&mut self, rows: &[i32]) {
-        let len = self.player.tracks().len() as i32;
+        let len = self.tracks().len() as i32;
         let mut rows: Vec<i32> = rows
             .iter()
             .copied()
@@ -115,7 +115,7 @@ impl SkinRuntime {
         let Some(h) = self.object_info("classic.pl").map(|o| o.rect.height) else {
             return;
         };
-        let past = self.player.tracks().len() as i32 - self.classic_pl_rows(h);
+        let past = self.tracks().len() as i32 - self.classic_pl_rows(h);
         let to = (self.classic_pl_scroll(h) + rows).clamp(0, past.max(0));
         if to != self.classic_pl_scroll {
             self.classic_pl_scroll = to;
@@ -139,7 +139,7 @@ impl SkinRuntime {
         let Some(h) = self.object_info("classic.pl").map(|o| o.rect.height) else {
             return;
         };
-        let len = self.player.tracks().len() as i32;
+        let len = self.tracks().len() as i32;
         if len == 0 {
             return;
         }

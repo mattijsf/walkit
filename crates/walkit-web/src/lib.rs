@@ -470,7 +470,11 @@ pub extern "C" fn wk_rt_host_player_tracks(id: i32, list: *const u8, len: usize)
         .collect();
     with_rt(id, |r| match &r.hosted {
         Some(h) => {
-            h.borrow_mut().tracks = tracks;
+            let mut h = h.borrow_mut();
+            if h.tracks != tracks {
+                h.tracks = tracks;
+                h.tracks_version += 1;
+            }
             1
         }
         None => 0,

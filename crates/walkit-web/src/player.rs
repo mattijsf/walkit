@@ -33,6 +33,8 @@ pub struct HostState {
     pub vu: (i32, i32),
     pub track_index: i32,
     pub tracks: Vec<Track>,
+    /// Moves with every other list `tracks` is set to.
+    pub tracks_version: u64,
 }
 
 impl Default for HostState {
@@ -57,6 +59,7 @@ impl Default for HostState {
             vu: (0, 0),
             track_index: 0,
             tracks: Vec::new(),
+            tracks_version: 0,
         }
     }
 }
@@ -208,6 +211,11 @@ impl Player for HostPlayer {
     }
     fn track_index(&self) -> i32 {
         self.0.borrow().track_index
+    }
+    // the pushed list is numbered; the song playing alone, before any, is not
+    fn playlist_version(&self) -> Option<u64> {
+        let h = self.0.borrow();
+        (!h.tracks.is_empty()).then_some(h.tracks_version)
     }
     // the playlist the page pushed (`wk_rt_host_player_tracks`); before any, the song playing
     fn tracks(&self) -> Vec<Track> {

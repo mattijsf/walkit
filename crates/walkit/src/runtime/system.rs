@@ -177,7 +177,7 @@ impl SkinRuntime {
                     .set_eq_preamp((arg(args, 0).as_int() + EQ_FLAT).clamp(0, 255));
                 Value::Null
             }
-            "getplaylistlength" => int(self.player.tracks().len() as i32),
+            "getplaylistlength" => int(self.tracks().len() as i32),
             "getplaylistindex" => int(self.player.track_index()),
             // the player can only make an entry current by playing it: while it is stopped or
             // paused, the current entry stays
@@ -185,7 +185,7 @@ impl SkinRuntime {
                 let index = arg(args, 0).as_int();
                 if self.player.status() == Status::Playing
                     && index >= 0
-                    && (index as usize) < self.player.tracks().len()
+                    && (index as usize) < self.tracks().len()
                 {
                     self.player.play_track(index);
                 }
