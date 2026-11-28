@@ -1191,6 +1191,14 @@ EQ_LABEL_Y = 96
 EQ_PREAMP_X = 23
 EQ_BAND_X = [65 + 22 * i for i in range(10)]
 EQ_LABELS = ["60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K", "16K"]
+# +12, 0 and -12 (ids eq.max, eq.flat, eq.min) centered on the thumb at the top, middle and
+# bottom of its travel, ending at x 56; each a button 20 x 9 round its label that sets every
+# band to it (scripts/eq.maki)
+EQ_LEVELS = [("max", "+12", 0), ("flat", "0", (EQ_SLIDER_H - 7) // 2), ("min", "-12", EQ_SLIDER_H - 7)]
+EQ_LEVEL_X, EQ_LEVEL_W, EQ_LEVEL_H = 38, 20, 9
+# the curve's well and the presets button right of it, to the right edge of the sliders' well
+EQ_CURVE_W = 167
+EQ_PRESETS_W = 50
 
 
 def modern_eq_bg():
@@ -1198,19 +1206,34 @@ def modern_eq_bg():
     img.edges(0, 0, EQ_W, EQ_H, BG_HI, EDGE)
     title_strip(img, 1, 1, EQ_W - 2, 15, "EQUALIZER", True)
     # the curve's well, then the sliders' well with a groove under each slider
-    img.sunken(72, 20, 220, 14)
+    img.sunken(72, 20, EQ_CURVE_W, 14)
     img.sunken(7, 38, 286, 67)
     for x in [EQ_PREAMP_X] + EQ_BAND_X:
         img.vline(x + 7, EQ_SLIDER_Y + 2, EQ_SLIDER_H - 4, GROOVE)
-    # +12, 0 and -12 centered on the thumb at the top, middle and bottom of its travel
-    travel = EQ_SLIDER_H - 7
-    for label, at in (("+12", 0), ("0", travel // 2), ("-12", travel)):
-        y = EQ_SLIDER_Y + at + 3 - 2
-        draw_text(img, 57 - text_width(label), y, label, INK_DIM)
+    for _, label, at in EQ_LEVELS:
+        draw_text(img, 57 - text_width(label), EQ_SLIDER_Y + at + 1, label, INK_DIM)
     draw_text_centered(img, EQ_PREAMP_X, EQ_LABEL_Y, 14, "PRE", INK_DIM)
     for x, label in zip(EQ_BAND_X, EQ_LABELS):
         draw_text_centered(img, x, EQ_LABEL_Y, 14, label, INK_DIM)
     return img
+
+
+def modern_eq_level(label, down):
+    """A level's button: its label on the well, lit while held."""
+    img = Canvas(EQ_LEVEL_W, EQ_LEVEL_H, PANEL)
+    draw_text(img, EQ_LEVEL_W - 1 - text_width(label), 2, label, ACCENT if down else INK_DIM)
+    return img
+
+
+def eq_level_xml():
+    lines = []
+    for name, label, at in EQ_LEVELS:
+        y = EQ_SLIDER_Y + at + 1 - 2
+        lines.append(
+            f'      <button id="eq.{name}" x="{EQ_LEVEL_X}" y="{y}" image="eq.{name}" '
+            f'downImage="eq.{name}.down" tooltip="All bands to {label} dB"/>'
+        )
+    return "\n".join(lines)
 
 
 def modern_led_button(label, w, h, state):
@@ -1448,6 +1471,14 @@ FRAME_ELEMENTS
     <bitmap id="eq.auto.lit" file="img/eq-auto-lit.png"/>
     <bitmap id="eq.auto.down" file="img/eq-auto-down.png"/>
     <bitmap id="eq.thumb" file="img/eq-thumb.png"/>
+    <bitmap id="eq.presets" file="img/eq-presets.png"/>
+    <bitmap id="eq.presets.down" file="img/eq-presets-down.png"/>
+    <bitmap id="eq.max" file="img/eq-max.png"/>
+    <bitmap id="eq.max.down" file="img/eq-max-down.png"/>
+    <bitmap id="eq.flat" file="img/eq-flat.png"/>
+    <bitmap id="eq.flat.down" file="img/eq-flat-down.png"/>
+    <bitmap id="eq.min" file="img/eq-min.png"/>
+    <bitmap id="eq.min.down" file="img/eq-min-down.png"/>
     <bitmap id="eq.thumb.down" file="img/eq-thumb-down.png"/>
     <bitmap id="seek.thumb" file="img/seek-thumb.png"/>
     <bitmap id="seek.thumb.down" file="img/seek-thumb-down.png"/>
@@ -1528,8 +1559,12 @@ FRAME_GROUPS
         downImage="eq.on.down" tooltip="Equalizer on/off"/>
       <button id="eq.auto" action="EQ_AUTO" x="36" y="21" image="eq.auto" activeImage="eq.auto.lit"
         downImage="eq.auto.down" tooltip="Load presets with each song"/>
-      <eqvis id="eq.curve" x="74" y="22" w="216" h="10" colortop="200,255,245"
+      <eqvis id="eq.curve" x="74" y="22" w="163" h="10" colortop="200,255,245"
         colormiddle="45,212,191" colorbottom="22,96,88" colorpreamp="112,120,131"/>
+      <button id="eq.presets" action="MENU" param="presets" x="243" y="21" image="eq.presets"
+        downImage="eq.presets.down" tooltip="Presets"/>
+EQ_LEVEL_BUTTONS
+      <script id="eq.script" file="scripts/eq.maki"/>
       <slider id="eq.preamp" action="EQ_BAND" param="preamp" x="23" y="42" w="14" h="52"
         orientation="vertical" thumb="eq.thumb" downThumb="eq.thumb.down" tooltip="Preamp"/>
       <slider id="eq.1" action="EQ_BAND" param="1" x="65" y="42" w="14" h="52"
@@ -1585,6 +1620,7 @@ def skin_xml():
     line and the content under it, up to its </layout>, becomes that window's layout."""
     elements, groups, layouts = framed_xml()
     xml = SKIN_XML.replace("WASABI_ELEMENTS", wasabi_elements_xml())
+    xml = xml.replace("EQ_LEVEL_BUTTONS", eq_level_xml())
     xml = xml.replace("FRAME_ELEMENTS", elements).replace("FRAME_GROUPS", groups)
     for prefix, layout in layouts.items():
         start = xml.index(f"LAYOUT_{prefix.upper()}\n")
@@ -1607,6 +1643,10 @@ def modern_files():
         "img/eq-down.png": png(modern_text_button("EQ", 20, 18, True)),
         "img/eq-thumb.png": png(modern_thumb(14, 7, ACCENT)),
         "img/eq-thumb-down.png": png(modern_thumb(14, 7, INK)),
+        "img/eq-presets.png": png(modern_text_button("PRESETS", EQ_PRESETS_W, 12, False)),
+        "img/eq-presets-down.png": png(modern_text_button("PRESETS", EQ_PRESETS_W, 12, True)),
+        # the equalizer's script, compiled from eq.m beside this file
+        "scripts/eq.maki": open(os.path.join(HERE, "eq.maki"), "rb").read(),
         "img/close.png": png(modern_close(False)),
         "img/close-down.png": png(modern_close(True)),
         "img/pl.png": png(modern_text_button("PL", 20, 18, False)),
@@ -1616,6 +1656,9 @@ def modern_files():
         "img/volume-thumb.png": png(modern_thumb(10, 12, ACCENT)),
         "img/volume-thumb-down.png": png(modern_thumb(10, 12, INK)),
     }
+    for name, label, _ in EQ_LEVELS:
+        files[f"img/eq-{name}.png"] = png(modern_eq_level(label, False))
+        files[f"img/eq-{name}-down.png"] = png(modern_eq_level(label, True))
     for label, name, w in (("ON", "eq-on", 26), ("AUTO", "eq-auto", 34)):
         files[f"img/{name}.png"] = png(modern_led_button(label, w, 12, "off"))
         files[f"img/{name}-lit.png"] = png(modern_led_button(label, w, 12, "lit"))

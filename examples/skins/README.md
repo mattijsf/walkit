@@ -5,9 +5,10 @@ Two small skins the example apps show when they cannot download a skin:
 - `walkit-classic.wsz`: a classic skin with the main window, equalizer and playlist editor,
   their shade bars, the `gen.bmp` frame of the visualizer, library and plug-in windows,
   `genex.bmp`, `pledit.txt` and `viscolor.txt`.
-- `walkit-modern.wal`: a modern skin (`skin.xml` and PNGs, no scripts), every window 300
+- `walkit-modern.wal`: a modern skin (`skin.xml`, PNGs and one script), every window 300
   pixels wide for phone screens: a main window (song title, time, song info, vis, seek and
-  volume sliders, transport buttons, equalizer and playlist toggles), an equalizer, a playlist,
+  volume sliders, transport buttons, equalizer and playlist toggles), an equalizer (with a
+  presets button, and +12, 0 and -12 labels that set every band), a playlist,
   a visualizer window that holds the host's visualizer, and a media library window. The
   playlist, visualizer and media library resize from their bottom right corner. It also
   replaces the wasabi base's frame, title bar, buttons, scroll bars and list colors, so the
@@ -30,3 +31,7 @@ python3 examples/skins/make-skins.py
 ```
 
 The output is the same on every run: entries are sorted and carry a fixed time.
+
+`eq.m` is the modern equalizer's script. `eq.maki` is the same script compiled with `mc.exe`
+from the Wasabi SDK (`mc.exe eq.m`, on Windows), and `make-skins.py` puts that file in the
+skin as `scripts/eq.maki`. Compile it again after a change to `eq.m`.
