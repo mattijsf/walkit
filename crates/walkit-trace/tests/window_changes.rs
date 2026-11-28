@@ -41,8 +41,13 @@ fn skins() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/skins")
 }
 
-/// The example skin `file`, playing a playlist of 30 on `clock`, its windows set out apart.
+/// The example skin `file` with a playlist of 30 on `clock`, its windows set out apart.
 fn runtime(file: &str, clock: &Clock, numbered: bool) -> SkinRuntime {
+    runtime_playing(file, clock, numbered, 215_000)
+}
+
+/// [`runtime`] with a song `length_ms` long.
+fn runtime_playing(file: &str, clock: &Clock, numbered: bool, length_ms: i32) -> SkinRuntime {
     let files: Rc<dyn SkinFiles> = Rc::new(read_wal(&skins().join(file)).expect("the skin"));
     let host = TraceHost::new(
         files.clone(),
@@ -52,6 +57,7 @@ fn runtime(file: &str, clock: &Clock, numbered: bool) -> SkinRuntime {
     );
     let mut player = FakePlayer::new(clock.clone());
     player.numbered = numbered;
+    player.length_ms = length_ms;
     player.playlist = (0..30)
         .map(|i| Track {
             title: format!("Song {i}"),
@@ -255,4 +261,36 @@ fn nothing_changed_draws_nothing() {
     assert!(!rt.tick());
     assert_eq!(rt.changed_windows(), WindowChanges::Nothing);
     assert!(rt.draw_changed_windows().is_empty());
+}
+
+#[test]
+fn a_seek_bar_that_follows_the_song_draws_its_own_window_again() {
+    let now = Rc::new(Cell::new(START));
+    let clock: Clock = {
+        let now = now.clone();
+        Rc::new(move || now.get())
+    };
+    // a song of 10 seconds: the thumb moves with nearly every tick
+    let mut rt = runtime_playing("walkit-modern.wal", &clock, true, 10_000);
+    rt.player().play();
+    rt.tick();
+    rt.draw_changed_windows();
+    let main = rt.main_window().expect("a main window");
+    let mut followed = 0;
+    for _ in 0..200 {
+        now.set(now.get() + 25);
+        rt.tick();
+        let changes = rt.changed_windows();
+        assert_ne!(
+            changes,
+            WindowChanges::All,
+            "nothing but moving parts changed"
+        );
+        if let WindowChanges::Windows(ids) = &changes {
+            assert_eq!(ids, &[main], "only the main window shows the song");
+            followed += 1;
+        }
+        rt.draw_changed_windows();
+    }
+    assert!(followed > 150, "{followed} ticks drew the main window");
 }

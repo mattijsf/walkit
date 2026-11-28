@@ -365,9 +365,10 @@ impl SkinRuntime {
         self.moved_dirty = false;
         let moved = std::mem::take(&mut self.moved_windows);
         let objects = std::mem::take(&mut self.moved_objects);
+        let whole = std::mem::take(&mut self.whole_windows);
         let mut out = Vec::new();
         for l in self.z_windows() {
-            let kept = if !moved_only {
+            let kept = if !moved_only || whole.contains(&l) {
                 None
             } else if moved.contains(&l) {
                 self.redraw_moved(l, &objects)
@@ -521,6 +522,7 @@ impl SkinRuntime {
                 self.moved_dirty = false;
                 self.moved_windows.clear();
                 self.moved_objects.clear();
+                self.whole_windows.clear();
                 return Vec::new();
             }
             WindowChanges::Windows(ids) => Some(ids),
